@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  /* Primary - Deep purple açaí */
+  --background: 20 14% 98%;
+  --foreground: 280 50% 15%;
+  
+  /* Card/Surface */
+  --card: 0 0% 100%;
+  --card-foreground: 280 50% 15%;
+  
+  /* Primary - Açaí purple */
+  --primary: 280 60% 35%;
+  --primary-foreground: 0 0% 100%;
+  
+  /* Secondary - Light lavender */
+  --secondary: 280 30% 95%;
+  --secondary-foreground: 280 50% 25%;
+  
+  /* Muted */
+  --muted: 280 10% 92%;
+  --muted-foreground: 280 15% 45%;
+  
+  /* Accent - Tropical pink */
+  --accent: 330 70% 55%;
+  --accent-foreground: 0 0% 100%;
+  
+  /* Border */
+  --border: 280 15% 88%;
+  
+  /* Ring */
+  --ring: 280 60% 35%;
+  
+  --radius: 0.75rem;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
