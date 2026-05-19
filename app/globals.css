@@ -1,35 +1,39 @@
 @import "tailwindcss";
 
 :root {
-  /* Primary - Deep purple açaí */
-  --background: 20 14% 98%;
-  --foreground: 280 50% 15%;
+  /* Background - Dark purple/black */
+  --background: 270 50% 8%;
+  --foreground: 0 0% 95%;
   
-  /* Card/Surface */
-  --card: 0 0% 100%;
-  --card-foreground: 280 50% 15%;
+  /* Card - Dark with purple tint */
+  --card: 270 40% 12%;
+  --card-foreground: 0 0% 95%;
   
-  /* Primary - Açaí purple */
-  --primary: 280 60% 35%;
+  /* Primary - Vibrant purple */
+  --primary: 270 70% 50%;
   --primary-foreground: 0 0% 100%;
   
-  /* Secondary - Light lavender */
-  --secondary: 280 30% 95%;
-  --secondary-foreground: 280 50% 25%;
+  /* Secondary */
+  --secondary: 270 30% 20%;
+  --secondary-foreground: 0 0% 90%;
   
   /* Muted */
-  --muted: 280 10% 92%;
-  --muted-foreground: 280 15% 45%;
+  --muted: 270 20% 18%;
+  --muted-foreground: 270 10% 60%;
   
-  /* Accent - Tropical pink */
-  --accent: 330 70% 55%;
+  /* Accent - Bright purple */
+  --accent: 280 80% 60%;
   --accent-foreground: 0 0% 100%;
   
-  /* Border */
-  --border: 280 15% 88%;
+  /* Border - Purple tint */
+  --border: 270 50% 25%;
   
   /* Ring */
-  --ring: 280 60% 35%;
+  --ring: 270 70% 50%;
+  
+  /* Success */
+  --success: 142 70% 45%;
+  --success-foreground: 0 0% 100%;
   
   --radius: 0.75rem;
 }
@@ -42,4 +46,22 @@ body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary));
 }
