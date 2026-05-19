@@ -1,67 +1,31 @@
 @import "tailwindcss";
 
-:root {
-  /* Background - Dark purple/black */
-  --background: 270 50% 8%;
-  --foreground: 0 0% 95%;
-  
-  /* Card - Dark with purple tint */
-  --card: 270 40% 12%;
-  --card-foreground: 0 0% 95%;
-  
-  /* Primary - Vibrant purple */
-  --primary: 270 70% 50%;
-  --primary-foreground: 0 0% 100%;
-  
-  /* Secondary */
-  --secondary: 270 30% 20%;
-  --secondary-foreground: 0 0% 90%;
-  
-  /* Muted */
-  --muted: 270 20% 18%;
-  --muted-foreground: 270 10% 60%;
-  
-  /* Accent - Bright purple */
-  --accent: 280 80% 60%;
-  --accent-foreground: 0 0% 100%;
-  
-  /* Border - Purple tint */
-  --border: 270 50% 25%;
-  
-  /* Ring */
-  --ring: 270 70% 50%;
-  
-  /* Success */
-  --success: 142 70% 45%;
-  --success-foreground: 0 0% 100%;
-  
-  --radius: 0.75rem;
+@theme inline {
+  --font-sans: "Inter", system-ui, sans-serif;
 }
 
 * {
-  border-color: hsl(var(--border));
+  box-sizing: border-box;
 }
 
 body {
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  font-family: var(--font-sans), system-ui, sans-serif;
+  background: #0d0517;
+  color: #f5f5f5;
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
 }
 
-/* Custom scrollbar for dark theme */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--background));
+  background: #0d0517;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
+  background: #3b1f6b;
   border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary));
 }
