@@ -39,7 +39,8 @@ const products: Product[] = [
 ]
 
 const PIX_KEY = "11918505799"
-const PIX_NAME = "Carina Silva"
+const PIX_KEY_FULL = "+5511918505799"
+const PIX_NAME = "Carina Karen da Silva"
 const WHATSAPP_NUMBER = "5511966095057"
 
 export default function Home() {
@@ -53,6 +54,7 @@ export default function Home() {
   const [showCart, setShowCart] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copiedPixCopiaECola, setCopiedPixCopiaECola] = useState(false)
 
   const updateQuantity = (id: number, delta: number) => {
     setQuantities((prev) => ({
@@ -88,15 +90,15 @@ export default function Home() {
     }
   }
 
-  const generatePixQRCode = () => {
-    // Gera payload PIX estático válido
-    const pixKey = PIX_KEY
-    const merchantName = "CARINA SILVA"
+  // Gera o código PIX Copia e Cola no padrão EMV BR Code
+  const generatePixCopiaECola = () => {
+    const pixKey = PIX_KEY_FULL
+    const merchantName = "CARINA KAREN DA SILVA"
     const merchantCity = "SAO PAULO"
     const amount = getTotal().toFixed(2)
     
-    // Função para calcular CRC16
-    const crc16 = (str: string) => {
+    // Função para calcular CRC16-CCITT-FALSE
+    const crc16 = (str: string): string => {
       let crc = 0xFFFF
       for (let i = 0; i < str.length; i++) {
         crc ^= str.charCodeAt(i) << 8
@@ -106,39 +108,106 @@ export default function Home() {
           } else {
             crc <<= 1
           }
+          crc &= 0xFFFF
         }
       }
       return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0')
     }
 
     // Função para criar campo TLV (Tag-Length-Value)
-    const tlv = (tag: string, value: string) => {
+    const tlv = (tag: string, value: string): string => {
       const length = value.length.toString().padStart(2, '0')
       return `${tag}${length}${value}`
     }
 
-    // Monta o payload PIX
-    const merchantAccountInfo = 
-      tlv("00", "br.gov.bcb.pix") + 
-      tlv("01", pixKey)
+    // GUI do PIX
+    const gui = tlv("00", "br.gov.bcb.pix")
+    // Chave PIX
+    const chave = tlv("01", pixKey)
+    // Merchant Account Information (ID 26)
+    const merchantAccountInfo = tlv("26", gui + chave)
 
-    let payload = 
-      tlv("00", "01") + // Payload Format Indicator
-      tlv("26", merchantAccountInfo) + // Merchant Account Information
-      tlv("52", "0000") + // Merchant Category Code
-      tlv("53", "986") + // Transaction Currency (BRL)
-      tlv("54", amount) + // Transaction Amount
-      tlv("58", "BR") + // Country Code
-      tlv("59", merchantName) + // Merchant Name
-      tlv("60", merchantCity) + // Merchant City
-      tlv("62", tlv("05", "***")) + // Additional Data Field Template
-      "6304" // CRC placeholder
+    // Monta o payload base
+    let payload = ""
+    payload += tlv("00", "01") // Payload Format Indicator
+    payload += tlv("01", "12") // Point of Initiation Method (12 = dinâmico)
+    payload += merchantAccountInfo // Merchant Account Information
+    payload += tlv("52", "0000") // Merchant Category Code
+    payload += tlv("53", "986") // Transaction Currency (986 = BRL)
+    payload += tlv("54", amount) // Transaction Amount
+    payload += tlv("58", "BR") // Country Code
+    payload += tlv("59", merchantName) // Merchant Name (max 25 chars)
+    payload += tlv("60", merchantCity) // Merchant City (max 15 chars)
+    payload += tlv("62", tlv("05", "***")) // Additional Data Field Template
+    payload += "6304" // CRC16 placeholder
+
+    // Calcula CRC16 e substitui o placeholder
+    const crcValue = crc16(payload)
+    return payload.replace("6304", "6304" + crcValue).replace("63046304", "6304")
+  }
+
+  const getPixCopiaECola = () => {
+    const pixKey = PIX_KEY_FULL
+    const merchantName = "CARINA KAREN DA SILVA"
+    const merchantCity = "SAO PAULO"
+    const amount = getTotal().toFixed(2)
+    
+    const crc16 = (str: string): string => {
+      let crc = 0xFFFF
+      for (let i = 0; i < str.length; i++) {
+        crc ^= str.charCodeAt(i) << 8
+        for (let j = 0; j < 8; j++) {
+          if (crc & 0x8000) {
+            crc = (crc << 1) ^ 0x1021
+          } else {
+            crc <<= 1
+          }
+          crc &= 0xFFFF
+        }
+      }
+      return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0')
+    }
+
+    const tlv = (tag: string, value: string): string => {
+      const length = value.length.toString().padStart(2, '0')
+      return `${tag}${length}${value}`
+    }
+
+    const gui = tlv("00", "br.gov.bcb.pix")
+    const chave = tlv("01", pixKey)
+    const merchantAccountInfo = tlv("26", gui + chave)
+
+    let payload = ""
+    payload += tlv("00", "01")
+    payload += tlv("01", "12")
+    payload += merchantAccountInfo
+    payload += tlv("52", "0000")
+    payload += tlv("53", "986")
+    payload += tlv("54", amount)
+    payload += tlv("58", "BR")
+    payload += tlv("59", merchantName)
+    payload += tlv("60", merchantCity)
+    payload += tlv("62", tlv("05", "***"))
+    payload += "6304"
 
     const crcValue = crc16(payload)
-    payload = payload.slice(0, -4) + crcValue
+    return payload.slice(0, -4) + "6304" + crcValue
+  }
 
-    // URL para gerar QR Code via API
-    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(payload)}`
+  const copyPixCopiaECola = async () => {
+    try {
+      const pixCode = getPixCopiaECola()
+      await navigator.clipboard.writeText(pixCode)
+      setCopiedPixCopiaECola(true)
+      setTimeout(() => setCopiedPixCopiaECola(false), 2000)
+    } catch {
+      alert("Erro ao copiar. Tente novamente.")
+    }
+  }
+
+  const generatePixQRCode = () => {
+    const pixCode = getPixCopiaECola()
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pixCode)}`
   }
 
   const openCheckout = () => {
@@ -472,6 +541,23 @@ ${formData.observacao || "Nenhuma"}${pixMessage}`
                       </div>
                     </div>
 
+                    {/* Pix Copia e Cola */}
+                    <div className="bg-input rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs text-muted-foreground">Pix Copia e Cola</p>
+                        <button
+                          onClick={copyPixCopiaECola}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-primary rounded-lg text-primary-foreground text-xs font-medium transition-all hover:brightness-110 active:scale-95"
+                        >
+                          {copiedPixCopiaECola ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          {copiedPixCopiaECola ? "Copiado!" : "Copiar Pix Copia e Cola"}
+                        </button>
+                      </div>
+                      <p className="font-mono text-xs text-muted-foreground break-all bg-background/50 p-2 rounded-lg">
+                        {getPixCopiaECola()}
+                      </p>
+                    </div>
+
                     <div className="space-y-2">
                       <div className="flex items-center justify-between bg-input rounded-xl px-4 py-3">
                         <div>
@@ -499,7 +585,7 @@ ${formData.observacao || "Nenhuma"}${pixMessage}`
 
                     <div className="bg-primary/20 border border-primary/30 rounded-xl p-3">
                       <p className="text-sm text-foreground text-center">
-                        Após o pagamento envie o comprovante no WhatsApp
+                        Apos pagar, envie o comprovante no WhatsApp
                       </p>
                     </div>
                   </div>
