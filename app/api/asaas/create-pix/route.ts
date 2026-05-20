@@ -109,10 +109,13 @@ export async function POST(request: NextRequest) {
     const dueDate = new Date(today.getTime() + 24 * 60 * 60 * 1000) // Amanha
     const dueDateStr = dueDate.toISOString().split("T")[0]
 
+    // Garantir que o valor seja um numero com 2 casas decimais
+    const paymentValue = Number(Number(body.value).toFixed(2))
+
     const paymentPayload = {
       customer: customerId,
       billingType: "PIX",
-      value: body.value,
+      value: paymentValue,
       dueDate: dueDateStr,
       description: body.description || "Pedido P.K Gostosuras",
       externalReference: body.externalReference,

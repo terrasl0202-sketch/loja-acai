@@ -298,6 +298,12 @@ export default function Home() {
       
       console.log("[v0] Resposta create-pix:", data)
 
+      if (!response.ok || data.error) {
+        console.error("[v0] Erro da API Asaas:", data.error || data.details || "Erro desconhecido")
+        setPaymentStatus("error")
+        return
+      }
+
       if (data.success && data.pixQrCode && data.pixCopyPaste) {
         setPixData({
           paymentId: data.paymentId,
