@@ -42,13 +42,15 @@ const products: Product[] = [
 const PIX_KEY = "11918505799"
 const PIX_KEY_FULL = "+5511918505799"
 const PIX_NAME = "Carina Karen da Silva"
-const WHATSAPP_NUMBER = "5511966095057"
+const WHATSAPP_NUMBER = "5511918505799"
 
 export default function Home() {
   const [quantities, setQuantities] = useState<Record<number, number>>({})
   const [formData, setFormData] = useState({
     nome: "",
     endereco: "",
+    numero: "",
+    referencia: "",
     pagamento: "pix",
     observacao: "",
   })
@@ -262,8 +264,8 @@ export default function Home() {
   }
 
   const handleSubmit = () => {
-    if (!formData.nome || !formData.endereco) {
-      alert("Por favor, preencha seu nome e endereço!")
+    if (!formData.nome || !formData.endereco || !formData.numero || !formData.referencia) {
+      alert("Por favor, preencha todos os campos obrigatorios: Nome, Endereco, Numero e Referencia!")
       return
     }
 
@@ -274,24 +276,28 @@ export default function Home() {
 
     const pagamentoTexto = formData.pagamento === "pix" ? "Pix" : 
                           formData.pagamento === "dinheiro" ? "Dinheiro" : 
-                          "Cartão"
+                          "Cartao"
 
-    const pixMessage = formData.pagamento === "pix" ? "\n\nVou enviar o comprovante." : ""
+    const pixMessage = formData.pagamento === "pix" ? "\n\nPix escolhido. Cliente enviara o comprovante." : ""
 
     const message = `🛒 NOVO PEDIDO - P.K Gostosuras
 
 Itens:
 ${orderItems}
 
-💰 Total: ${formatCurrency(getTotal())}
+Total:
+${formatCurrency(getTotal())}
 
-📍 Endereço:
-${formData.endereco}
+Dados para Entrega:
+Nome: ${formData.nome}
+Endereco: ${formData.endereco}
+Numero: ${formData.numero}
+Referencia: ${formData.referencia}
 
-💳 Pagamento:
+Pagamento:
 ${pagamentoTexto}
 
-📝 Observação:
+Observacao:
 ${formData.observacao || "Nenhuma"}${pixMessage}`
 
     const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
@@ -500,7 +506,7 @@ ${formData.observacao || "Nenhuma"}${pixMessage}`
                 <div>
                   <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                     <User className="w-4 h-4" />
-                    Nome
+                    Nome *
                   </label>
                   <input
                     type="text"
@@ -514,13 +520,41 @@ ${formData.observacao || "Nenhuma"}${pixMessage}`
                 <div>
                   <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                     <MapPin className="w-4 h-4" />
-                    Endereço
+                    Endereco *
                   </label>
                   <input
                     type="text"
                     value={formData.endereco}
                     onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                    placeholder="Rua, número, bairro"
+                    placeholder="Rua, bairro"
+                    className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                    <MapPin className="w-4 h-4" />
+                    Numero *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.numero}
+                    onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
+                    placeholder="Numero da casa/apartamento"
+                    className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                    <MapPin className="w-4 h-4" />
+                    Referencia *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.referencia}
+                    onChange={(e) => setFormData({ ...formData, referencia: e.target.value })}
+                    placeholder="Ponto de referencia"
                     className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                   />
                 </div>
@@ -528,7 +562,7 @@ ${formData.observacao || "Nenhuma"}${pixMessage}`
                 <div>
                   <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                     <MessageSquare className="w-4 h-4" />
-                    Observações (opcional)
+                    Observacoes (opcional)
                   </label>
                   <textarea
                     value={formData.observacao}
