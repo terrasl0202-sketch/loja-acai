@@ -431,6 +431,11 @@ ${formData.observacao || "Nenhuma"}${pixMessage}`
 
         {/* Spacer for fixed button */}
         <div className="h-4" />
+
+        {/* Footer */}
+        <footer className="text-center py-4 text-xs text-muted-foreground">
+          Atualizado
+        </footer>
       </div>
 
       {/* Fixed Bottom Button */}
