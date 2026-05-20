@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import Image from "next/image"
 import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check } from "lucide-react"
+import { QRCodeSVG } from "qrcode.react"
 
 interface Product {
   id: number
@@ -55,6 +56,8 @@ export default function Home() {
   const [showCheckout, setShowCheckout] = useState(false)
   const [copied, setCopied] = useState(false)
   const [copiedPixCopiaECola, setCopiedPixCopiaECola] = useState(false)
+  const [copyMessage, setCopyMessage] = useState("")
+  const pixTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const updateQuantity = (id: number, delta: number) => {
     setQuantities((prev) => ({
@@ -82,11 +85,23 @@ export default function Home() {
 
   const copyPixKey = async () => {
     try {
-      await navigator.clipboard.writeText(PIX_KEY)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(PIX_KEY)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } else {
+        const textarea = document.createElement("textarea")
+        textarea.value = PIX_KEY
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand("copy")
+        document.body.removeChild(textarea)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }
     } catch {
-      alert("Chave PIX: " + PIX_KEY)
+      setCopyMessage("Copie manualmente a chave: " + PIX_KEY)
+      setTimeout(() => setCopyMessage(""), 5000)
     }
   }
 
@@ -197,17 +212,33 @@ export default function Home() {
   const copyPixCopiaECola = async () => {
     try {
       const pixCode = getPixCopiaECola()
-      await navigator.clipboard.writeText(pixCode)
-      setCopiedPixCopiaECola(true)
-      setTimeout(() => setCopiedPixCopiaECola(false), 2000)
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(pixCode)
+        setCopiedPixCopiaECola(true)
+        setTimeout(() => setCopiedPixCopiaECola(false), 2000)
+      } else {
+        // Fallback: selecionar o textarea
+        if (pixTextareaRef.current) {
+          pixTextareaRef.current.select()
+          pixTextareaRef.current.setSelectionRange(0, 99999)
+          document.execCommand("copy")
+          setCopiedPixCopiaECola(true)
+          setTimeout(() => setCopiedPixCopiaECola(false), 2000)
+        }
+      }
     } catch {
-      alert("Erro ao copiar. Tente novamente.")
+      // Fallback: mostrar mensagem para copiar manualmente
+      if (pixTextareaRef.current) {
+        pixTextareaRef.current.select()
+        pixTextareaRef.current.setSelectionRange(0, 99999)
+      }
+      setCopyMessage("Copie manualmente o codigo Pix abaixo")
+      setTimeout(() => setCopyMessage(""), 5000)
     }
   }
 
   const generatePixQRCode = () => {
-    const pixCode = getPixCopiaECola()
-    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pixCode)}`
+    return getPixCopiaECola()
   }
 
   const openCheckout = () => {
@@ -529,14 +560,12 @@ ${formData.observacao || "Nenhuma"}${pixMessage}`
                   <div className="bg-secondary/50 rounded-xl p-4 space-y-4">
                     <div className="text-center">
                       <p className="text-sm text-muted-foreground mb-3">Escaneie o QR Code para pagar</p>
-                      <div className="inline-block bg-white p-3 rounded-xl">
-                        <Image
-                          src={generatePixQRCode()}
-                          alt="QR Code PIX"
-                          width={180}
-                          height={180}
-                          className="mx-auto"
-                          unoptimized
+                      <div className="inline-block bg-white p-4 rounded-xl">
+                        <QRCodeSVG 
+                          value={generatePixQRCode()}
+                          size={180}
+                          level="M"
+                          includeMargin={false}
                         />
                       </div>
                     </div>
@@ -553,9 +582,17 @@ ${formData.observacao || "Nenhuma"}${pixMessage}`
                           {copiedPixCopiaECola ? "Copiado!" : "Copiar Pix Copia e Cola"}
                         </button>
                       </div>
-                      <p className="font-mono text-xs text-muted-foreground break-all bg-background/50 p-2 rounded-lg">
-                        {getPixCopiaECola()}
-                      </p>
+                      <textarea
+                        ref={pixTextareaRef}
+                        readOnly
+                        value={getPixCopiaECola()}
+                        onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                        className="w-full font-mono text-xs text-foreground bg-background/50 p-3 rounded-lg border-0 resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                        rows={3}
+                      />
+                      {copyMessage && (
+                        <p className="text-xs text-accent mt-2 text-center font-medium">{copyMessage}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
