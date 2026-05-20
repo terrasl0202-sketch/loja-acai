@@ -1,0 +1,9 @@
+{
+  "buildCommand": "next build",
+  "framework": "nextjs",
+  "devCommand": "next dev",
+  "installCommand": "pnpm install",
+  "env": {
+    "NEXT_PUBLIC_HIDE_V0_BADGE": "true"
+  }
+}
