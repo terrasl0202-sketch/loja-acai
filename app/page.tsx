@@ -49,6 +49,7 @@ export default function Home() {
   const [quantities, setQuantities] = useState<Record<number, number>>({})
   const [formData, setFormData] = useState({
     nome: "",
+    cpf: "",
     endereco: "",
     numero: "",
     referencia: "",
@@ -193,6 +194,13 @@ export default function Home() {
       return
     }
 
+    // Validar CPF para pagamento PIX
+    const cleanCpf = formData.cpf.replace(/\D/g, "")
+    if (formData.pagamento === "pix" && cleanCpf.length !== 11) {
+      alert("Informe seu CPF (11 digitos) para gerar o Pix.")
+      return
+    }
+
     if (deliveryType === "entrega" && (!formData.endereco || !formData.numero || !formData.referencia)) {
       alert("Por favor, preencha todos os campos de entrega!")
       return
@@ -215,6 +223,7 @@ export default function Home() {
           value: getTotal(),
           description: `Pedido ${newOrderId} - ${orderItems}`,
           customerName: formData.nome,
+          customerCpf: cleanCpf,
           externalReference: newOrderId,
         }),
       })
@@ -742,6 +751,27 @@ ${formData.observacao || "Nenhuma"}`
                         value={formData.nome}
                         onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                         placeholder="Seu nome completo"
+                        className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                        <CreditCard className="w-4 h-4" />
+                        CPF * <span className="text-xs text-muted-foreground">(obrigatorio para Pix)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.cpf}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, "").slice(0, 11)
+                          const formatted = value
+                            .replace(/(\d{3})(\d)/, "$1.$2")
+                            .replace(/(\d{3})(\d)/, "$1.$2")
+                            .replace(/(\d{3})(\d{1,2})$/, "$1-$2")
+                          setFormData({ ...formData, cpf: formatted })
+                        }}
+                        placeholder="000.000.000-00"
                         className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                       />
                     </div>
