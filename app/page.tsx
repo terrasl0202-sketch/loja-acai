@@ -83,24 +83,46 @@ export default function Home() {
     })
   }
 
-  const copyPixKey = async () => {
+  const copyToClipboard = async (text: string): Promise<boolean> => {
+    // Tentativa 1: navigator.clipboard
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(PIX_KEY)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      } else {
-        const textarea = document.createElement("textarea")
-        textarea.value = PIX_KEY
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand("copy")
-        document.body.removeChild(textarea)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        await navigator.clipboard.writeText(text)
+        return true
       }
     } catch {
-      setCopyMessage("Copie manualmente a chave: " + PIX_KEY)
+      // Continua para fallback
+    }
+
+    // Tentativa 2: textarea temporario com execCommand
+    try {
+      const textarea = document.createElement("textarea")
+      textarea.value = text
+      textarea.style.position = "fixed"
+      textarea.style.left = "-9999px"
+      textarea.style.top = "0"
+      textarea.setAttribute("readonly", "")
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      textarea.setSelectionRange(0, text.length)
+      const success = document.execCommand("copy")
+      document.body.removeChild(textarea)
+      if (success) return true
+    } catch {
+      // Continua para fallback manual
+    }
+
+    return false
+  }
+
+  const copyPixKey = async () => {
+    const success = await copyToClipboard(PIX_KEY)
+    if (success) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } else {
+      setCopyMessage("Segure o texto abaixo e copie manualmente")
       setTimeout(() => setCopyMessage(""), 5000)
     }
   }
@@ -210,29 +232,19 @@ export default function Home() {
   }
 
   const copyPixCopiaECola = async () => {
-    try {
-      const pixCode = getPixCopiaECola()
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(pixCode)
-        setCopiedPixCopiaECola(true)
-        setTimeout(() => setCopiedPixCopiaECola(false), 2000)
-      } else {
-        // Fallback: selecionar o textarea
-        if (pixTextareaRef.current) {
-          pixTextareaRef.current.select()
-          pixTextareaRef.current.setSelectionRange(0, 99999)
-          document.execCommand("copy")
-          setCopiedPixCopiaECola(true)
-          setTimeout(() => setCopiedPixCopiaECola(false), 2000)
-        }
-      }
-    } catch {
-      // Fallback: mostrar mensagem para copiar manualmente
+    const pixCode = getPixCopiaECola()
+    const success = await copyToClipboard(pixCode)
+    if (success) {
+      setCopiedPixCopiaECola(true)
+      setTimeout(() => setCopiedPixCopiaECola(false), 2000)
+    } else {
+      // Fallback: selecionar o textarea visivel
       if (pixTextareaRef.current) {
+        pixTextareaRef.current.focus()
         pixTextareaRef.current.select()
-        pixTextareaRef.current.setSelectionRange(0, 99999)
+        pixTextareaRef.current.setSelectionRange(0, pixCode.length)
       }
-      setCopyMessage("Copie manualmente o codigo Pix abaixo")
+      setCopyMessage("Segure o texto abaixo e copie manualmente")
       setTimeout(() => setCopyMessage(""), 5000)
     }
   }
