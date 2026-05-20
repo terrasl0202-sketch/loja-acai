@@ -41,8 +41,14 @@ const products: Product[] = [
 
 const WHATSAPP_NUMBER = "5511918505799"
 const PIX_RECEIVER_NAME = "Ailton Fernandes Miranda"
+const MIN_VALUE_FOR_ASAAS = 15
 
-type PaymentStatus = "idle" | "loading" | "awaiting" | "confirmed" | "error"
+// Dados para PIX Manual (pedidos abaixo de R$15)
+const PIX_MANUAL_KEY = "11918505799"
+const PIX_MANUAL_KEY_FULL = "+5511918505799"
+const PIX_MANUAL_NAME = "Carina Karen da Silva"
+
+type PaymentStatus = "idle" | "loading" | "awaiting" | "confirmed" | "error" | "manual"
 type DeliveryType = "entrega" | "retirada"
 
 export default function Home() {
@@ -73,6 +79,9 @@ export default function Home() {
   } | null>(null)
   const [orderId, setOrderId] = useState<string>("")
   const [paymentTime, setPaymentTime] = useState<string>("")
+  const [manualPixCode, setManualPixCode] = useState<string>("")
+  const [copiedManualKey, setCopiedManualKey] = useState(false)
+  const [copiedManualCode, setCopiedManualCode] = useState(false)
   
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const addToCartAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -126,6 +135,53 @@ export default function Home() {
     const now = new Date()
     const id = `PK${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`
     return id
+  }
+
+  // Gera codigo PIX EMV para pagamento manual
+  const generateManualPixCode = (amount: number) => {
+    const pixKey = PIX_MANUAL_KEY_FULL
+    const merchantName = "CARINA KAREN DA SILVA"
+    const merchantCity = "SAO PAULO"
+    const amountStr = amount.toFixed(2)
+
+    const crc16 = (str: string): string => {
+      let crc = 0xFFFF
+      for (let i = 0; i < str.length; i++) {
+        crc ^= str.charCodeAt(i) << 8
+        for (let j = 0; j < 8; j++) {
+          if (crc & 0x8000) {
+            crc = (crc << 1) ^ 0x1021
+          } else {
+            crc <<= 1
+          }
+          crc &= 0xFFFF
+        }
+      }
+      return crc.toString(16).toUpperCase().padStart(4, "0")
+    }
+
+    const tlv = (tag: string, value: string): string => {
+      return tag + value.length.toString().padStart(2, "0") + value
+    }
+
+    const gui = tlv("00", "br.gov.bcb.pix")
+    const chave = tlv("01", pixKey)
+    const merchantAccountInfo = tlv("26", gui + chave)
+
+    let payload = ""
+    payload += tlv("00", "01")
+    payload += merchantAccountInfo
+    payload += tlv("52", "0000")
+    payload += tlv("53", "986")
+    payload += tlv("54", amountStr)
+    payload += tlv("58", "BR")
+    payload += tlv("59", merchantName)
+    payload += tlv("60", merchantCity)
+    payload += tlv("62", tlv("05", "***"))
+    payload += "6304"
+
+    const crcValue = crc16(payload)
+    return payload + crcValue
   }
 
   const copyToClipboard = async (text: string, setCopiedFn: (v: boolean) => void) => {
@@ -194,21 +250,31 @@ export default function Home() {
       return
     }
 
-    // Validar CPF para pagamento PIX
-    const cleanCpf = formData.cpf.replace(/\D/g, "")
-    if (formData.pagamento === "pix" && cleanCpf.length !== 11) {
-      alert("Informe seu CPF (11 digitos) para gerar o Pix.")
-      return
-    }
-
     if (deliveryType === "entrega" && (!formData.endereco || !formData.numero || !formData.referencia)) {
       alert("Por favor, preencha todos os campos de entrega!")
       return
     }
 
-    setPaymentStatus("loading")
+    const total = getTotal()
     const newOrderId = generateOrderId()
     setOrderId(newOrderId)
+
+    // Se valor for menor que R$15, usar PIX manual
+    if (total < MIN_VALUE_FOR_ASAAS) {
+      const pixCode = generateManualPixCode(total)
+      setManualPixCode(pixCode)
+      setPaymentStatus("manual")
+      return
+    }
+
+    // Validar CPF para pagamento PIX Asaas (R$15 ou mais)
+    const cleanCpf = formData.cpf.replace(/\D/g, "")
+    if (formData.pagamento === "pix" && cleanCpf.length !== 11) {
+      alert("Informe seu CPF (11 digitos) para gerar o Pix automatico.")
+      return
+    }
+
+    setPaymentStatus("loading")
 
     const orderItems = products
       .filter((p) => quantities[p.id] > 0)
@@ -220,7 +286,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          value: getTotal(),
+          value: total,
           description: `Pedido ${newOrderId} - ${orderItems}`,
           customerName: formData.nome,
           customerCpf: cleanCpf,
@@ -978,19 +1044,112 @@ ${formData.observacao || "Nenhuma"}`
                           </div>
                         )}
 
+                        {/* Manual PIX - For orders below R$15 */}
+                        {paymentStatus === "manual" && manualPixCode && (
+                          <div className="space-y-4 animate-in fade-in duration-300">
+                            {/* Header */}
+                            <div className="text-center border-b border-border pb-3">
+                              <h4 className="font-bold text-foreground text-lg">Pagamento via PIX Manual</h4>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Pedidos abaixo de R$ 15,00
+                              </p>
+                            </div>
+
+                            {/* QR Code */}
+                            <div className="flex flex-col items-center">
+                              <p className="text-sm text-muted-foreground mb-3">Escaneie o QR Code para pagar</p>
+                              <div className="bg-white p-4 rounded-xl shadow-lg">
+                                <QRCodeSVG
+                                  value={manualPixCode}
+                                  size={180}
+                                  level="M"
+                                  includeMargin={false}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Dados do recebedor */}
+                            <div className="space-y-2">
+                              <div className="bg-input rounded-xl px-4 py-3">
+                                <p className="text-xs text-muted-foreground">Nome do Recebedor</p>
+                                <p className="font-semibold text-foreground">{PIX_MANUAL_NAME}</p>
+                              </div>
+
+                              <div className="flex items-center justify-between bg-input rounded-xl px-4 py-3">
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Chave PIX (Telefone)</p>
+                                  <p className="font-mono font-semibold text-foreground">{PIX_MANUAL_KEY}</p>
+                                </div>
+                                <button
+                                  onClick={() => copyToClipboard(PIX_MANUAL_KEY, setCopiedManualKey)}
+                                  className="flex items-center gap-2 px-3 py-2 bg-primary rounded-lg text-primary-foreground text-sm font-medium transition-all hover:brightness-110 active:scale-95"
+                                >
+                                  {copiedManualKey ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                  {copiedManualKey ? "Copiado!" : "Copiar"}
+                                </button>
+                              </div>
+
+                              <div className="bg-input rounded-xl px-4 py-3">
+                                <p className="text-xs text-muted-foreground">Valor do Pedido</p>
+                                <p className="font-bold text-xl text-primary">{formatCurrency(getTotal())}</p>
+                              </div>
+                            </div>
+
+                            {/* Codigo PIX Copia e Cola */}
+                            <div className="bg-input rounded-xl p-4 space-y-3">
+                              <p className="text-sm font-medium text-foreground">Codigo PIX Copia e Cola</p>
+                              <div className="bg-background/50 rounded-lg p-3 max-h-24 overflow-y-auto">
+                                <p className="font-mono text-xs text-muted-foreground break-all select-all">
+                                  {manualPixCode}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => copyToClipboard(manualPixCode, setCopiedManualCode)}
+                                className="w-full flex items-center justify-center gap-2 py-3 bg-primary rounded-xl text-primary-foreground font-medium transition-all hover:brightness-110 active:scale-[0.98]"
+                              >
+                                {copiedManualCode ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                                {copiedManualCode ? "Copiado com sucesso!" : "Copiar Codigo PIX"}
+                              </button>
+                            </div>
+
+                            {/* Aviso */}
+                            <div className="bg-primary/20 border border-primary/30 rounded-xl p-4">
+                              <p className="text-sm text-foreground text-center">
+                                Apos o pagamento, envie o comprovante no WhatsApp para agilizar a confirmacao do pedido.
+                              </p>
+                            </div>
+
+                            {/* Botao WhatsApp */}
+                            <button
+                              onClick={sendManualPayment}
+                              className="w-full py-4 bg-green-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-green-700 active:scale-[0.98]"
+                            >
+                              <Send className="w-5 h-5" />
+                              Enviar Comprovante no WhatsApp
+                            </button>
+                          </div>
+                        )}
+
                         {/* Idle State - Show button to generate PIX */}
                         {paymentStatus === "idle" && (
                           <div className="text-center py-4">
                             <p className="text-muted-foreground mb-4">
-                              Clique abaixo para gerar o PIX automatico
+                              {getTotal() < MIN_VALUE_FOR_ASAAS 
+                                ? "Clique abaixo para ver os dados do PIX" 
+                                : "Clique abaixo para gerar o PIX automatico"}
                             </p>
                             <button
                               onClick={createPixCharge}
                               className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 active:scale-[0.98]"
                             >
                               <CreditCard className="w-5 h-5" />
-                              Gerar PIX Automatico
+                              {getTotal() < MIN_VALUE_FOR_ASAAS ? "Ver PIX Manual" : "Gerar PIX Automatico"}
                             </button>
+                            {getTotal() < MIN_VALUE_FOR_ASAAS && (
+                              <p className="text-xs text-muted-foreground mt-3">
+                                Pedidos abaixo de R$ 15 usam PIX manual
+                              </p>
+                            )}
                           </div>
                         )}
 
