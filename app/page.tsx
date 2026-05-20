@@ -1,9 +1,8 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState } from "react"
 import Image from "next/image"
 import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check } from "lucide-react"
-import { QRCodeSVG } from "qrcode.react"
 
 interface Product {
   id: number
@@ -40,8 +39,7 @@ const products: Product[] = [
 ]
 
 const PIX_KEY = "11918505799"
-const PIX_KEY_FULL = "+5511918505799"
-const PIX_NAME = "Carina Karen da Silva"
+const PIX_NAME = "Carina Silva"
 const WHATSAPP_NUMBER = "5511918505799"
 
 export default function Home() {
@@ -57,9 +55,6 @@ export default function Home() {
   const [showCart, setShowCart] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [copiedPixCopiaECola, setCopiedPixCopiaECola] = useState(false)
-  const [copyMessage, setCopyMessage] = useState("")
-  const pixTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const updateQuantity = (id: number, delta: number) => {
     setQuantities((prev) => ({
@@ -85,21 +80,21 @@ export default function Home() {
     })
   }
 
-  const copyToClipboard = async (text: string): Promise<boolean> => {
-    // Tentativa 1: navigator.clipboard
+  const copyPixKey = async () => {
     try {
       if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-        await navigator.clipboard.writeText(text)
-        return true
+        await navigator.clipboard.writeText(PIX_KEY)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+        return
       }
     } catch {
-      // Continua para fallback
+      // Fallback
     }
 
-    // Tentativa 2: textarea temporario com execCommand
     try {
       const textarea = document.createElement("textarea")
-      textarea.value = text
+      textarea.value = PIX_KEY
       textarea.style.position = "fixed"
       textarea.style.left = "-9999px"
       textarea.style.top = "0"
@@ -107,152 +102,13 @@ export default function Home() {
       document.body.appendChild(textarea)
       textarea.focus()
       textarea.select()
-      textarea.setSelectionRange(0, text.length)
-      const success = document.execCommand("copy")
+      document.execCommand("copy")
       document.body.removeChild(textarea)
-      if (success) return true
-    } catch {
-      // Continua para fallback manual
-    }
-
-    return false
-  }
-
-  const copyPixKey = async () => {
-    const success = await copyToClipboard(PIX_KEY)
-    if (success) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } else {
-      setCopyMessage("Segure o texto abaixo e copie manualmente")
-      setTimeout(() => setCopyMessage(""), 5000)
+    } catch {
+      alert("Chave PIX: " + PIX_KEY)
     }
-  }
-
-  // Gera o código PIX Copia e Cola no padrão EMV BR Code
-  const generatePixCopiaECola = () => {
-    const pixKey = PIX_KEY_FULL
-    const merchantName = "CARINA KAREN DA SILVA"
-    const merchantCity = "SAO PAULO"
-    const amount = getTotal().toFixed(2)
-    
-    // Função para calcular CRC16-CCITT-FALSE
-    const crc16 = (str: string): string => {
-      let crc = 0xFFFF
-      for (let i = 0; i < str.length; i++) {
-        crc ^= str.charCodeAt(i) << 8
-        for (let j = 0; j < 8; j++) {
-          if (crc & 0x8000) {
-            crc = (crc << 1) ^ 0x1021
-          } else {
-            crc <<= 1
-          }
-          crc &= 0xFFFF
-        }
-      }
-      return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0')
-    }
-
-    // Função para criar campo TLV (Tag-Length-Value)
-    const tlv = (tag: string, value: string): string => {
-      const length = value.length.toString().padStart(2, '0')
-      return `${tag}${length}${value}`
-    }
-
-    // GUI do PIX
-    const gui = tlv("00", "br.gov.bcb.pix")
-    // Chave PIX
-    const chave = tlv("01", pixKey)
-    // Merchant Account Information (ID 26)
-    const merchantAccountInfo = tlv("26", gui + chave)
-
-    // Monta o payload base
-    let payload = ""
-    payload += tlv("00", "01") // Payload Format Indicator
-    payload += tlv("01", "12") // Point of Initiation Method (12 = dinâmico)
-    payload += merchantAccountInfo // Merchant Account Information
-    payload += tlv("52", "0000") // Merchant Category Code
-    payload += tlv("53", "986") // Transaction Currency (986 = BRL)
-    payload += tlv("54", amount) // Transaction Amount
-    payload += tlv("58", "BR") // Country Code
-    payload += tlv("59", merchantName) // Merchant Name (max 25 chars)
-    payload += tlv("60", merchantCity) // Merchant City (max 15 chars)
-    payload += tlv("62", tlv("05", "***")) // Additional Data Field Template
-    payload += "6304" // CRC16 placeholder
-
-    // Calcula CRC16 e substitui o placeholder
-    const crcValue = crc16(payload)
-    return payload.replace("6304", "6304" + crcValue).replace("63046304", "6304")
-  }
-
-  const getPixCopiaECola = () => {
-    const pixKey = PIX_KEY_FULL
-    const merchantName = "CARINA KAREN DA SILVA"
-    const merchantCity = "SAO PAULO"
-    const amount = getTotal().toFixed(2)
-    
-    const crc16 = (str: string): string => {
-      let crc = 0xFFFF
-      for (let i = 0; i < str.length; i++) {
-        crc ^= str.charCodeAt(i) << 8
-        for (let j = 0; j < 8; j++) {
-          if (crc & 0x8000) {
-            crc = (crc << 1) ^ 0x1021
-          } else {
-            crc <<= 1
-          }
-          crc &= 0xFFFF
-        }
-      }
-      return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0')
-    }
-
-    const tlv = (tag: string, value: string): string => {
-      const length = value.length.toString().padStart(2, '0')
-      return `${tag}${length}${value}`
-    }
-
-    const gui = tlv("00", "br.gov.bcb.pix")
-    const chave = tlv("01", pixKey)
-    const merchantAccountInfo = tlv("26", gui + chave)
-
-    let payload = ""
-    payload += tlv("00", "01")
-    payload += tlv("01", "12")
-    payload += merchantAccountInfo
-    payload += tlv("52", "0000")
-    payload += tlv("53", "986")
-    payload += tlv("54", amount)
-    payload += tlv("58", "BR")
-    payload += tlv("59", merchantName)
-    payload += tlv("60", merchantCity)
-    payload += tlv("62", tlv("05", "***"))
-    payload += "6304"
-
-    const crcValue = crc16(payload)
-    return payload.slice(0, -4) + "6304" + crcValue
-  }
-
-  const copyPixCopiaECola = async () => {
-    const pixCode = getPixCopiaECola()
-    const success = await copyToClipboard(pixCode)
-    if (success) {
-      setCopiedPixCopiaECola(true)
-      setTimeout(() => setCopiedPixCopiaECola(false), 2000)
-    } else {
-      // Fallback: selecionar o textarea visivel
-      if (pixTextareaRef.current) {
-        pixTextareaRef.current.focus()
-        pixTextareaRef.current.select()
-        pixTextareaRef.current.setSelectionRange(0, pixCode.length)
-      }
-      setCopyMessage("Segure o texto abaixo e copie manualmente")
-      setTimeout(() => setCopyMessage(""), 5000)
-    }
-  }
-
-  const generatePixQRCode = () => {
-    return getPixCopiaECola()
   }
 
   const openCheckout = () => {
@@ -609,43 +465,6 @@ ${formData.observacao || "Nenhuma"}${pixMessage}`
                 {/* PIX Info */}
                 {formData.pagamento === "pix" && (
                   <div className="bg-secondary/50 rounded-xl p-4 space-y-4">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground mb-3">Escaneie o QR Code para pagar</p>
-                      <div className="inline-block bg-white p-4 rounded-xl">
-                        <QRCodeSVG 
-                          value={generatePixQRCode()}
-                          size={180}
-                          level="M"
-                          includeMargin={false}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Pix Copia e Cola */}
-                    <div className="bg-input rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs text-muted-foreground">Pix Copia e Cola</p>
-                        <button
-                          onClick={copyPixCopiaECola}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-primary rounded-lg text-primary-foreground text-xs font-medium transition-all hover:brightness-110 active:scale-95"
-                        >
-                          {copiedPixCopiaECola ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                          {copiedPixCopiaECola ? "Copiado!" : "Copiar Pix Copia e Cola"}
-                        </button>
-                      </div>
-                      <textarea
-                        ref={pixTextareaRef}
-                        readOnly
-                        value={getPixCopiaECola()}
-                        onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                        className="w-full font-mono text-xs text-foreground bg-background/50 p-3 rounded-lg border-0 resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                        rows={3}
-                      />
-                      {copyMessage && (
-                        <p className="text-xs text-accent mt-2 text-center font-medium">{copyMessage}</p>
-                      )}
-                    </div>
-
                     <div className="space-y-2">
                       <div className="flex items-center justify-between bg-input rounded-xl px-4 py-3">
                         <div>
