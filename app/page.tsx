@@ -534,8 +534,8 @@ ${formData.observacao || "Nenhuma"}`
 
         {/* Footer */}
         <footer className="text-center py-6 border-t border-border mt-8">
-          <p className="text-xs text-muted-foreground">
-            Developed by <span className="font-medium text-foreground/70">Ailton Fernandes Miranda</span>
+          <p className="text-xs text-muted-foreground tracking-wider">
+            DEVELOPED BY <span className="font-semibold text-foreground/80">AILTON</span>
           </p>
         </footer>
       </div>

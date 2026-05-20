@@ -19,97 +19,118 @@ async function findOrCreateCustomer(
   email?: string,
   phone?: string
 ): Promise<{ id: string | null; error?: string }> {
-  // Se tiver CPF valido, buscar/criar cliente
-  if (cpf && cpf.length >= 11) {
+  
+  // Primeiro, tentar buscar cliente existente por email generico
+  const genericEmail = `cliente_${Date.now()}@pkgostosuras.com`
+  
+  // Se tiver CPF valido (11 digitos), usar CPF
+  if (cpf) {
     const cleanCpf = cpf.replace(/\D/g, "")
-    
-    // Buscar cliente existente por CPF
-    const searchResponse = await fetch(
-      `${ASAAS_API_URL}/customers?cpfCnpj=${cleanCpf}`,
+    if (cleanCpf.length === 11) {
+      // Buscar cliente por CPF
+      try {
+        const searchResponse = await fetch(
+          `${ASAAS_API_URL}/customers?cpfCnpj=${cleanCpf}`,
+          {
+            headers: {
+              "access_token": ASAAS_API_KEY!,
+            },
+          }
+        )
+        
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json()
+          if (searchData.data && searchData.data.length > 0) {
+            console.log("[Asaas] Cliente existente encontrado por CPF:", searchData.data[0].id)
+            return { id: searchData.data[0].id }
+          }
+        }
+
+        // Criar novo cliente com CPF
+        const createResponse = await fetch(`${ASAAS_API_URL}/customers`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "access_token": ASAAS_API_KEY!,
+          },
+          body: JSON.stringify({
+            name: name || "Cliente PK Gostosuras",
+            cpfCnpj: cleanCpf,
+            email: email || genericEmail,
+            mobilePhone: phone ? phone.replace(/\D/g, "") : undefined,
+          }),
+        })
+
+        const responseText = await createResponse.text()
+        console.log("[Asaas] Resposta criar cliente CPF:", createResponse.status, responseText)
+
+        if (createResponse.ok) {
+          const customerData = JSON.parse(responseText)
+          return { id: customerData.id }
+        }
+      } catch (err) {
+        console.error("[Asaas] Erro ao buscar/criar cliente por CPF:", err)
+      }
+    }
+  }
+
+  // Buscar cliente generico existente
+  try {
+    const searchGeneric = await fetch(
+      `${ASAAS_API_URL}/customers?email=cliente@pkgostosuras.com`,
       {
         headers: {
           "access_token": ASAAS_API_KEY!,
         },
       }
     )
-    
-    if (searchResponse.ok) {
-      const searchData = await searchResponse.json()
+
+    if (searchGeneric.ok) {
+      const searchData = await searchGeneric.json()
       if (searchData.data && searchData.data.length > 0) {
+        console.log("[Asaas] Cliente generico existente:", searchData.data[0].id)
         return { id: searchData.data[0].id }
       }
     }
+  } catch (err) {
+    console.error("[Asaas] Erro ao buscar cliente generico:", err)
+  }
 
-    // Criar novo cliente com CPF
-    const createResponse = await fetch(`${ASAAS_API_URL}/customers`, {
+  // Criar cliente generico
+  try {
+    const createGeneric = await fetch(`${ASAAS_API_URL}/customers`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "access_token": ASAAS_API_KEY!,
       },
       body: JSON.stringify({
-        name: name || "Cliente",
-        cpfCnpj: cleanCpf,
-        email: email || undefined,
-        mobilePhone: phone ? phone.replace(/\D/g, "") : undefined,
+        name: name || "Cliente PK Gostosuras",
+        email: "cliente@pkgostosuras.com",
       }),
     })
 
-    if (createResponse.ok) {
-      const customerData = await createResponse.json()
+    const responseText = await createGeneric.text()
+    console.log("[Asaas] Resposta criar cliente generico:", createGeneric.status, responseText)
+
+    if (createGeneric.ok) {
+      const customerData = JSON.parse(responseText)
       return { id: customerData.id }
     }
 
-    const errorData = await createResponse.json()
-    console.error("[v0] Erro ao criar cliente com CPF:", errorData)
+    return { id: null, error: responseText }
+  } catch (err) {
+    console.error("[Asaas] Erro ao criar cliente generico:", err)
+    return { id: null, error: String(err) }
   }
-
-  // Buscar cliente generico existente ou criar um
-  const genericEmail = "cliente@pkgostosuras.com"
-  
-  const searchGeneric = await fetch(
-    `${ASAAS_API_URL}/customers?email=${genericEmail}`,
-    {
-      headers: {
-        "access_token": ASAAS_API_KEY!,
-      },
-    }
-  )
-
-  if (searchGeneric.ok) {
-    const searchData = await searchGeneric.json()
-    if (searchData.data && searchData.data.length > 0) {
-      return { id: searchData.data[0].id }
-    }
-  }
-
-  // Criar cliente generico (sem CPF, apenas com email)
-  const createGeneric = await fetch(`${ASAAS_API_URL}/customers`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "access_token": ASAAS_API_KEY!,
-    },
-    body: JSON.stringify({
-      name: "Cliente PK Gostosuras",
-      email: genericEmail,
-    }),
-  })
-
-  if (createGeneric.ok) {
-    const customerData = await createGeneric.json()
-    return { id: customerData.id }
-  }
-
-  const errorData = await createGeneric.json()
-  console.error("[v0] Erro ao criar cliente generico:", errorData)
-  return { id: null, error: JSON.stringify(errorData) }
 }
 
 export async function POST(request: NextRequest) {
+  console.log("[Asaas] === Iniciando criacao de PIX ===")
+  
   try {
     if (!ASAAS_API_KEY) {
-      console.error("[v0] ASAAS_API_KEY nao configurada")
+      console.error("[Asaas] ERRO: ASAAS_API_KEY nao configurada")
       return NextResponse.json(
         { error: "Configuracao do sistema de pagamento incompleta" },
         { status: 500 }
@@ -119,11 +140,19 @@ export async function POST(request: NextRequest) {
     const body: CreatePixRequest = await request.json()
     const { value, description, customerName, customerCpf, customerEmail, customerPhone, externalReference } = body
 
-    console.log("[v0] Criando PIX:", { value, customerName, externalReference })
+    console.log("[Asaas] Dados recebidos:", { 
+      value, 
+      customerName, 
+      hasEmail: !!customerEmail,
+      hasCpf: !!customerCpf,
+      hasPhone: !!customerPhone,
+      externalReference 
+    })
 
     if (!value || value <= 0) {
+      console.error("[Asaas] ERRO: Valor invalido:", value)
       return NextResponse.json(
-        { error: "Valor invalido" },
+        { error: "Valor invalido para cobranca" },
         { status: 400 }
       )
     }
@@ -137,29 +166,33 @@ export async function POST(request: NextRequest) {
     )
 
     if (!customerResult.id) {
-      console.error("[v0] Falha ao obter customer:", customerResult.error)
+      console.error("[Asaas] ERRO: Falha ao obter customer:", customerResult.error)
       return NextResponse.json(
-        { error: "Erro ao processar dados do cliente", details: customerResult.error },
+        { 
+          error: "Erro ao processar dados do cliente", 
+          details: customerResult.error 
+        },
         { status: 500 }
       )
     }
 
-    console.log("[v0] Customer ID:", customerResult.id)
+    console.log("[Asaas] Customer ID obtido:", customerResult.id)
 
     // Criar cobranca PIX
     const dueDate = new Date()
     dueDate.setDate(dueDate.getDate() + 1)
+    const dueDateStr = dueDate.toISOString().split("T")[0]
 
     const paymentBody = {
       customer: customerResult.id,
       billingType: "PIX",
-      value: value,
-      dueDate: dueDate.toISOString().split("T")[0],
+      value: Number(value.toFixed(2)),
+      dueDate: dueDateStr,
       description: description || "Pedido PK Gostosuras",
-      externalReference: externalReference || undefined,
+      externalReference: externalReference || `pedido_${Date.now()}`,
     }
 
-    console.log("[v0] Criando payment:", paymentBody)
+    console.log("[Asaas] Criando cobranca PIX:", JSON.stringify(paymentBody))
 
     const paymentResponse = await fetch(`${ASAAS_API_URL}/payments`, {
       method: "POST",
@@ -170,23 +203,30 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(paymentBody),
     })
 
-    const paymentData = await paymentResponse.json()
+    const paymentText = await paymentResponse.text()
+    console.log("[Asaas] Resposta payments:", paymentResponse.status, paymentText)
 
     if (!paymentResponse.ok) {
-      console.error("[v0] Erro ao criar payment:", paymentResponse.status, paymentData)
+      console.error("[Asaas] ERRO ao criar payment - Status:", paymentResponse.status)
       return NextResponse.json(
         { 
           error: "Erro ao criar cobranca PIX", 
-          details: paymentData,
-          status: paymentResponse.status 
+          details: paymentText,
+          httpStatus: paymentResponse.status 
         },
         { status: 500 }
       )
     }
 
-    console.log("[v0] Payment criado:", paymentData.id)
+    const paymentData = JSON.parse(paymentText)
+    console.log("[Asaas] Payment criado com sucesso - ID:", paymentData.id, "Status:", paymentData.status)
+
+    // Aguardar um momento para o PIX ser gerado
+    await new Promise(resolve => setTimeout(resolve, 500))
 
     // Buscar QR Code PIX
+    console.log("[Asaas] Buscando QR Code para payment:", paymentData.id)
+    
     const pixResponse = await fetch(
       `${ASAAS_API_URL}/payments/${paymentData.id}/pixQrCode`,
       {
@@ -196,48 +236,88 @@ export async function POST(request: NextRequest) {
       }
     )
 
+    const pixText = await pixResponse.text()
+    console.log("[Asaas] Resposta pixQrCode - Status:", pixResponse.status)
+    console.log("[Asaas] Resposta pixQrCode - Body (primeiros 500 chars):", pixText.substring(0, 500))
+
     if (!pixResponse.ok) {
-      const pixError = await pixResponse.json()
-      console.error("[v0] Erro ao buscar QR Code:", pixError)
-      return NextResponse.json(
-        { error: "Erro ao gerar QR Code PIX", details: pixError },
-        { status: 500 }
-      )
-    }
-
-    const pixData = await pixResponse.json()
-
-    console.log("[v0] Resposta pixQrCode endpoint:", JSON.stringify(pixData, null, 2))
-
-    // Verificar se os dados do PIX estao presentes
-    if (!pixData.encodedImage || !pixData.payload) {
-      console.error("[v0] pixQrCode incompleto:", pixData)
+      console.error("[Asaas] ERRO ao buscar QR Code - Status:", pixResponse.status)
       return NextResponse.json(
         { 
-          error: "QR Code PIX incompleto", 
-          details: pixData,
-          hasEncodedImage: !!pixData.encodedImage,
-          hasPayload: !!pixData.payload
+          error: "Erro ao gerar QR Code PIX", 
+          details: pixText,
+          httpStatus: pixResponse.status,
+          paymentId: paymentData.id
         },
         { status: 500 }
       )
     }
 
-    console.log("[v0] PIX gerado com sucesso - paymentId:", paymentData.id)
+    let pixData
+    try {
+      pixData = JSON.parse(pixText)
+    } catch {
+      console.error("[Asaas] ERRO: Resposta pixQrCode nao e JSON valido")
+      return NextResponse.json(
+        { 
+          error: "Resposta invalida do servidor de pagamento", 
+          details: pixText.substring(0, 200)
+        },
+        { status: 500 }
+      )
+    }
+
+    // Verificar campos obrigatorios
+    if (!pixData.encodedImage) {
+      console.error("[Asaas] ERRO: encodedImage ausente na resposta")
+      return NextResponse.json(
+        { 
+          error: "QR Code nao gerado pelo servidor", 
+          details: "Campo encodedImage ausente",
+          responseKeys: Object.keys(pixData)
+        },
+        { status: 500 }
+      )
+    }
+
+    if (!pixData.payload) {
+      console.error("[Asaas] ERRO: payload ausente na resposta")
+      return NextResponse.json(
+        { 
+          error: "Codigo PIX copia e cola nao gerado", 
+          details: "Campo payload ausente",
+          responseKeys: Object.keys(pixData)
+        },
+        { status: 500 }
+      )
+    }
+
+    console.log("[Asaas] === PIX gerado com SUCESSO ===")
+    console.log("[Asaas] paymentId:", paymentData.id)
+    console.log("[Asaas] status:", paymentData.status)
+    console.log("[Asaas] value:", paymentData.value)
+    console.log("[Asaas] encodedImage length:", pixData.encodedImage.length)
+    console.log("[Asaas] payload length:", pixData.payload.length)
+    console.log("[Asaas] expirationDate:", pixData.expirationDate)
 
     return NextResponse.json({
       success: true,
       paymentId: paymentData.id,
       status: paymentData.status,
       value: paymentData.value,
+      dueDate: paymentData.dueDate,
       pixQrCode: pixData.encodedImage,
       pixCopyPaste: pixData.payload,
       expirationDate: pixData.expirationDate,
     })
+
   } catch (error) {
-    console.error("[v0] Erro interno ao criar PIX:", error)
+    console.error("[Asaas] ERRO INTERNO:", error)
     return NextResponse.json(
-      { error: "Erro interno do servidor", details: String(error) },
+      { 
+        error: "Erro interno do servidor", 
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     )
   }
