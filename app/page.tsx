@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check } from "lucide-react"
+import { QRCodeSVG } from "qrcode.react"
 
 interface Product {
   id: number
@@ -39,7 +40,8 @@ const products: Product[] = [
 ]
 
 const PIX_KEY = "11918505799"
-const PIX_NAME = "Carina Silva"
+const PIX_KEY_FULL = "+5511918505799"
+const PIX_NAME = "Carina Karen da Silva"
 const WHATSAPP_NUMBER = "5511918505799"
 
 export default function Home() {
@@ -55,6 +57,7 @@ export default function Home() {
   const [showCart, setShowCart] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copiedCode, setCopiedCode] = useState(false)
 
   const updateQuantity = (id: number, delta: number) => {
     setQuantities((prev) => ({
@@ -108,6 +111,85 @@ export default function Home() {
       setTimeout(() => setCopied(false), 2000)
     } catch {
       alert("Chave PIX: " + PIX_KEY)
+    }
+  }
+
+  // Gera codigo PIX EMV valido
+  const generatePixCode = () => {
+    const pixKey = PIX_KEY_FULL
+    const merchantName = "CARINA KAREN DA SILVA"
+    const merchantCity = "SAO PAULO"
+    const amount = getTotal().toFixed(2)
+
+    const crc16 = (str: string): string => {
+      let crc = 0xFFFF
+      for (let i = 0; i < str.length; i++) {
+        crc ^= str.charCodeAt(i) << 8
+        for (let j = 0; j < 8; j++) {
+          if (crc & 0x8000) {
+            crc = (crc << 1) ^ 0x1021
+          } else {
+            crc <<= 1
+          }
+          crc &= 0xFFFF
+        }
+      }
+      return crc.toString(16).toUpperCase().padStart(4, "0")
+    }
+
+    const tlv = (tag: string, value: string): string => {
+      return tag + value.length.toString().padStart(2, "0") + value
+    }
+
+    const gui = tlv("00", "br.gov.bcb.pix")
+    const chave = tlv("01", pixKey)
+    const merchantAccountInfo = tlv("26", gui + chave)
+
+    let payload = ""
+    payload += tlv("00", "01")
+    payload += merchantAccountInfo
+    payload += tlv("52", "0000")
+    payload += tlv("53", "986")
+    payload += tlv("54", amount)
+    payload += tlv("58", "BR")
+    payload += tlv("59", merchantName)
+    payload += tlv("60", merchantCity)
+    payload += tlv("62", tlv("05", "***"))
+    payload += "6304"
+
+    const crcValue = crc16(payload)
+    return payload + crcValue
+  }
+
+  const copyPixCode = async () => {
+    const pixCode = generatePixCode()
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        await navigator.clipboard.writeText(pixCode)
+        setCopiedCode(true)
+        setTimeout(() => setCopiedCode(false), 2000)
+        return
+      }
+    } catch {
+      // Fallback
+    }
+
+    try {
+      const textarea = document.createElement("textarea")
+      textarea.value = pixCode
+      textarea.style.position = "fixed"
+      textarea.style.left = "-9999px"
+      textarea.style.top = "0"
+      textarea.setAttribute("readonly", "")
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      document.execCommand("copy")
+      document.body.removeChild(textarea)
+      setCopiedCode(true)
+      setTimeout(() => setCopiedCode(false), 2000)
+    } catch {
+      alert("Codigo PIX copiado!")
     }
   }
 
@@ -465,7 +547,31 @@ ${formData.observacao || "Nenhuma"}${pixMessage}`
                 {/* PIX Info */}
                 {formData.pagamento === "pix" && (
                   <div className="bg-secondary/50 rounded-xl p-4 space-y-4">
+                    {/* Header PIX */}
+                    <div className="text-center border-b border-border pb-3">
+                      <h4 className="font-bold text-foreground text-lg">Pagamento via PIX</h4>
+                    </div>
+
+                    {/* QR Code */}
+                    <div className="flex flex-col items-center">
+                      <p className="text-sm text-muted-foreground mb-3">Escaneie o QR Code para pagar</p>
+                      <div className="bg-white p-4 rounded-xl shadow-md">
+                        <QRCodeSVG
+                          value={generatePixCode()}
+                          size={180}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Dados do recebedor */}
                     <div className="space-y-2">
+                      <div className="bg-input rounded-xl px-4 py-3">
+                        <p className="text-xs text-muted-foreground">Nome</p>
+                        <p className="font-semibold text-foreground">{PIX_NAME}</p>
+                      </div>
+
                       <div className="flex items-center justify-between bg-input rounded-xl px-4 py-3">
                         <div>
                           <p className="text-xs text-muted-foreground">Chave PIX (Telefone)</p>
@@ -473,23 +579,37 @@ ${formData.observacao || "Nenhuma"}${pixMessage}`
                         </div>
                         <button
                           onClick={copyPixKey}
-                          className="p-2 bg-primary rounded-lg text-primary-foreground transition-all hover:brightness-110 active:scale-95"
+                          className="flex items-center gap-2 px-3 py-2 bg-primary rounded-lg text-primary-foreground text-sm font-medium transition-all hover:brightness-110 active:scale-95"
                         >
-                          {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          {copied ? "Copiado!" : "Copiar"}
                         </button>
                       </div>
 
                       <div className="bg-input rounded-xl px-4 py-3">
-                        <p className="text-xs text-muted-foreground">Nome</p>
-                        <p className="font-semibold text-foreground">{PIX_NAME}</p>
-                      </div>
-
-                      <div className="bg-input rounded-xl px-4 py-3">
                         <p className="text-xs text-muted-foreground">Valor</p>
-                        <p className="font-bold text-lg text-primary">{formatCurrency(getTotal())}</p>
+                        <p className="font-bold text-xl text-primary">{formatCurrency(getTotal())}</p>
                       </div>
                     </div>
 
+                    {/* Codigo PIX Copia e Cola */}
+                    <div className="bg-input rounded-xl p-4 space-y-3">
+                      <p className="text-sm font-medium text-foreground">Codigo PIX Copia e Cola</p>
+                      <div className="bg-background/50 rounded-lg p-3 max-h-24 overflow-y-auto">
+                        <p className="font-mono text-xs text-muted-foreground break-all select-all">
+                          {generatePixCode()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={copyPixCode}
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-primary rounded-xl text-primary-foreground font-medium transition-all hover:brightness-110 active:scale-[0.98]"
+                      >
+                        {copiedCode ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                        {copiedCode ? "Copiado com sucesso!" : "Copiar Codigo PIX"}
+                      </button>
+                    </div>
+
+                    {/* Aviso */}
                     <div className="bg-primary/20 border border-primary/30 rounded-xl p-3">
                       <p className="text-sm text-foreground text-center">
                         Apos pagar, envie o comprovante no WhatsApp
