@@ -220,6 +220,8 @@ export default function Home() {
       })
 
       const data = await response.json()
+      
+      console.log("[v0] Resposta create-pix:", data)
 
       if (data.success && data.pixQrCode && data.pixCopyPaste) {
         setPixData({
@@ -231,10 +233,11 @@ export default function Home() {
         setPaymentStatus("awaiting")
         startPaymentPolling(data.paymentId)
       } else {
+        console.error("[v0] PIX incompleto ou erro:", data)
         setPaymentStatus("error")
       }
     } catch (error) {
-      console.error("Erro ao criar PIX:", error)
+      console.error("[v0] Erro ao criar PIX:", error)
       setPaymentStatus("error")
     }
   }

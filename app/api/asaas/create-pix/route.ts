@@ -207,7 +207,23 @@ export async function POST(request: NextRequest) {
 
     const pixData = await pixResponse.json()
 
-    console.log("[v0] PIX gerado com sucesso")
+    console.log("[v0] Resposta pixQrCode endpoint:", JSON.stringify(pixData, null, 2))
+
+    // Verificar se os dados do PIX estao presentes
+    if (!pixData.encodedImage || !pixData.payload) {
+      console.error("[v0] pixQrCode incompleto:", pixData)
+      return NextResponse.json(
+        { 
+          error: "QR Code PIX incompleto", 
+          details: pixData,
+          hasEncodedImage: !!pixData.encodedImage,
+          hasPayload: !!pixData.payload
+        },
+        { status: 500 }
+      )
+    }
+
+    console.log("[v0] PIX gerado com sucesso - paymentId:", paymentData.id)
 
     return NextResponse.json({
       success: true,
