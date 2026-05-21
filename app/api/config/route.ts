@@ -1,4 +1,4 @@
-import { put, list, del } from "@vercel/blob"
+import { put, list, del, get } from "@vercel/blob"
 import { NextResponse } from "next/server"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
@@ -20,21 +20,18 @@ export async function GET(request: Request) {
     try {
       const { blobs } = await list({ prefix: CONFIG_PREFIX })
       
-      console.log("[Config GET] Blobs encontrados:", blobs.length)
-      
       if (blobs.length > 0) {
         // Pegar o blob mais recente
         const latestBlob = blobs.sort((a, b) => 
           new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
         )[0]
         
-        console.log("[Config GET] Carregando de:", latestBlob.url)
+        // Usar get() para blobs privados
+        const result = await get(latestBlob.pathname, { access: "private" })
         
-        // Fazer fetch do conteudo usando a URL do blob
-        const response = await fetch(latestBlob.url)
-        if (response.ok) {
-          const config = await response.json() as SiteConfig
-          console.log("[Config GET] Config carregada com sucesso")
+        if (result && result.stream) {
+          const text = await new Response(result.stream).text()
+          const config = JSON.parse(text) as SiteConfig
           return NextResponse.json({ success: true, config })
         }
       }
@@ -42,7 +39,6 @@ export async function GET(request: Request) {
       console.error("[Config GET] Erro ao buscar do Blob:", e)
     }
 
-    console.log("[Config GET] Usando config padrao")
     return NextResponse.json({ success: true, config: defaultConfig })
   } catch (error) {
     console.error("[Config GET] Erro geral:", error)
@@ -55,51 +51,42 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { password, config } = body
 
-    console.log("[Config POST] Iniciando salvamento...")
-
     // Verificar senha
     if (password !== ADMIN_PASSWORD) {
-      console.log("[Config POST] Senha incorreta")
       return NextResponse.json({ error: "Senha incorreta" }, { status: 401 })
     }
 
     // Validar config
     if (!config) {
-      console.log("[Config POST] Config vazia")
       return NextResponse.json({ error: "Config vazia" }, { status: 400 })
     }
 
-    // Salvar nova config com timestamp
+    // Salvar nova config com timestamp (private access)
     const timestamp = Date.now()
     const filename = `${CONFIG_PREFIX}${timestamp}.json`
     
-    console.log("[Config POST] Salvando arquivo:", filename)
-    
     const blob = await put(filename, JSON.stringify(config, null, 2), {
-      access: "public",
+      access: "private",
       contentType: "application/json",
     })
 
-    console.log("[Config POST] Arquivo salvo:", blob.url)
-
-    // Limpar configs antigas (em background, sem bloquear)
+    // Limpar configs antigas (em background)
     list({ prefix: CONFIG_PREFIX }).then(async ({ blobs }) => {
       const oldBlobs = blobs
         .filter(b => b.url !== blob.url)
         .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
-        .slice(1) // manter apenas a mais recente além da atual
+        .slice(1)
       
       for (const oldBlob of oldBlobs) {
         try {
           await del(oldBlob.url)
-          console.log("[Config POST] Deletado antigo:", oldBlob.pathname)
-        } catch (e) {
+        } catch {
           // ignorar erro de delete
         }
       }
     }).catch(() => {})
 
-    return NextResponse.json({ success: true, config, url: blob.url })
+    return NextResponse.json({ success: true, config })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error("[Config POST] ERRO:", errorMessage)
