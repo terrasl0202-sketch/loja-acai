@@ -111,6 +111,113 @@ export default function Home() {
   const addToCartAudioRef = useRef<HTMLAudioElement | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const pixTimerRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Chave do localStorage para persistir pedido
+  const ORDER_STORAGE_KEY = "pk-order-in-progress"
+  
+  // Interface do pedido salvo
+  interface SavedOrder {
+    quantities: Record<string, number>
+    formData: typeof formData
+    deliveryType: DeliveryType
+    showCheckout: boolean
+    paymentStatus: PaymentStatus
+    pixData: typeof pixData
+    orderSnapshot: OrderSnapshot | null
+    orderId: string
+    pixTimeLeft: number
+    pixExpired: boolean
+    pixCooldownEnd: number | null
+    appliedCoupon: typeof appliedCoupon
+    couponCode: string
+    savedAt: number
+  }
+  
+  // Restaurar pedido do localStorage ao carregar
+  useEffect(() => {
+    try {
+      const savedOrder = localStorage.getItem(ORDER_STORAGE_KEY)
+      if (savedOrder) {
+        const order: SavedOrder = JSON.parse(savedOrder)
+        
+        // Restaurar estados
+        setQuantities(order.quantities || {})
+        setFormData(order.formData || formData)
+        setDeliveryType(order.deliveryType || "entrega")
+        setShowCheckout(order.showCheckout || false)
+        setPaymentStatus(order.paymentStatus || "idle")
+        setPixData(order.pixData || null)
+        setOrderSnapshot(order.orderSnapshot || null)
+        setOrderId(order.orderId || "")
+        setPixExpired(order.pixExpired || false)
+        setAppliedCoupon(order.appliedCoupon || null)
+        setCouponCode(order.couponCode || "")
+        
+        // Restaurar cooldown se ainda estiver ativo
+        if (order.pixCooldownEnd && order.pixCooldownEnd > Date.now()) {
+          setPixCooldownEnd(order.pixCooldownEnd)
+          setPixCooldownLeft(Math.ceil((order.pixCooldownEnd - Date.now()) / 1000))
+        }
+        
+        // Restaurar tempo do PIX se ainda estiver ativo
+        if (order.pixData && order.paymentStatus === "awaiting" && !order.pixExpired) {
+          // Calcular tempo restante baseado no expiresAt
+          if (order.pixData.expiresAt) {
+            const expiresAt = new Date(order.pixData.expiresAt).getTime()
+            const now = Date.now()
+            const remaining = Math.max(0, Math.ceil((expiresAt - now) / 1000))
+            if (remaining > 0) {
+              setPixTimeLeft(remaining)
+            } else {
+              setPixExpired(true)
+              setPaymentStatus("idle")
+            }
+          } else if (order.pixTimeLeft > 0) {
+            // Fallback: usar tempo salvo menos tempo decorrido
+            const elapsed = Math.floor((Date.now() - order.savedAt) / 1000)
+            const remaining = Math.max(0, order.pixTimeLeft - elapsed)
+            if (remaining > 0) {
+              setPixTimeLeft(remaining)
+            } else {
+              setPixExpired(true)
+              setPaymentStatus("idle")
+            }
+          }
+        }
+        
+        console.log("[v0] Pedido restaurado do localStorage")
+      }
+    } catch (error) {
+      console.error("[v0] Erro ao restaurar pedido:", error)
+    }
+  }, [])
+  
+  // Salvar pedido no localStorage quando houver mudancas
+  useEffect(() => {
+    // So salvar se tiver algo no carrinho ou checkout aberto
+    const hasItems = Object.values(quantities).some(qty => qty > 0)
+    const hasOrder = showCheckout || paymentStatus !== "idle" || orderSnapshot !== null
+    
+    if (hasItems || hasOrder) {
+      const orderToSave: SavedOrder = {
+        quantities,
+        formData,
+        deliveryType,
+        showCheckout,
+        paymentStatus,
+        pixData,
+        orderSnapshot,
+        orderId,
+        pixTimeLeft,
+        pixExpired,
+        pixCooldownEnd,
+        appliedCoupon,
+        couponCode,
+        savedAt: Date.now()
+      }
+      localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(orderToSave))
+    }
+  }, [quantities, formData, deliveryType, showCheckout, paymentStatus, pixData, orderSnapshot, orderId, pixTimeLeft, pixExpired, pixCooldownEnd, appliedCoupon, couponCode])
 
   // Calcula taxa de entrega baseado no bairro
   const getDeliveryFee = () => {
@@ -177,6 +284,9 @@ export default function Home() {
 
   // Novo pedido do zero - limpa tudo
   const startNewOrderFromScratch = () => {
+    // Limpar localStorage PRIMEIRO
+    localStorage.removeItem(ORDER_STORAGE_KEY)
+    
     // Limpar PIX
     setPixData(null)
     setPaymentStatus("idle")
@@ -225,6 +335,9 @@ export default function Home() {
 
   // Novo pedido mantendo dados de entrega
   const startNewOrderKeepingData = () => {
+    // Limpar localStorage PRIMEIRO
+    localStorage.removeItem(ORDER_STORAGE_KEY)
+    
     // Salvar dados de entrega
     const savedNome = formData.nome
     const savedTelefone = formData.telefone
@@ -323,6 +436,9 @@ export default function Home() {
 
   // Resetar loja completamente (apos finalizar pedido)
   const resetStoreAfterOrder = () => {
+    // Limpar localStorage PRIMEIRO
+    localStorage.removeItem(ORDER_STORAGE_KEY)
+    
     // Limpar PIX
     setPixData(null)
     setPaymentStatus("idle")
