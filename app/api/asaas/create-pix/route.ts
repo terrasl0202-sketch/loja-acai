@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server"
 const ASAAS_API_URL = process.env.ASAAS_API_URL || "https://api.asaas.com/v3"
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY
 
-// CPF valido fixo para criar customers (CPF valido de teste)
-const DEFAULT_CPF = "12345678909"
+// CPF válido fixo para customers (pode ser configurado via env)
+const DEFAULT_CPF = process.env.ASAAS_DEFAULT_CPF || "52998224725"
 
 // Rate limiting simples - apenas 5 segundos
 const pixRequests = new Map<string, number>()
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
 
     // 1. Buscar cliente existente por telefone
     let customerId: string | null = null
+    let customerHasCpf = false
 
     try {
       console.log("[Asaas] Buscando cliente por telefone:", cleanPhone)
@@ -79,14 +80,34 @@ export async function POST(request: NextRequest) {
       console.log("[Asaas] Busca cliente:", searchResponse.status, searchData?.data?.length || 0, "encontrados")
 
       if (searchResponse.ok && searchData.data && searchData.data.length > 0) {
-        customerId = searchData.data[0].id
-        console.log("[Asaas] Cliente existente:", customerId)
+        const existingCustomer = searchData.data[0]
+        customerId = existingCustomer.id
+        customerHasCpf = !!existingCustomer.cpfCnpj
+        console.log("[Asaas] Cliente existente:", customerId, "tem CPF:", customerHasCpf)
       }
     } catch (e) {
       console.log("[Asaas] Erro busca cliente (ignorado):", e)
     }
 
-    // 2. Criar cliente se nao existir
+    // 2. Se cliente existe mas nao tem CPF, atualizar
+    if (customerId && !customerHasCpf) {
+      try {
+        console.log("[Asaas] Atualizando cliente com CPF:", customerId)
+        const updateResponse = await fetch(`${ASAAS_API_URL}/customers/${customerId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "access_token": ASAAS_API_KEY,
+          },
+          body: JSON.stringify({ cpfCnpj: DEFAULT_CPF }),
+        })
+        console.log("[Asaas] Atualização CPF:", updateResponse.status)
+      } catch (e) {
+        console.log("[Asaas] Erro ao atualizar CPF (ignorado):", e)
+      }
+    }
+
+    // 3. Criar cliente se nao existir
     if (!customerId) {
       const customerPayload = {
         name: body.customerName || "Cliente PK Gostosuras",
@@ -121,7 +142,7 @@ export async function POST(request: NextRequest) {
       console.log("[Asaas] Novo cliente criado:", customerId)
     }
 
-    // 3. Criar cobranca PIX
+    // 4. Criar cobranca PIX
     const nowDate = new Date()
     const dueDate = new Date(nowDate.getTime() + 24 * 60 * 60 * 1000)
     const dueDateStr = dueDate.toISOString().split("T")[0]
@@ -169,7 +190,7 @@ export async function POST(request: NextRequest) {
     const paymentData = JSON.parse(paymentResponseText)
     console.log("[Asaas] Pagamento criado:", paymentData.id)
 
-    // 4. Buscar QR Code PIX
+    // 5. Buscar QR Code PIX
     const pixResponse = await fetch(
       `${ASAAS_API_URL}/payments/${paymentData.id}/pixQrCode`,
       {
