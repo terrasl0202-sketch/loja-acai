@@ -9,6 +9,25 @@ import { type SiteConfig, type Coupon, defaultConfig } from "@/lib/config-types"
 type PaymentStatus = "idle" | "loading" | "awaiting" | "confirmed" | "error" | "manual"
 type DeliveryType = "entrega" | "retirada"
 
+// Snapshot do pedido no momento do PIX
+interface OrderSnapshot {
+  items: { id: number; name: string; price: number; quantity: number }[]
+  subtotal: number
+  deliveryFee: number
+  discount: number
+  total: number
+  couponCode: string | null
+  bairro: string
+  deliveryType: DeliveryType
+  customerName: string
+  customerPhone: string
+  address: string
+  reference: string
+  orderId: string
+  createdAt: string
+  expiresAt: string
+}
+
 export default function Home() {
   // Config do site carregada da API
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultConfig)
@@ -70,6 +89,10 @@ export default function Home() {
   const [copiedManualCode, setCopiedManualCode] = useState(false)
   const [pixTimeLeft, setPixTimeLeft] = useState<number>(0)
   const [pixExpired, setPixExpired] = useState(false)
+  
+  // Snapshot do pedido - bloqueio apos gerar PIX
+  const [orderSnapshot, setOrderSnapshot] = useState<OrderSnapshot | null>(null)
+  const isOrderLocked = orderSnapshot !== null && paymentStatus === "awaiting" && !pixExpired
   
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const addToCartAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -133,6 +156,51 @@ export default function Home() {
     const discount = getDiscount()
     const deliveryFee = getDeliveryFee()
     return Math.max(0, subtotal - discount + deliveryFee)
+  }
+
+  // Cancelar pedido e limpar tudo
+  const cancelOrderAndStartNew = () => {
+    if (!confirm("Tem certeza que deseja cancelar este pedido e comecar um novo?")) {
+      return
+    }
+    
+    // Limpar PIX
+    setPixData(null)
+    setPaymentStatus("idle")
+    setOrderSnapshot(null)
+    setPixExpired(false)
+    setPixTimeLeft(0)
+    setOrderId("")
+    
+    // Limpar carrinho
+    setQuantities({})
+    
+    // Limpar formulario
+    setFormData({
+      nome: "",
+      telefone: "",
+      endereco: "",
+      numero: "",
+      referencia: "",
+      pagamento: "pix",
+      observacao: "",
+      localizacao: "",
+      bairro: "",
+    })
+    
+    // Limpar cupom
+    setAppliedCoupon(null)
+    setCouponCode("")
+    setCouponError("")
+    
+    // Parar polling
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+    
+    // Fechar checkout
+    setShowCheckout(false)
   }
 
   // Timer do PIX
@@ -364,6 +432,12 @@ export default function Home() {
 
   // Criar cobranca PIX via Asaas
   const createPixCharge = async () => {
+    // Verificar se ja existe PIX ativo
+    if (isOrderLocked) {
+      alert("Ja existe um PIX ativo para este pedido. Aguarde o pagamento ou cancele para comecar um novo pedido.")
+      return
+    }
+
     if (!formData.nome) {
       alert("Por favor, preencha seu nome!")
       return
@@ -387,6 +461,9 @@ export default function Home() {
       return
     }
 
+    const subtotal = getSubtotal()
+    const discount = getDiscount()
+    const deliveryFee = getDeliveryFee()
     const total = getTotal()
     const newOrderId = generateOrderId()
     setOrderId(newOrderId)
@@ -401,10 +478,37 @@ export default function Home() {
 
     setPaymentStatus("loading")
 
+    // Criar snapshot do pedido ANTES de chamar API
     const orderItems = products
       .filter((p) => quantities[p.id] > 0)
-      .map((p) => `${quantities[p.id]}x ${p.name}`)
-      .join(", ")
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: Number(p.price),
+        quantity: quantities[p.id],
+      }))
+
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+
+    const snapshot: OrderSnapshot = {
+      items: orderItems,
+      subtotal,
+      deliveryFee,
+      discount,
+      total,
+      couponCode: appliedCoupon?.code || null,
+      bairro: formData.bairro,
+      deliveryType,
+      customerName: formData.nome,
+      customerPhone: formData.telefone,
+      address: formData.endereco + ", " + formData.numero,
+      reference: formData.referencia,
+      orderId: newOrderId,
+      createdAt: new Date().toISOString(),
+      expiresAt,
+    }
+
+    const orderDescription = orderItems.map(i => `${i.quantity}x ${i.name}`).join(", ")
 
     // Garantir que total seja numero
     const totalValue = Number(total)
@@ -415,7 +519,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           value: totalValue,
-          description: `Pedido ${newOrderId} - ${orderItems}`,
+          description: `Pedido ${newOrderId} - ${orderDescription}`,
           customerName: formData.nome,
           customerPhone: cleanPhone,
           externalReference: newOrderId,
@@ -423,8 +527,6 @@ export default function Home() {
       })
 
       const data = await response.json()
-      
-      console.log("[v0] Resposta create-pix:", data)
 
       if (!response.ok || data.error) {
         console.error("[v0] Erro da API Asaas:", data.error || data.details || "Erro desconhecido")
@@ -441,6 +543,8 @@ export default function Home() {
           value: data.value,
           expiresAt: data.expiresAt,
         })
+        // Salvar snapshot do pedido
+        setOrderSnapshot(snapshot)
         setPaymentStatus("awaiting")
         startPaymentPolling(data.paymentId)
       } else {
@@ -1004,8 +1108,23 @@ ${formData.observacao || "Nenhuma"}`
                     )}
                   </section>
 
+                  {/* Mensagem de pedido bloqueado */}
+                  {isOrderLocked && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-amber-400 font-medium text-sm">Pedido bloqueado</p>
+                          <p className="text-muted-foreground text-xs mt-1">
+                            Para alterar itens ou bairro, cancele este pedido e comece um novo.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Delivery Type */}
-                  <section className="bg-card rounded-2xl p-4 border border-border space-y-4">
+                  <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderLocked ? 'opacity-50 pointer-events-none' : ''}`}>
                     <h3 className="font-semibold text-foreground flex items-center gap-2">
                       <Truck className="w-5 h-5 text-primary" />
                       Tipo de Entrega
@@ -1013,7 +1132,8 @@ ${formData.observacao || "Nenhuma"}`
                     <div className="grid grid-cols-2 gap-2">
                       {DELIVERY_ENABLED && (
                         <button
-                          onClick={() => setDeliveryType("entrega")}
+                          onClick={() => !isOrderLocked && setDeliveryType("entrega")}
+                          disabled={isOrderLocked}
                           className={`py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                             deliveryType === "entrega"
                               ? "bg-primary text-primary-foreground"
@@ -1027,7 +1147,8 @@ ${formData.observacao || "Nenhuma"}`
                       )}
                       {PICKUP_ENABLED && (
                         <button
-                          onClick={() => setDeliveryType("retirada")}
+                          onClick={() => !isOrderLocked && setDeliveryType("retirada")}
+                          disabled={isOrderLocked}
                           className={`py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                             deliveryType === "retirada"
                               ? "bg-primary text-primary-foreground"
@@ -1047,7 +1168,7 @@ ${formData.observacao || "Nenhuma"}`
                   </section>
 
                   {/* Customer Info */}
-                  <section className="bg-card rounded-2xl p-4 border border-border space-y-4">
+                  <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderLocked ? 'opacity-50 pointer-events-none' : ''}`}>
                     <h3 className="font-semibold text-foreground">Seus Dados</h3>
                     
                     <div>
@@ -1058,9 +1179,10 @@ ${formData.observacao || "Nenhuma"}`
                       <input
                         type="text"
                         value={formData.nome}
-                        onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                        onChange={(e) => !isOrderLocked && setFormData({ ...formData, nome: e.target.value })}
+                        disabled={isOrderLocked}
                         placeholder="Seu nome completo"
-                        className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                        className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
                       />
                     </div>
 
@@ -1072,6 +1194,7 @@ ${formData.observacao || "Nenhuma"}`
                       <input
                         type="tel"
                         value={formData.telefone}
+                        disabled={isOrderLocked}
                         onChange={(e) => {
                           const value = e.target.value.replace(/\D/g, "").slice(0, 11)
                           const formatted = value
@@ -1094,9 +1217,10 @@ ${formData.observacao || "Nenhuma"}`
                           <input
                             type="text"
                             value={formData.endereco}
-                            onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                            onChange={(e) => !isOrderLocked && setFormData({ ...formData, endereco: e.target.value })}
+                            disabled={isOrderLocked}
                             placeholder="Rua"
-                            className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                            className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
                           />
                         </div>
 
@@ -1109,9 +1233,10 @@ ${formData.observacao || "Nenhuma"}`
                             <input
                               type="text"
                               value={formData.numero}
-                              onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
+                              onChange={(e) => !isOrderLocked && setFormData({ ...formData, numero: e.target.value })}
+                              disabled={isOrderLocked}
                               placeholder="Numero"
-                              className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                              className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
                             />
                           </div>
                         </div>
@@ -1124,8 +1249,9 @@ ${formData.observacao || "Nenhuma"}`
                           </label>
                           <select
                             value={formData.bairro}
-                            onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
-                            className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all appearance-none cursor-pointer"
+                            onChange={(e) => !isOrderLocked && setFormData({ ...formData, bairro: e.target.value })}
+                            disabled={isOrderLocked}
+                            className={`w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all appearance-none ${isOrderLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '20px' }}
                           >
                             <option value="">Selecione seu bairro</option>
@@ -1145,12 +1271,12 @@ ${formData.observacao || "Nenhuma"}`
                                   Taxa de entrega:
                                 </span>
                                 <span className="font-semibold text-primary">
-                                  {formatCurrency(getDeliveryFee())}
+                                  {formatCurrency(orderSnapshot ? orderSnapshot.deliveryFee : getDeliveryFee())}
                                 </span>
                               </div>
                             </div>
                           )}
-                          {!formData.bairro && (
+                          {!formData.bairro && !isOrderLocked && (
                             <p className="text-xs text-amber-400 mt-2">
                               Selecione seu bairro para calcular a entrega.
                             </p>
@@ -1165,15 +1291,17 @@ ${formData.observacao || "Nenhuma"}`
                           <input
                             type="text"
                             value={formData.referencia}
-                            onChange={(e) => setFormData({ ...formData, referencia: e.target.value })}
+                            onChange={(e) => !isOrderLocked && setFormData({ ...formData, referencia: e.target.value })}
+                            disabled={isOrderLocked}
                             placeholder="Ponto de referencia"
-                            className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                            className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
                           />
                         </div>
 
                         <button
                           onClick={getLocation}
-                          className="w-full py-3 bg-secondary text-secondary-foreground rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-secondary/80"
+                          disabled={isOrderLocked}
+                          className={`w-full py-3 bg-secondary text-secondary-foreground rounded-xl flex items-center justify-center gap-2 transition-all ${isOrderLocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-secondary/80'}`}
                         >
                           <MapPinned className="w-4 h-4" />
                           Enviar minha localizacao
@@ -1308,14 +1436,10 @@ ${formData.observacao || "Nenhuma"}`
                               </div>
                               {pixExpired && (
                                 <button
-                                  onClick={() => {
-                                    setPixData(null)
-                                    setPaymentStatus("idle")
-                                    setTimeout(() => createPixCharge(), 100)
-                                  }}
+                                  onClick={cancelOrderAndStartNew}
                                   className="mt-4 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-all"
                                 >
-                                  Gerar novo PIX
+                                  Comecar novo pedido
                                 </button>
                               )}
                             </div>
@@ -1328,9 +1452,21 @@ ${formData.observacao || "Nenhuma"}`
                               </div>
 
                               <div className="bg-input rounded-xl px-4 py-3">
-                                <p className="text-xs text-muted-foreground">Valor</p>
-                                <p className="font-bold text-xl text-primary">{formatCurrency(pixData.value)}</p>
+                                <p className="text-xs text-muted-foreground">Valor do Pedido</p>
+                                <p className="font-bold text-xl text-primary">{formatCurrency(orderSnapshot?.total || pixData.value)}</p>
                               </div>
+                              
+                              {orderSnapshot && (
+                                <div className="bg-input/50 rounded-xl px-4 py-3 text-xs space-y-1">
+                                  <p className="text-muted-foreground">Subtotal: {formatCurrency(orderSnapshot.subtotal)}</p>
+                                  {orderSnapshot.discount > 0 && (
+                                    <p className="text-green-400">Desconto: -{formatCurrency(orderSnapshot.discount)}</p>
+                                  )}
+                                  {orderSnapshot.deliveryFee > 0 && (
+                                    <p className="text-muted-foreground">Entrega ({orderSnapshot.bairro}): {formatCurrency(orderSnapshot.deliveryFee)}</p>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             {/* Codigo PIX Copia e Cola */}
@@ -1361,6 +1497,16 @@ ${formData.observacao || "Nenhuma"}`
                                 O pagamento sera confirmado automaticamente
                               </p>
                             </div>
+                            
+                            {/* Botao cancelar */}
+                            {!pixExpired && (
+                              <button
+                                onClick={cancelOrderAndStartNew}
+                                className="w-full py-3 text-sm text-muted-foreground hover:text-destructive transition-colors"
+                              >
+                                Cancelar e comecar novo pedido
+                              </button>
+                            )}
                           </div>
                         )}
 
