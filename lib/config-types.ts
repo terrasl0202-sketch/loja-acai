@@ -71,17 +71,39 @@ export interface Coupon {
   minimumOrder: number
 }
 
+export interface OrderItem {
+  productId: number
+  productName: string
+  quantity: number
+  price: number
+  subtotal: number
+}
+
 export interface Order {
   id: string
   customerName: string
   customerPhone: string
   items: string
+  itemsDetailed?: OrderItem[]
   total: number
   paymentMethod: string
   deliveryType: string
   address?: string
-  status: "received" | "preparing" | "delivering" | "completed" | "cancelled"
+  neighborhood?: string
+  reference?: string
+  observation?: string
+  status: "pending" | "confirmed" | "preparing" | "delivering" | "completed" | "cancelled"
+  paymentStatus: "pending" | "confirmed" | "failed"
   createdAt: string
+  confirmedAt?: string
+  // Campos para PIX automatico
+  asaasPaymentId?: string
+  asaasPixCode?: string
+  asaasQrCodeUrl?: string
+  // Campos para controle
+  isPixAutomatic?: boolean
+  manuallyConfirmed?: boolean
+  archived?: boolean
 }
 
 export interface SiteConfig {

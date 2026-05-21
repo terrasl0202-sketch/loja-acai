@@ -24,12 +24,25 @@ import {
   GripVertical,
   AlertCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  BarChart3,
+  DollarSign,
+  Users,
+  TrendingUp,
+  Bell,
+  BellOff,
+  Archive,
+  Copy,
+  Phone,
+  MapPin,
+  CheckCircle2,
+  XCircle,
+  ClockIcon
 } from "lucide-react"
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, defaultConfig } from "@/lib/config-types"
 
-type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "orders"
+type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "orders" | "reports" | "pix-confirmed"
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -43,13 +56,82 @@ export default function AdminPage() {
   const [sessionPassword, setSessionPassword] = useState("")
   const [orders, setOrders] = useState<Order[]>([])
   const [expandedProduct, setExpandedProduct] = useState<number | null>(null)
+  const [soundEnabled, setSoundEnabled] = useState(true)
+  const [lastOrderCount, setLastOrderCount] = useState(0)
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
+  const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
   useEffect(() => {
     if (isAuthenticated && sessionPassword) {
       loadConfig()
       loadOrders()
+      
+      // Polling para detectar novos pedidos a cada 30 segundos
+      const pollInterval = setInterval(() => {
+        loadOrdersWithNotification()
+      }, 30000)
+      
+      return () => clearInterval(pollInterval)
     }
   }, [isAuthenticated, sessionPassword])
+
+  // Notificacao sonora quando chegar novo pedido
+  const playNotificationSound = () => {
+    if (!soundEnabled) return
+    try {
+      const audio = new Audio("/notification.mp3")
+      audio.volume = 0.5
+      audio.play().catch(() => {
+        // Fallback: usar beep
+        const ctx = new AudioContext()
+        const oscillator = ctx.createOscillator()
+        const gainNode = ctx.createGain()
+        oscillator.connect(gainNode)
+        gainNode.connect(ctx.destination)
+        oscillator.frequency.value = 800
+        oscillator.type = "sine"
+        gainNode.gain.value = 0.3
+        oscillator.start()
+        setTimeout(() => oscillator.stop(), 300)
+      })
+    } catch {
+      console.log("Audio nao suportado")
+    }
+  }
+
+  const loadOrdersWithNotification = async () => {
+    try {
+      const res = await fetch(`/api/orders?password=${encodeURIComponent(sessionPassword)}`, { cache: "no-store" })
+      const data = await res.json()
+      if (data.success && data.orders) {
+        const newOrders = data.orders as Order[]
+        
+        // Verificar se tem novos pedidos
+        if (newOrders.length > lastOrderCount && lastOrderCount > 0) {
+          playNotificationSound()
+          // Mostrar alerta visual
+          if (Notification.permission === "granted") {
+            new Notification("Novo Pedido!", {
+              body: "Voce recebeu um novo pedido na loja.",
+              icon: "/favicon.ico"
+            })
+          }
+        }
+        
+        setOrders(newOrders)
+        setLastOrderCount(newOrders.length)
+      }
+    } catch (error) {
+      console.error("Erro ao carregar pedidos:", error)
+    }
+  }
+
+  // Solicitar permissao de notificacao
+  useEffect(() => {
+    if (isAuthenticated && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission()
+    }
+  }, [isAuthenticated])
 
   const loadConfig = async () => {
     try {
@@ -276,8 +358,9 @@ export default function AdminPage() {
 
   const getStatusColor = (status: Order["status"]) => {
     switch (status) {
-      case "received": return "bg-blue-500/20 text-blue-400"
-      case "preparing": return "bg-yellow-500/20 text-yellow-400"
+      case "pending": return "bg-yellow-500/20 text-yellow-400"
+      case "confirmed": return "bg-blue-500/20 text-blue-400"
+      case "preparing": return "bg-orange-500/20 text-orange-400"
       case "delivering": return "bg-purple-500/20 text-purple-400"
       case "completed": return "bg-green-500/20 text-green-400"
       case "cancelled": return "bg-red-500/20 text-red-400"
@@ -287,13 +370,194 @@ export default function AdminPage() {
 
   const getStatusLabel = (status: Order["status"]) => {
     switch (status) {
-      case "received": return "Recebido"
+      case "pending": return "Pendente"
+      case "confirmed": return "Confirmado"
       case "preparing": return "Preparando"
       case "delivering": return "Saiu p/ Entrega"
       case "completed": return "Finalizado"
       case "cancelled": return "Cancelado"
       default: return status
     }
+  }
+
+  const getPaymentStatusColor = (status: Order["paymentStatus"]) => {
+    switch (status) {
+      case "pending": return "bg-yellow-500/20 text-yellow-400"
+      case "confirmed": return "bg-green-500/20 text-green-400"
+      case "failed": return "bg-red-500/20 text-red-400"
+      default: return "bg-gray-500/20 text-gray-400"
+    }
+  }
+
+  const getPaymentStatusLabel = (status: Order["paymentStatus"]) => {
+    switch (status) {
+      case "pending": return "Aguardando"
+      case "confirmed": return "Pago"
+      case "failed": return "Falhou"
+      default: return status
+    }
+  }
+
+  // Calcular estatisticas de relatorios
+  const activeOrders = orders.filter(o => !o.archived)
+  
+  const reportStats = {
+    totalOrders: activeOrders.length,
+    totalRevenue: activeOrders.reduce((sum, o) => sum + o.total, 0),
+    
+    // Por forma de pagamento
+    pixAutomatic: activeOrders.filter(o => o.isPixAutomatic || o.paymentMethod === "PIX Asaas"),
+    pixManual: activeOrders.filter(o => o.paymentMethod === "PIX Manual" || o.paymentMethod === "PIX"),
+    dinheiro: activeOrders.filter(o => o.paymentMethod === "Dinheiro"),
+    cartao: activeOrders.filter(o => o.paymentMethod === "Cartao" || o.paymentMethod === "Cartão"),
+    
+    // Faturamento confirmado
+    confirmedRevenue: activeOrders
+      .filter(o => o.paymentStatus === "confirmed" || o.manuallyConfirmed)
+      .reduce((sum, o) => sum + o.total, 0),
+    
+    // Faturamento pendente
+    pendingRevenue: activeOrders
+      .filter(o => o.paymentStatus === "pending" && !o.manuallyConfirmed)
+      .reduce((sum, o) => sum + o.total, 0),
+  }
+
+  // Produtos mais vendidos (baseado nos itens dos pedidos confirmados)
+  const getTopProducts = () => {
+    const productSales: Record<string, { name: string, quantity: number, revenue: number }> = {}
+    
+    activeOrders
+      .filter(o => o.paymentStatus === "confirmed" || o.manuallyConfirmed)
+      .forEach(order => {
+        if (order.itemsDetailed && Array.isArray(order.itemsDetailed)) {
+          order.itemsDetailed.forEach(item => {
+            const key = item.productName
+            if (!productSales[key]) {
+              productSales[key] = { name: item.productName, quantity: 0, revenue: 0 }
+            }
+            productSales[key].quantity += item.quantity
+            productSales[key].revenue += item.subtotal
+          })
+        }
+      })
+    
+    return Object.values(productSales)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 10)
+  }
+
+  // Clientes que mais compraram
+  const getTopCustomers = () => {
+    const customerStats: Record<string, { name: string, phone: string, orders: number, revenue: number, lastOrder: string }> = {}
+    
+    activeOrders
+      .filter(o => o.paymentStatus === "confirmed" || o.manuallyConfirmed)
+      .forEach(order => {
+        const key = order.customerPhone || order.customerName
+        if (!customerStats[key]) {
+          customerStats[key] = {
+            name: order.customerName,
+            phone: order.customerPhone,
+            orders: 0,
+            revenue: 0,
+            lastOrder: order.createdAt
+          }
+        }
+        customerStats[key].orders += 1
+        customerStats[key].revenue += order.total
+        if (order.createdAt > customerStats[key].lastOrder) {
+          customerStats[key].lastOrder = order.createdAt
+        }
+      })
+    
+    return Object.values(customerStats)
+      .sort((a, b) => b.orders - a.orders)
+      .slice(0, 10)
+  }
+
+  // Pedidos PIX automatico confirmados
+  const pixConfirmedOrders = activeOrders.filter(o => 
+    (o.isPixAutomatic || o.paymentMethod === "PIX Asaas") && 
+    o.paymentStatus === "confirmed"
+  )
+
+  // Atualizar status de pagamento manual
+  const updatePaymentStatus = async (orderId: string, paymentStatus: Order["paymentStatus"], manuallyConfirmed: boolean) => {
+    try {
+      const res = await fetch("/api/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sessionPassword, orderId, paymentStatus, manuallyConfirmed }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => 
+          o.id === orderId ? { ...o, paymentStatus, manuallyConfirmed, confirmedAt: manuallyConfirmed ? new Date().toISOString() : o.confirmedAt } : o
+        ))
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar pagamento:", error)
+    }
+  }
+
+  // Arquivar todos os pedidos (limpar relatorios)
+  const archiveAllOrders = async () => {
+    try {
+      const res = await fetch("/api/orders", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sessionPassword, action: "archive_all" }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => ({ ...o, archived: true })))
+        setShowArchiveConfirm(false)
+      }
+    } catch (error) {
+      console.error("Erro ao arquivar pedidos:", error)
+    }
+  }
+
+  // Copiar dados do pedido
+  const copyOrderData = (order: Order) => {
+    const text = `Pedido: ${order.id}
+Cliente: ${order.customerName}
+Telefone: ${order.customerPhone}
+Endereco: ${order.address || "N/A"}
+Bairro: ${order.neighborhood || "N/A"}
+Referencia: ${order.reference || "N/A"}
+Itens: ${order.items}
+Total: R$ ${order.total.toFixed(2)}
+Pagamento: ${order.paymentMethod}
+Status: ${getPaymentStatusLabel(order.paymentStatus)}`
+    
+    navigator.clipboard.writeText(text)
+    alert("Dados copiados!")
+  }
+
+  // Abrir WhatsApp do cliente
+  const openCustomerWhatsApp = (phone: string) => {
+    const cleanPhone = phone.replace(/\D/g, "")
+    window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}`, "_blank")
+  }
+
+  // Formatar moeda
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value)
+  }
+
+  // Formatar data
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
   }
 
   // Tela de Login
@@ -374,12 +638,25 @@ export default function AdminPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Botao de som */}
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`p-2 rounded-xl transition-all ${
+                soundEnabled
+                  ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                  : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+              }`}
+              title={soundEnabled ? "Som ativado" : "Som desativado"}
+            >
+              {soundEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+            </button>
+            
             <button
               onClick={handleSave}
               disabled={saving}
               className={`flex items-center gap-2 px-4 py-2 font-medium rounded-xl transition-all disabled:opacity-50 ${
-                saveSuccess 
-                  ? "bg-green-600 text-white" 
+                saveSuccess
+                  ? "bg-green-600 text-white"
                   : "bg-primary text-primary-foreground hover:brightness-110"
               }`}
             >
@@ -429,8 +706,10 @@ export default function AdminPage() {
                 { id: "payment" as TabType, icon: CreditCard, label: "Pagamento" },
                 { id: "whatsapp" as TabType, icon: MessageCircle, label: "WhatsApp" },
                 { id: "coupons" as TabType, icon: Tag, label: "Cupons" },
-                { id: "orders" as TabType, icon: ShoppingBag, label: "Pedidos", badge: orders.filter(o => o.status === "received").length },
-              ].map((tab) => (
+              { id: "orders" as TabType, icon: ShoppingBag, label: "Pedidos", badge: orders.filter(o => o.status === "pending" && !o.archived).length },
+              { id: "reports" as TabType, icon: BarChart3, label: "Relatorios", badge: 0 },
+              { id: "pix-confirmed" as TabType, icon: CheckCircle2, label: "PIX Confirmados", badge: pixConfirmedOrders.length },
+            ].map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -1339,7 +1618,7 @@ export default function AdminPage() {
                         )}
 
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                          {(["received", "preparing", "delivering", "completed", "cancelled"] as Order["status"][]).map((status) => (
+                          {(["pending", "confirmed", "preparing", "delivering", "completed", "cancelled"] as Order["status"][]).map((status) => (
                             <button
                               key={status}
                               onClick={() => updateOrderStatus(order.id, status)}
@@ -1354,6 +1633,47 @@ export default function AdminPage() {
                             </button>
                           ))}
                         </div>
+                        
+                        {/* Botoes de pagamento manual */}
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border mt-3">
+                          <span className="text-xs text-muted-foreground w-full mb-1">Pagamento:</span>
+                          <button
+                            onClick={() => updatePaymentStatus(order.id, "confirmed", true)}
+                            disabled={order.paymentStatus === "confirmed"}
+                            className={`px-3 py-1 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
+                              order.paymentStatus === "confirmed"
+                                ? "bg-green-500/20 text-green-400"
+                                : "bg-secondary text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            Pago
+                          </button>
+                          <button
+                            onClick={() => updatePaymentStatus(order.id, "pending", false)}
+                            disabled={order.paymentStatus === "pending"}
+                            className={`px-3 py-1 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
+                              order.paymentStatus === "pending"
+                                ? "bg-yellow-500/20 text-yellow-400"
+                                : "bg-secondary text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            <ClockIcon className="w-3 h-3" />
+                            Pendente
+                          </button>
+                          <button
+                            onClick={() => updatePaymentStatus(order.id, "failed", false)}
+                            disabled={order.paymentStatus === "failed"}
+                            className={`px-3 py-1 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
+                              order.paymentStatus === "failed"
+                                ? "bg-red-500/20 text-red-400"
+                                : "bg-secondary text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            <XCircle className="w-3 h-3" />
+                            Cancelado
+                          </button>
+                        </div>
                       </div>
                     ))}
 
@@ -1367,6 +1687,322 @@ export default function AdminPage() {
                   </div>
                 </div>
               )}
+
+              {/* Aba de Relatorios */}
+              {activeTab === "reports" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground">Relatorios</h2>
+                    <button
+                      onClick={() => setShowArchiveConfirm(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
+                    >
+                      <Archive className="w-4 h-4" />
+                      Limpar Relatorios
+                    </button>
+                  </div>
+
+                  {/* Cards de resumo */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-card p-4 rounded-xl border border-border">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-blue-500/20 rounded-lg">
+                          <ShoppingBag className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <span className="text-muted-foreground text-sm">Total Pedidos</span>
+                      </div>
+                      <p className="text-2xl font-bold text-foreground">{reportStats.totalOrders}</p>
+                    </div>
+
+                    <div className="bg-card p-4 rounded-xl border border-border">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-green-500/20 rounded-lg">
+                          <DollarSign className="w-5 h-5 text-green-400" />
+                        </div>
+                        <span className="text-muted-foreground text-sm">Faturamento Total</span>
+                      </div>
+                      <p className="text-2xl font-bold text-foreground">{formatCurrency(reportStats.totalRevenue)}</p>
+                    </div>
+
+                    <div className="bg-card p-4 rounded-xl border border-border">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-emerald-500/20 rounded-lg">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                        </div>
+                        <span className="text-muted-foreground text-sm">Confirmado</span>
+                      </div>
+                      <p className="text-2xl font-bold text-green-400">{formatCurrency(reportStats.confirmedRevenue)}</p>
+                    </div>
+
+                    <div className="bg-card p-4 rounded-xl border border-border">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-yellow-500/20 rounded-lg">
+                          <ClockIcon className="w-5 h-5 text-yellow-400" />
+                        </div>
+                        <span className="text-muted-foreground text-sm">Pendente</span>
+                      </div>
+                      <p className="text-2xl font-bold text-yellow-400">{formatCurrency(reportStats.pendingRevenue)}</p>
+                    </div>
+                  </div>
+
+                  {/* Por forma de pagamento */}
+                  <div className="bg-card p-6 rounded-xl border border-border">
+                    <h3 className="font-semibold text-foreground mb-4">Por Forma de Pagamento</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                          <span className="text-foreground">PIX Automatico</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-foreground">{formatCurrency(reportStats.pixAutomatic.reduce((s, o) => s + o.total, 0))}</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.pixAutomatic.length} pedidos</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                          <span className="text-foreground">PIX Manual</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-foreground">{formatCurrency(reportStats.pixManual.reduce((s, o) => s + o.total, 0))}</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.pixManual.length} pedidos</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                          <span className="text-foreground">Dinheiro</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-foreground">{formatCurrency(reportStats.dinheiro.reduce((s, o) => s + o.total, 0))}</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.dinheiro.length} pedidos</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                          <span className="text-foreground">Cartao</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-foreground">{formatCurrency(reportStats.cartao.reduce((s, o) => s + o.total, 0))}</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.cartao.length} pedidos</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Produtos mais vendidos */}
+                  <div className="bg-card p-6 rounded-xl border border-border">
+                    <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-primary" />
+                      Produtos Mais Vendidos
+                    </h3>
+                    <div className="space-y-2">
+                      {getTopProducts().length > 0 ? (
+                        getTopProducts().map((product, index) => (
+                          <div key={product.name} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <span className="w-6 h-6 bg-primary/20 text-primary text-sm font-bold rounded-full flex items-center justify-center">
+                                {index + 1}
+                              </span>
+                              <span className="text-foreground">{product.name}</span>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-foreground">{product.quantity}x</p>
+                              <p className="text-xs text-muted-foreground">{formatCurrency(product.revenue)}</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-center text-muted-foreground py-4">Nenhuma venda confirmada ainda</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Clientes que mais compraram */}
+                  <div className="bg-card p-6 rounded-xl border border-border">
+                    <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                      <Users className="w-5 h-5 text-primary" />
+                      Clientes que Mais Compraram
+                    </h3>
+                    <div className="space-y-2">
+                      {getTopCustomers().length > 0 ? (
+                        getTopCustomers().map((customer, index) => (
+                          <div key={customer.phone || customer.name} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <span className="w-6 h-6 bg-primary/20 text-primary text-sm font-bold rounded-full flex items-center justify-center">
+                                {index + 1}
+                              </span>
+                              <div>
+                                <p className="text-foreground font-medium">{customer.name}</p>
+                                <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-foreground">{customer.orders} pedidos</p>
+                              <p className="text-xs text-muted-foreground">{formatCurrency(customer.revenue)}</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-center text-muted-foreground py-4">Nenhum cliente ainda</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Aba de PIX Confirmados */}
+              {activeTab === "pix-confirmed" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground">PIX Automatico Confirmados ({pixConfirmedOrders.length})</h2>
+                    <button
+                      onClick={loadOrders}
+                      className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"
+                    >
+                      <Loader2 className="w-4 h-4" />
+                      Atualizar
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {pixConfirmedOrders.length > 0 ? (
+                      pixConfirmedOrders.map((order) => (
+                        <div key={order.id} className="bg-card p-6 rounded-xl border border-border space-y-4">
+                          {/* Header do pedido */}
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-bold text-lg text-foreground">{order.id}</p>
+                              <p className="text-sm text-muted-foreground">{formatDate(order.createdAt)}</p>
+                              {order.confirmedAt && (
+                                <p className="text-xs text-green-400">Pago em: {formatDate(order.confirmedAt)}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm font-medium rounded-full">
+                                PIX Pago
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Dados do cliente */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-secondary/30 rounded-lg">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Cliente</p>
+                              <p className="font-medium text-foreground">{order.customerName}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Telefone</p>
+                              <p className="font-medium text-foreground">{order.customerPhone}</p>
+                            </div>
+                            {order.address && (
+                              <div className="md:col-span-2">
+                                <p className="text-xs text-muted-foreground">Endereco</p>
+                                <p className="font-medium text-foreground">{order.address}</p>
+                              </div>
+                            )}
+                            {order.neighborhood && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Bairro</p>
+                                <p className="font-medium text-foreground">{order.neighborhood}</p>
+                              </div>
+                            )}
+                            {order.reference && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Referencia</p>
+                                <p className="font-medium text-foreground">{order.reference}</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Itens e total */}
+                          <div className="p-4 bg-secondary/30 rounded-lg">
+                            <p className="text-xs text-muted-foreground mb-2">Itens do Pedido</p>
+                            <p className="text-foreground whitespace-pre-wrap">{order.items}</p>
+                            <div className="mt-3 pt-3 border-t border-border flex justify-between items-center">
+                              <span className="text-muted-foreground">Total:</span>
+                              <span className="text-xl font-bold text-primary">{formatCurrency(order.total)}</span>
+                            </div>
+                          </div>
+
+                          {/* ID do pagamento Asaas */}
+                          {order.asaasPaymentId && (
+                            <div className="p-3 bg-blue-500/10 rounded-lg">
+                              <p className="text-xs text-muted-foreground">ID Pagamento Asaas</p>
+                              <p className="font-mono text-sm text-blue-400">{order.asaasPaymentId}</p>
+                            </div>
+                          )}
+
+                          {/* Botoes de acao */}
+                          <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                            <button
+                              onClick={() => copyOrderData(order)}
+                              className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                            >
+                              <Copy className="w-4 h-4" />
+                              Copiar Dados
+                            </button>
+                            {order.customerPhone && (
+                              <button
+                                onClick={() => openCustomerWhatsApp(order.customerPhone)}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors"
+                              >
+                                <Phone className="w-4 h-4" />
+                                WhatsApp
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Nenhum pagamento PIX confirmado</p>
+                        <p className="text-sm">Pagamentos confirmados aparecerao aqui</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal de confirmacao para arquivar relatorios */}
+        {showArchiveConfirm && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertCircle className="w-8 h-8 text-red-400" />
+                </div>
+                <h3 className="text-xl font-bold text-foreground">Limpar Relatorios</h3>
+                <p className="text-muted-foreground mt-2">
+                  Tem certeza que deseja limpar os relatorios? Os pedidos serao arquivados e nao aparecerao mais nas estatisticas.
+                </p>
+                <p className="text-sm text-red-400 mt-2">
+                  Essa acao nao pode ser desfeita.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowArchiveConfirm(false)}
+                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={archiveAllOrders}
+                  className="flex-1 py-3 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-colors"
+                >
+                  Limpar
+                </button>
+              </div>
             </div>
           </div>
         )}

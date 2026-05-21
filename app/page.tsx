@@ -712,6 +712,11 @@ export default function Home() {
   }
 
   const openCheckout = () => {
+    // Verificar se loja esta aberta
+    if (!siteConfig.storeHours.isOpen) {
+      alert(siteConfig.storeHours.closedMessage || "Estamos fechados no momento. Volte em breve!")
+      return
+    }
     if (getTotalItems() === 0) {
       alert("Adicione pelo menos um item ao carrinho!")
       return
@@ -1247,19 +1252,26 @@ ${formData.observacao || "Nenhuma"}`
       {/* Fixed Bottom Button */}
       <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border p-4">
         <div className="max-w-lg mx-auto">
-          <button
-            onClick={openCheckout}
-            disabled={getTotalItems() === 0}
-            className="w-full py-4 bg-primary text-primary-foreground font-bold text-lg rounded-2xl flex items-center justify-center gap-3 transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/30"
-          >
-            <Send className="w-5 h-5" />
-            Enviar Pedido no WhatsApp
-            {getTotalItems() > 0 && (
-              <span className="bg-accent text-accent-foreground px-3 py-1 rounded-full text-sm">
-                {formatCurrency(getTotal())}
-              </span>
-            )}
-          </button>
+          {!siteConfig.storeHours.isOpen ? (
+            <div className="w-full py-4 bg-red-500/20 text-red-400 font-bold text-lg rounded-2xl flex items-center justify-center gap-3 border border-red-500/50">
+              <X className="w-5 h-5" />
+              Loja Fechada
+            </div>
+          ) : (
+            <button
+              onClick={openCheckout}
+              disabled={getTotalItems() === 0}
+              className="w-full py-4 bg-primary text-primary-foreground font-bold text-lg rounded-2xl flex items-center justify-center gap-3 transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/30"
+            >
+              <Send className="w-5 h-5" />
+              Enviar Pedido no WhatsApp
+              {getTotalItems() > 0 && (
+                <span className="bg-accent text-accent-foreground px-3 py-1 rounded-full text-sm">
+                  {formatCurrency(getTotal())}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
