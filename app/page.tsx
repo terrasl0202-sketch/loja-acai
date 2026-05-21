@@ -1620,7 +1620,7 @@ ${formData.observacao || "Nenhuma"}`
                                         `Referencia: ${formData.referencia || "Nao informada"}\n\n` +
                                         `Vou enviar o comprovante agora.`
                                       )
-                                      window.open(`https://wa.me/5511966095057?text=${message}`, "_blank")
+                                      window.open(`https://api.whatsapp.com/send?phone=5511918505799&text=${message}`, "_blank")
                                     }}
                                     className="w-full py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
                                   >
@@ -1876,22 +1876,39 @@ ${formData.observacao || "Nenhuma"}`
                         {/* Idle State - Show button to generate PIX */}
                         {paymentStatus === "idle" && (
                           <div className="text-center py-4">
-                            <p className="text-muted-foreground mb-4">
-                              {getTotal() < MIN_VALUE_FOR_ASAAS 
-                                ? "Clique abaixo para ver os dados do PIX" 
-                                : "Clique abaixo para gerar o PIX automatico"}
-                            </p>
-                            <button
-                              onClick={createPixCharge}
-                              className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 active:scale-[0.98]"
-                            >
-                              <CreditCard className="w-5 h-5" />
-                              {getTotal() < MIN_VALUE_FOR_ASAAS ? "Ver PIX Manual" : "Gerar PIX Automatico"}
-                            </button>
-                            {getTotal() < MIN_VALUE_FOR_ASAAS && (
-                              <p className="text-xs text-muted-foreground mt-3">
-                                Pedidos abaixo de R$ 15 usam PIX manual
-                              </p>
+                            {/* Esconder botao PIX automatico durante cooldown */}
+                            {isInCooldown ? (
+                              <div className="space-y-3">
+                                <p className="text-muted-foreground text-sm">
+                                  PIX automatico bloqueado por mais{" "}
+                                  <span className="font-mono font-bold text-amber-400">
+                                    {Math.floor(pixCooldownLeft / 60).toString().padStart(2, '0')}:{(pixCooldownLeft % 60).toString().padStart(2, '0')}
+                                  </span>
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Escolha Dinheiro, Cartao ou PIX manual acima.
+                                </p>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="text-muted-foreground mb-4">
+                                  {getTotal() < MIN_VALUE_FOR_ASAAS 
+                                    ? "Clique abaixo para ver os dados do PIX" 
+                                    : "Clique abaixo para gerar o PIX automatico"}
+                                </p>
+                                <button
+                                  onClick={createPixCharge}
+                                  className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 active:scale-[0.98]"
+                                >
+                                  <CreditCard className="w-5 h-5" />
+                                  {getTotal() < MIN_VALUE_FOR_ASAAS ? "Ver PIX Manual" : "Gerar PIX Automatico"}
+                                </button>
+                                {getTotal() < MIN_VALUE_FOR_ASAAS && (
+                                  <p className="text-xs text-muted-foreground mt-3">
+                                    Pedidos abaixo de R$ 15 usam PIX manual
+                                  </p>
+                                )}
+                              </>
                             )}
                           </div>
                         )}
