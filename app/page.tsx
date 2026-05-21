@@ -158,12 +158,12 @@ export default function Home() {
     return Math.max(0, subtotal - discount + deliveryFee)
   }
 
-  // Cancelar pedido e limpar tudo
-  const cancelOrderAndStartNew = () => {
-    if (!confirm("Tem certeza que deseja cancelar este pedido e comecar um novo?")) {
-      return
-    }
-    
+  // Modal de confirmacao para novo pedido
+  const [showNewOrderModal, setShowNewOrderModal] = useState(false)
+  const [showCloseConfirmModal, setShowCloseConfirmModal] = useState(false)
+
+  // Novo pedido do zero - limpa tudo
+  const startNewOrderFromScratch = () => {
     // Limpar PIX
     setPixData(null)
     setPaymentStatus("idle")
@@ -199,8 +199,81 @@ export default function Home() {
       pollIntervalRef.current = null
     }
     
-    // Fechar checkout
+    // Fechar modais e checkout
+    setShowNewOrderModal(false)
+    setShowCloseConfirmModal(false)
     setShowCheckout(false)
+  }
+
+  // Novo pedido mantendo dados de entrega
+  const startNewOrderKeepingData = () => {
+    // Salvar dados de entrega
+    const savedNome = formData.nome
+    const savedTelefone = formData.telefone
+    const savedEndereco = formData.endereco
+    const savedNumero = formData.numero
+    const savedReferencia = formData.referencia
+    const savedLocalizacao = formData.localizacao
+    
+    // Limpar PIX
+    setPixData(null)
+    setPaymentStatus("idle")
+    setOrderSnapshot(null)
+    setPixExpired(false)
+    setPixTimeLeft(0)
+    setOrderId("")
+    
+    // Limpar carrinho
+    setQuantities({})
+    
+    // Restaurar formulario com dados salvos (menos bairro)
+    setFormData({
+      nome: savedNome,
+      telefone: savedTelefone,
+      endereco: savedEndereco,
+      numero: savedNumero,
+      referencia: savedReferencia,
+      pagamento: "pix",
+      observacao: "",
+      localizacao: savedLocalizacao,
+      bairro: "", // Bairro deve ser reselecionado
+    })
+    
+    // Limpar cupom
+    setAppliedCoupon(null)
+    setCouponCode("")
+    setCouponError("")
+    
+    // Parar polling
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+    
+    // Fechar modais e checkout
+    setShowNewOrderModal(false)
+    setShowCloseConfirmModal(false)
+    setShowCheckout(false)
+  }
+
+  // Tentar fechar checkout - verifica se tem PIX ativo
+  const handleCloseCheckout = () => {
+    if (isOrderLocked) {
+      setShowCloseConfirmModal(true)
+      return
+    }
+    // Se nao tem PIX ativo, pode fechar normalmente
+    setShowCheckout(false)
+    setPaymentStatus("idle")
+    setPixData(null)
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+    }
+  }
+
+  // Cancelar pedido e limpar tudo (compatibilidade)
+  const cancelOrderAndStartNew = () => {
+    setShowNewOrderModal(true)
   }
 
   // Timer do PIX
@@ -923,19 +996,12 @@ ${formData.observacao || "Nenhuma"}`
                   <h2 className="text-xl font-bold text-foreground">
                     {paymentStatus === "confirmed" ? "Pedido Confirmado" : "Finalizar Pedido"}
                   </h2>
-                  <button
-                    onClick={() => {
-                      setShowCheckout(false)
-                      setPaymentStatus("idle")
-                      setPixData(null)
-                      if (pollIntervalRef.current) {
-                        clearInterval(pollIntervalRef.current)
-                      }
-                    }}
-                    className="p-2 bg-secondary rounded-full text-foreground transition-all hover:bg-secondary/80 active:scale-95"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                <button 
+                  onClick={handleCloseCheckout}
+                  className="p-2 bg-secondary rounded-full text-foreground transition-all hover:bg-secondary/80 active:scale-95"
+                >
+                  <X className="w-5 h-5" />
+                </button>
                 </div>
               </div>
             </header>
@@ -1113,11 +1179,17 @@ ${formData.observacao || "Nenhuma"}`
                     <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
                       <div className="flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
-                        <div>
+                        <div className="flex-1">
                           <p className="text-amber-400 font-medium text-sm">Pedido bloqueado</p>
                           <p className="text-muted-foreground text-xs mt-1">
                             Para alterar itens ou bairro, cancele este pedido e comece um novo.
                           </p>
+                          <button
+                            onClick={() => setShowNewOrderModal(true)}
+                            className="mt-3 px-4 py-2 bg-amber-500/20 text-amber-400 rounded-lg text-sm font-medium hover:bg-amber-500/30 transition-colors"
+                          >
+                            Fazer novo pedido
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1645,6 +1717,75 @@ ${formData.observacao || "Nenhuma"}`
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmacao para fechar com PIX ativo */}
+      {showCloseConfirmModal && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
+            <div className="text-center">
+              <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-foreground mb-2">PIX Ativo</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Existe um PIX ativo para este pedido. Para alterar algo, voce precisa iniciar um novo pedido.
+              </p>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={() => setShowCloseConfirmModal(false)}
+                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Continuar neste pedido
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCloseConfirmModal(false)
+                    setShowNewOrderModal(true)
+                  }}
+                  className="w-full py-3 bg-secondary text-secondary-foreground rounded-xl font-medium hover:bg-secondary/80 transition-colors"
+                >
+                  Fazer novo pedido
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de opcoes para novo pedido */}
+      {showNewOrderModal && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
+            <div className="text-center">
+              <ShoppingCart className="w-12 h-12 text-primary mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-foreground mb-2">Novo Pedido</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Como voce deseja comecar seu novo pedido?
+              </p>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={startNewOrderFromScratch}
+                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Novo pedido do zero
+                </button>
+                <button
+                  onClick={startNewOrderKeepingData}
+                  className="w-full py-3 bg-secondary text-secondary-foreground rounded-xl font-medium hover:bg-secondary/80 transition-colors"
+                >
+                  Manter dados de entrega
+                </button>
+                <button
+                  onClick={() => setShowNewOrderModal(false)}
+                  className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
             </div>
           </div>
         </div>
