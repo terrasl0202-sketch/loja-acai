@@ -96,6 +96,7 @@ export default function AdminPage() {
     setSaveSuccess(false)
 
     try {
+      console.log("[v0 Admin] Salvando config...")
       const res = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -103,13 +104,20 @@ export default function AdminPage() {
       })
 
       const data = await res.json()
+      console.log("[v0 Admin] Resposta do salvamento:", data)
 
       if (data.success) {
         setSaveSuccess(true)
-        setTimeout(() => setSaveSuccess(false), 3000)
+        // Recarregar config para confirmar que foi salvo
+        await loadConfig()
+        setTimeout(() => setSaveSuccess(false), 5000)
+      } else {
+        console.error("[v0 Admin] Erro ao salvar:", data.error)
+        alert("Erro ao salvar: " + (data.error || "Erro desconhecido"))
       }
     } catch (error) {
-      console.error("Erro ao salvar:", error)
+      console.error("[v0 Admin] Erro ao salvar:", error)
+      alert("Erro ao salvar configuracoes")
     } finally {
       setSaving(false)
     }
