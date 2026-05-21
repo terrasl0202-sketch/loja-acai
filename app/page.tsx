@@ -381,6 +381,12 @@ export default function Home() {
       return
     }
 
+    // Validar bairro obrigatorio para entrega
+    if (deliveryType === "entrega" && !formData.bairro) {
+      alert("Por favor, selecione seu bairro para calcular a entrega!")
+      return
+    }
+
     const total = getTotal()
     const newOrderId = generateOrderId()
     setOrderId(newOrderId)
@@ -586,6 +592,12 @@ Observacao: ${formData.observacao || "Nenhuma"}`
 
     if (deliveryType === "entrega" && (!formData.endereco || !formData.numero || !formData.referencia)) {
       alert("Por favor, preencha todos os campos de entrega!")
+      return
+    }
+
+    // Validar bairro obrigatorio para entrega
+    if (deliveryType === "entrega" && !formData.bairro) {
+      alert("Por favor, selecione seu bairro para calcular a entrega!")
       return
     }
 
@@ -1102,19 +1114,47 @@ ${formData.observacao || "Nenhuma"}`
                               className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                             />
                           </div>
-                          <div>
-                            <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                              <MapPin className="w-4 h-4" />
-                              Bairro
-                            </label>
-                            <input
-                              type="text"
-                              value={formData.bairro}
-                              onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
-                              placeholder="Bairro"
-                              className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                            />
-                          </div>
+                        </div>
+
+                        {/* Bairro Dropdown */}
+                        <div>
+                          <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                            <MapPin className="w-4 h-4" />
+                            Bairro *
+                          </label>
+                          <select
+                            value={formData.bairro}
+                            onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
+                            className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all appearance-none cursor-pointer"
+                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '20px' }}
+                          >
+                            <option value="">Selecione seu bairro</option>
+                            {(siteConfig.delivery?.neighborhoodFees || [])
+                              .filter(n => n.active !== false)
+                              .map((neighborhood) => (
+                                <option key={neighborhood.name} value={neighborhood.name}>
+                                  {neighborhood.name} - R$ {neighborhood.fee.toFixed(2)}
+                                </option>
+                              ))}
+                          </select>
+                          {formData.bairro && (
+                            <div className="mt-2 p-3 bg-primary/10 border border-primary/20 rounded-xl">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                                  <Truck className="w-4 h-4" />
+                                  Taxa de entrega:
+                                </span>
+                                <span className="font-semibold text-primary">
+                                  {formatCurrency(getDeliveryFee())}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          {!formData.bairro && (
+                            <p className="text-xs text-amber-400 mt-2">
+                              Selecione seu bairro para calcular a entrega.
+                            </p>
+                          )}
                         </div>
 
                         <div>

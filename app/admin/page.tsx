@@ -226,7 +226,7 @@ export default function AdminPage() {
   }
 
   const addNeighborhoodFee = () => {
-    const newFee: NeighborhoodFee = { name: "Novo Bairro", fee: 5 }
+    const newFee: NeighborhoodFee = { name: "Novo Bairro", fee: 5, active: true }
     setConfig(prev => ({
       ...prev,
       delivery: {
@@ -236,7 +236,7 @@ export default function AdminPage() {
     }))
   }
 
-  const updateNeighborhoodFee = (index: number, field: keyof NeighborhoodFee, value: string | number) => {
+  const updateNeighborhoodFee = (index: number, field: keyof NeighborhoodFee, value: string | number | boolean) => {
     setConfig(prev => ({
       ...prev,
       delivery: {
@@ -939,34 +939,46 @@ export default function AdminPage() {
                         </button>
                       </div>
                       <div className="space-y-2">
-                        {(config.delivery?.neighborhoodFees || []).map((fee, index) => (
-                          <div key={index} className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={fee.name}
-                              onChange={(e) => updateNeighborhoodFee(index, "name", e.target.value)}
-                              placeholder="Nome do bairro"
-                              className="flex-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm"
-                            />
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={fee.fee}
-                              onChange={(e) => updateNeighborhoodFee(index, "fee", Number(e.target.value))}
-                              className="w-24 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm"
-                            />
-                            <button
-                              onClick={() => removeNeighborhoodFee(index)}
-                              className="p-2 text-destructive hover:bg-destructive/20 rounded-lg"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                        {(config.delivery?.neighborhoodFees || []).length === 0 && (
-                          <p className="text-sm text-muted-foreground text-center py-2">Nenhuma taxa por bairro configurada</p>
-                        )}
+                  {(config.delivery?.neighborhoodFees || []).map((fee, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={fee.active !== false}
+                        onChange={(e) => updateNeighborhoodFee(index, "active", e.target.checked)}
+                        className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
+                        title="Ativo"
+                      />
+                      <input
+                        type="text"
+                        value={fee.name}
+                        onChange={(e) => updateNeighborhoodFee(index, "name", e.target.value)}
+                        placeholder="Nome do bairro"
+                        className="flex-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm"
+                      />
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground text-sm">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={fee.fee}
+                          onChange={(e) => updateNeighborhoodFee(index, "fee", Number(e.target.value))}
+                          className="w-20 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm"
+                          placeholder="Taxa"
+                        />
                       </div>
+                      <button
+                        onClick={() => removeNeighborhoodFee(index)}
+                        className="p-2 text-destructive hover:bg-destructive/20 rounded-lg"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  {(config.delivery?.neighborhoodFees || []).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-2">Nenhum bairro cadastrado</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">Marque a caixa para ativar o bairro no checkout</p>
+                </div>
                     </div>
                   </div>
                 </div>

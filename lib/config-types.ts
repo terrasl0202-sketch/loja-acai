@@ -59,6 +59,7 @@ export interface DeliveryConfig {
 export interface NeighborhoodFee {
   name: string
   fee: number
+  active?: boolean
 }
 
 export interface Coupon {
