@@ -1475,22 +1475,23 @@ ${formData.observacao || "Nenhuma"}`
                       Forma de Pagamento
                     </h3>
                     
-                    {/* Esconder botões quando PIX está ativo ou em cooldown */}
-                    {!isOrderBlocked && (
+                    {/* Mostrar botoes quando NAO tem PIX automatico ativo (permite durante cooldown) */}
+                    {!isOrderLocked && (
                       <>
-                        {/* Aviso de cooldown - so mostra se nao esta bloqueado */}
                         <div className="grid grid-cols-3 gap-2">
                           {[
-                            { value: "pix", label: "Pix", disabled: false },
-                            { value: "dinheiro", label: "Dinheiro", disabled: false },
-                            { value: "cartao", label: "Cartao", disabled: false },
+                            { value: "pix", label: "Pix" },
+                            { value: "dinheiro", label: "Dinheiro" },
+                            { value: "cartao", label: "Cartao" },
                           ].map((option) => (
                             <button
                               key={option.value}
                               onClick={() => {
                                 setFormData({ ...formData, pagamento: option.value })
-                                setPaymentStatus("idle")
-                                setPixData(null)
+                                if (!isInCooldown) {
+                                  setPaymentStatus("idle")
+                                  setPixData(null)
+                                }
                               }}
                               className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${
                                 formData.pagamento === option.value
@@ -1505,7 +1506,7 @@ ${formData.observacao || "Nenhuma"}`
                       </>
                     )}
 
-                    {/* Card de cooldown com PIX manual sempre visivel */}
+                    {/* Card de cooldown com PIX manual */}
                     {isInCooldown && (
                       <div className="space-y-4">
                         {/* Aviso de cooldown */}
@@ -1518,83 +1519,119 @@ ${formData.observacao || "Nenhuma"}`
                           </p>
                         </div>
                         
-                        {/* PIX Manual sempre visivel durante cooldown */}
-                        <div className="bg-secondary/50 rounded-xl p-4 space-y-4">
-                          <div className="text-center">
-                            <p className="text-sm text-muted-foreground mb-3">
-                              Nao quer esperar? Pague pelo PIX manual e envie o comprovante no WhatsApp.
-                            </p>
-                            {!showManualPixDuringCooldown ? (
-                              <button
-                                onClick={() => setShowManualPixDuringCooldown(true)}
-                                className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
-                              >
-                                Pagar com PIX manual
-                              </button>
-                            ) : (
-                              <div className="space-y-4 animate-in fade-in duration-300 border-t border-border pt-4 mt-4">
-                                <div className="text-center">
-                                  <h4 className="font-bold text-foreground">PIX Manual</h4>
-                                  <p className="text-xs text-muted-foreground mt-1">Pague e envie o comprovante</p>
-                                </div>
-                                
-                                <div className="flex flex-col items-center">
-                                  <div className="bg-white p-4 rounded-xl shadow-md">
-                                    <QRCodeSVG
-                                      value={generateManualPixCode(orderSnapshot?.total || getTotal())}
-                                      size={150}
-                                      level="M"
-                                      includeMargin={false}
-                                    />
-                                  </div>
-                                </div>
-                                
-                                <div className="space-y-2">
-                                  <div className="bg-input rounded-xl px-4 py-3">
-                                    <p className="text-xs text-muted-foreground">Recebedor</p>
-                                    <p className="font-semibold text-foreground">Carina Karen da Silva</p>
+                        {/* PIX Manual durante cooldown */}
+                        {formData.pagamento === "pix" && (
+                          <div className="bg-secondary/50 rounded-xl p-4 space-y-4">
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground mb-3">
+                                Nao quer esperar? Pague pelo PIX manual e envie o comprovante no WhatsApp.
+                              </p>
+                              {!showManualPixDuringCooldown ? (
+                                <button
+                                  onClick={() => setShowManualPixDuringCooldown(true)}
+                                  className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
+                                >
+                                  Pagar com PIX manual
+                                </button>
+                              ) : (
+                                <div className="space-y-4 animate-in fade-in duration-300 border-t border-border pt-4 mt-4">
+                                  <div className="text-center">
+                                    <h4 className="font-bold text-foreground">PIX Manual</h4>
+                                    <p className="text-xs text-muted-foreground mt-1">Pague e envie o comprovante</p>
                                   </div>
                                   
-                                  <div className="bg-input rounded-xl px-4 py-3">
-                                    <p className="text-xs text-muted-foreground">Valor</p>
-                                    <p className="font-bold text-xl text-primary">{formatCurrency(orderSnapshot?.total || getTotal())}</p>
+                                  <div className="flex flex-col items-center">
+                                    <div className="bg-white p-4 rounded-xl shadow-md">
+                                      <QRCodeSVG
+                                        value={generateManualPixCode(orderSnapshot?.total || getTotal())}
+                                        size={150}
+                                        level="M"
+                                        includeMargin={false}
+                                      />
+                                    </div>
                                   </div>
-                                </div>
-                                
-                                <div className="space-y-2">
-                                  <p className="text-xs text-muted-foreground text-center">Codigo copia e cola:</p>
-                                  <div className="bg-input rounded-xl p-3 relative">
-                                    <p className="text-xs text-foreground break-all pr-8 font-mono">
-                                      {generateManualPixCode(orderSnapshot?.total || getTotal()).substring(0, 50)}...
-                                    </p>
-                                    <button
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(generateManualPixCode(orderSnapshot?.total || getTotal()))
-                                        alert("Codigo PIX copiado!")
-                                      }}
-                                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary/20 rounded-lg hover:bg-primary/30 transition-colors"
-                                    >
-                                      <Copy className="w-4 h-4 text-primary" />
-                                    </button>
+                                  
+                                  <div className="space-y-2">
+                                    <div className="bg-input rounded-xl px-4 py-3">
+                                      <p className="text-xs text-muted-foreground">Recebedor</p>
+                                      <p className="font-semibold text-foreground">Carina Karen da Silva</p>
+                                    </div>
+                                    
+                                    <div className="bg-input rounded-xl px-4 py-3">
+                                      <p className="text-xs text-muted-foreground">Valor</p>
+                                      <p className="font-bold text-xl text-primary">{formatCurrency(orderSnapshot?.total || getTotal())}</p>
+                                    </div>
                                   </div>
+                                  
+                                  <div className="space-y-2">
+                                    <p className="text-xs text-muted-foreground text-center">Codigo copia e cola:</p>
+                                    <div className="bg-input rounded-xl p-3 relative">
+                                      <p className="text-xs text-foreground break-all pr-8 font-mono">
+                                        {generateManualPixCode(orderSnapshot?.total || getTotal()).substring(0, 50)}...
+                                      </p>
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(generateManualPixCode(orderSnapshot?.total || getTotal()))
+                                          alert("Codigo PIX copiado!")
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary/20 rounded-lg hover:bg-primary/30 transition-colors"
+                                      >
+                                        <Copy className="w-4 h-4 text-primary" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  
+                                  <button
+                                    onClick={() => {
+                                      // Montar lista de itens do pedido
+                                      const snapshot = orderSnapshot
+                                      let itemsList = ""
+                                      if (snapshot?.items) {
+                                        itemsList = snapshot.items.map((item: { name: string; quantity: number; price: number }) => 
+                                          `- ${item.quantity}x ${item.name}: ${formatCurrency(item.price * item.quantity)}`
+                                        ).join("\n")
+                                      } else {
+                                        // Fallback para carrinho atual
+                                        itemsList = Object.entries(quantities)
+                                          .filter(([, qty]) => qty > 0)
+                                          .map(([id, qty]) => {
+                                            const product = products.find((p) => p.id === Number(id))
+                                            if (product) {
+                                              return `- ${qty}x ${product.name}: ${formatCurrency(product.price * qty)}`
+                                            }
+                                            return ""
+                                          })
+                                          .filter(Boolean)
+                                          .join("\n")
+                                      }
+                                      
+                                      const valorTotal = snapshot?.total || getTotal()
+                                      const bairroInfo = snapshot?.bairro || formData.bairro || "Nao informado"
+                                      
+                                      const message = encodeURIComponent(
+                                        `Ola! Fiz um pedido e paguei via PIX manual.\n\n` +
+                                        `Resumo do pedido:\n${itemsList}\n\n` +
+                                        `Forma de pagamento: PIX manual\n` +
+                                        `Valor total: ${formatCurrency(valorTotal)}\n\n` +
+                                        `Dados de entrega:\n` +
+                                        `Nome: ${formData.nome}\n` +
+                                        `Telefone: ${formData.telefone}\n` +
+                                        `Endereco: ${formData.endereco}, ${formData.numero}, ${bairroInfo}\n` +
+                                        `Referencia: ${formData.referencia || "Nao informada"}\n\n` +
+                                        `Vou enviar o comprovante agora.`
+                                      )
+                                      window.open(`https://wa.me/5511966095057?text=${message}`, "_blank")
+                                    }}
+                                    className="w-full py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <MessageCircle className="w-5 h-5" />
+                                    Enviar comprovante no WhatsApp
+                                  </button>
                                 </div>
-                                
-                                <button
-                                  onClick={() => {
-                                    const message = encodeURIComponent(
-                                      `Ola! Fiz um pedido e paguei via PIX manual.\n\nValor: ${formatCurrency(orderSnapshot?.total || getTotal())}\n\nVou enviar o comprovante.`
-                                    )
-                                    window.open(`https://wa.me/5511999999999?text=${message}`, "_blank")
-                                  }}
-                                  className="w-full py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                                >
-                                  <MessageCircle className="w-5 h-5" />
-                                  Enviar comprovante no WhatsApp
-                                </button>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     )}
 
