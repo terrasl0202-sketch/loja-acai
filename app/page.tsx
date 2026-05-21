@@ -56,16 +56,41 @@ export default function Home() {
     pixQrCode: string
     pixCopyPaste: string
     value: number
+    expiresAt?: string
   } | null>(null)
   const [orderId, setOrderId] = useState<string>("")
   const [paymentTime, setPaymentTime] = useState<string>("")
   const [manualPixCode, setManualPixCode] = useState<string>("")
   const [copiedManualKey, setCopiedManualKey] = useState(false)
   const [copiedManualCode, setCopiedManualCode] = useState(false)
+  const [pixTimeLeft, setPixTimeLeft] = useState<number>(0)
+  const [pixExpired, setPixExpired] = useState(false)
   
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const addToCartAudioRef = useRef<HTMLAudioElement | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pixTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Timer do PIX
+  useEffect(() => {
+    if (pixData?.expiresAt && paymentStatus === "awaiting") {
+      const updateTimer = () => {
+        const now = Date.now()
+        const expires = new Date(pixData.expiresAt!).getTime()
+        const diff = Math.max(0, Math.floor((expires - now) / 1000))
+        setPixTimeLeft(diff)
+        if (diff <= 0) {
+          setPixExpired(true)
+          if (pixTimerRef.current) clearInterval(pixTimerRef.current)
+        }
+      }
+      updateTimer()
+      pixTimerRef.current = setInterval(updateTimer, 1000)
+      return () => {
+        if (pixTimerRef.current) clearInterval(pixTimerRef.current)
+      }
+    }
+  }, [pixData?.expiresAt, paymentStatus])
 
   // Carregar config do site
   useEffect(() => {
@@ -307,11 +332,13 @@ export default function Home() {
       }
 
       if (data.success && data.pixQrCode && data.pixCopyPaste) {
+        setPixExpired(false)
         setPixData({
           paymentId: data.paymentId,
           pixQrCode: data.pixQrCode,
           pixCopyPaste: data.pixCopyPaste,
           value: data.value,
+          expiresAt: data.expiresAt,
         })
         setPaymentStatus("awaiting")
         startPaymentPolling(data.paymentId)
@@ -994,16 +1021,34 @@ ${formData.observacao || "Nenhuma"}`
                             {/* Header PIX */}
                             <div className="text-center border-b border-border pb-3">
                               <h4 className="font-bold text-foreground text-lg">Pagamento via PIX</h4>
-                              <div className="flex items-center justify-center gap-2 mt-2">
-                                <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
-                                <span className="text-yellow-400 font-medium">AGUARDANDO PAGAMENTO</span>
-                              </div>
+                              {!pixExpired ? (
+                                <div className="flex items-center justify-center gap-2 mt-2">
+                                  <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
+                                  <span className="text-yellow-400 font-medium">AGUARDANDO PAGAMENTO</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-2 mt-2">
+                                  <div className="w-3 h-3 bg-red-400 rounded-full" />
+                                  <span className="text-red-400 font-medium">PIX EXPIRADO</span>
+                                </div>
+                              )}
+                              {/* Timer */}
+                              {!pixExpired && pixTimeLeft > 0 && (
+                                <div className="mt-2 text-sm">
+                                  <span className="text-muted-foreground">Expira em: </span>
+                                  <span className={`font-mono font-bold ${pixTimeLeft <= 60 ? 'text-red-400' : 'text-foreground'}`}>
+                                    {Math.floor(pixTimeLeft / 60).toString().padStart(2, '0')}:{(pixTimeLeft % 60).toString().padStart(2, '0')}
+                                  </span>
+                                </div>
+                              )}
                             </div>
 
                             {/* QR Code */}
                             <div className="flex flex-col items-center">
-                              <p className="text-sm text-muted-foreground mb-3">Escaneie o QR Code para pagar</p>
-                              <div className="bg-white p-4 rounded-xl shadow-md">
+                              <p className="text-sm text-muted-foreground mb-3">
+                                {pixExpired ? "PIX expirado - gere um novo" : "Escaneie o QR Code para pagar"}
+                              </p>
+                              <div className={`bg-white p-4 rounded-xl shadow-md ${pixExpired ? 'opacity-40 grayscale' : ''}`}>
                                 {pixData.pixQrCode ? (
                                   <img
                                     src={`data:image/png;base64,${pixData.pixQrCode}`}
@@ -1020,6 +1065,18 @@ ${formData.observacao || "Nenhuma"}`
                                   />
                                 )}
                               </div>
+                              {pixExpired && (
+                                <button
+                                  onClick={() => {
+                                    setPixData(null)
+                                    setPaymentStatus("idle")
+                                    setTimeout(() => createPixCharge(), 100)
+                                  }}
+                                  className="mt-4 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-all"
+                                >
+                                  Gerar novo PIX
+                                </button>
+                              )}
                             </div>
 
                             {/* Dados do recebedor */}
@@ -1044,11 +1101,16 @@ ${formData.observacao || "Nenhuma"}`
                                 </p>
                               </div>
                               <button
-                                onClick={() => copyToClipboard(pixData.pixCopyPaste, setCopiedCode)}
-                                className="w-full flex items-center justify-center gap-2 py-3 bg-primary rounded-xl text-primary-foreground font-medium transition-all hover:brightness-110 active:scale-[0.98]"
+                                onClick={() => !pixExpired && copyToClipboard(pixData.pixCopyPaste, setCopiedCode)}
+                                disabled={pixExpired}
+                                className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-medium transition-all ${
+                                  pixExpired 
+                                    ? 'bg-muted text-muted-foreground cursor-not-allowed' 
+                                    : 'bg-primary text-primary-foreground hover:brightness-110 active:scale-[0.98]'
+                                }`}
                               >
                                 {copiedCode ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                                {copiedCode ? "Copiado com sucesso!" : "Copiar Codigo PIX"}
+                                {pixExpired ? "PIX Expirado" : copiedCode ? "Copiado com sucesso!" : "Copiar Codigo PIX"}
                               </button>
                             </div>
 

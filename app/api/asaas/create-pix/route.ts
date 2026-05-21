@@ -3,12 +3,12 @@ import { NextRequest, NextResponse } from "next/server"
 const ASAAS_API_URL = process.env.ASAAS_API_URL || "https://api.asaas.com/v3"
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY
 
-// CPF valido fixo para criar customers (evita pedir CPF do cliente)
-const DEFAULT_CPF = "00000000000"
+// CPF valido fixo para criar customers (CPF valido de teste)
+const DEFAULT_CPF = "12345678909"
 
-// Rate limiting simples em memoria
+// Rate limiting simples - apenas 5 segundos
 const pixRequests = new Map<string, number>()
-const COOLDOWN_MS = 30000 // 30 segundos entre requisicoes
+const COOLDOWN_MS = 5000
 
 interface CreatePixRequest {
   value: number
@@ -20,6 +20,7 @@ interface CreatePixRequest {
 
 export async function POST(request: NextRequest) {
   if (!ASAAS_API_KEY) {
+    console.error("[Asaas] ASAAS_API_KEY nao configurada")
     return NextResponse.json(
       { error: "Configuracao do servidor incompleta" },
       { status: 500 }
@@ -28,6 +29,13 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: CreatePixRequest = await request.json()
+    
+    console.log("[Asaas] Dados recebidos:", {
+      value: body.value,
+      valueType: typeof body.value,
+      customerName: body.customerName,
+      customerPhone: body.customerPhone,
+    })
 
     // Validar telefone obrigatorio
     const cleanPhone = body.customerPhone?.replace(/\D/g, "") || ""
@@ -38,27 +46,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Rate limiting por telefone
+    // Rate limiting leve (5 segundos)
     const lastRequest = pixRequests.get(cleanPhone)
     const now = Date.now()
     if (lastRequest && now - lastRequest < COOLDOWN_MS) {
       const waitTime = Math.ceil((COOLDOWN_MS - (now - lastRequest)) / 1000)
       return NextResponse.json(
-        { error: `Aguarde ${waitTime} segundos antes de gerar outro PIX.` },
+        { error: `Aguarde ${waitTime} segundos e tente novamente.` },
         { status: 429 }
       )
     }
     pixRequests.set(cleanPhone, now)
 
-    // Limpar rate limit antigos (mais de 5 minutos)
+    // Limpar rate limit antigos
     for (const [phone, time] of pixRequests.entries()) {
-      if (now - time > 300000) pixRequests.delete(phone)
+      if (now - time > 60000) pixRequests.delete(phone)
     }
 
     // 1. Buscar cliente existente por telefone
     let customerId: string | null = null
 
     try {
+      console.log("[Asaas] Buscando cliente por telefone:", cleanPhone)
       const searchResponse = await fetch(
         `${ASAAS_API_URL}/customers?mobilePhone=${cleanPhone}`,
         {
@@ -67,12 +76,14 @@ export async function POST(request: NextRequest) {
       )
 
       const searchData = await searchResponse.json()
+      console.log("[Asaas] Busca cliente:", searchResponse.status, searchData?.data?.length || 0, "encontrados")
 
       if (searchResponse.ok && searchData.data && searchData.data.length > 0) {
         customerId = searchData.data[0].id
+        console.log("[Asaas] Cliente existente:", customerId)
       }
-    } catch {
-      // Ignora erro de busca
+    } catch (e) {
+      console.log("[Asaas] Erro busca cliente (ignorado):", e)
     }
 
     // 2. Criar cliente se nao existir
@@ -84,6 +95,8 @@ export async function POST(request: NextRequest) {
         notificationDisabled: true,
       }
 
+      console.log("[Asaas] Criando cliente:", customerPayload)
+
       const createCustomerResponse = await fetch(`${ASAAS_API_URL}/customers`, {
         method: "POST",
         headers: {
@@ -93,24 +106,36 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify(customerPayload),
       })
 
+      const customerResponseText = await createCustomerResponse.text()
+      console.log("[Asaas] Resposta criar cliente:", createCustomerResponse.status, customerResponseText)
+
       if (!createCustomerResponse.ok) {
-        const errorText = await createCustomerResponse.text()
         return NextResponse.json(
-          { error: "Erro ao criar cliente", details: errorText },
+          { error: "Erro ao criar cliente", details: customerResponseText },
           { status: 500 }
         )
       }
 
-      const customerData = await createCustomerResponse.json()
+      const customerData = JSON.parse(customerResponseText)
       customerId = customerData.id
+      console.log("[Asaas] Novo cliente criado:", customerId)
     }
 
-    // 3. Criar cobranca PIX (expira em 15 minutos)
-    const now15 = new Date()
-    const dueDate = new Date(now15.getTime() + 24 * 60 * 60 * 1000)
+    // 3. Criar cobranca PIX
+    const nowDate = new Date()
+    const dueDate = new Date(nowDate.getTime() + 24 * 60 * 60 * 1000)
     const dueDateStr = dueDate.toISOString().split("T")[0]
 
-    const paymentValue = Number(Number(body.value).toFixed(2))
+    // Garantir valor numerico valido
+    let paymentValue = Number(body.value)
+    if (isNaN(paymentValue) || paymentValue <= 0) {
+      console.error("[Asaas] Valor invalido:", body.value)
+      return NextResponse.json(
+        { error: "Valor do pagamento invalido" },
+        { status: 400 }
+      )
+    }
+    paymentValue = Math.round(paymentValue * 100) / 100
 
     const paymentPayload = {
       customer: customerId,
@@ -118,8 +143,9 @@ export async function POST(request: NextRequest) {
       value: paymentValue,
       dueDate: dueDateStr,
       description: body.description || "Pedido P.K Gostosuras",
-      externalReference: body.externalReference,
     }
+
+    console.log("[Asaas] Payload pagamento:", JSON.stringify(paymentPayload))
 
     const paymentResponse = await fetch(`${ASAAS_API_URL}/payments`, {
       method: "POST",
@@ -130,15 +156,18 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(paymentPayload),
     })
 
+    const paymentResponseText = await paymentResponse.text()
+    console.log("[Asaas] Resposta pagamento:", paymentResponse.status, paymentResponseText)
+
     if (!paymentResponse.ok) {
-      const errorText = await paymentResponse.text()
       return NextResponse.json(
-        { error: "Erro ao criar cobranca PIX", details: errorText },
+        { error: "Erro ao criar cobranca PIX", details: paymentResponseText },
         { status: 500 }
       )
     }
 
-    const paymentData = await paymentResponse.json()
+    const paymentData = JSON.parse(paymentResponseText)
+    console.log("[Asaas] Pagamento criado:", paymentData.id)
 
     // 4. Buscar QR Code PIX
     const pixResponse = await fetch(
@@ -148,25 +177,30 @@ export async function POST(request: NextRequest) {
       }
     )
 
+    const pixResponseText = await pixResponse.text()
+    console.log("[Asaas] Resposta QR Code:", pixResponse.status)
+
     if (!pixResponse.ok) {
-      const errorText = await pixResponse.text()
       return NextResponse.json(
-        { error: "Erro ao buscar QR Code PIX", details: errorText },
+        { error: "Erro ao buscar QR Code PIX", details: pixResponseText },
         { status: 500 }
       )
     }
 
-    const pixData = await pixResponse.json()
+    const pixData = JSON.parse(pixResponseText)
 
     if (!pixData.encodedImage || !pixData.payload) {
+      console.error("[Asaas] QR Code incompleto:", pixData)
       return NextResponse.json(
         { error: "QR Code PIX incompleto" },
         { status: 500 }
       )
     }
 
-    // Calcular expiracao (15 minutos a partir de agora)
-    const expiresAt = new Date(now15.getTime() + 15 * 60 * 1000).toISOString()
+    // Expiracao: 15 minutos
+    const expiresAt = new Date(nowDate.getTime() + 15 * 60 * 1000).toISOString()
+
+    console.log("[Asaas] PIX gerado com sucesso!")
 
     return NextResponse.json({
       success: true,
@@ -180,6 +214,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
+    console.error("[Asaas] Erro geral:", error)
     return NextResponse.json(
       { error: "Erro interno ao processar pagamento", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
