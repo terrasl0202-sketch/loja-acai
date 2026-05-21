@@ -35,7 +35,7 @@ export default function Home() {
   const [quantities, setQuantities] = useState<Record<number, number>>({})
   const [formData, setFormData] = useState({
     nome: "",
-    cpf: "",
+    telefone: "",
     endereco: "",
     numero: "",
     referencia: "",
@@ -249,6 +249,13 @@ export default function Home() {
       return
     }
 
+    // Validar telefone obrigatorio
+    const cleanPhone = formData.telefone.replace(/\D/g, "")
+    if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+      alert("Por favor, preencha um telefone valido!")
+      return
+    }
+
     if (deliveryType === "entrega" && (!formData.endereco || !formData.numero || !formData.referencia)) {
       alert("Por favor, preencha todos os campos de entrega!")
       return
@@ -266,13 +273,6 @@ export default function Home() {
       return
     }
 
-    // Validar CPF para pagamento PIX Asaas (R$15 ou mais)
-    const cleanCpf = formData.cpf.replace(/\D/g, "")
-    if (formData.pagamento === "pix" && cleanCpf.length !== 11) {
-      alert("Informe seu CPF (11 digitos) para gerar o Pix automatico.")
-      return
-    }
-
     setPaymentStatus("loading")
 
     const orderItems = products
@@ -282,7 +282,6 @@ export default function Home() {
 
     // Garantir que total seja numero
     const totalValue = Number(total)
-    console.log("[v0] Criando PIX Asaas - Valor:", totalValue, "Tipo:", typeof totalValue)
 
     try {
       const response = await fetch("/api/asaas/create-pix", {
@@ -292,7 +291,7 @@ export default function Home() {
           value: totalValue,
           description: `Pedido ${newOrderId} - ${orderItems}`,
           customerName: formData.nome,
-          customerCpf: cleanCpf,
+          customerPhone: cleanPhone,
           externalReference: newOrderId,
         }),
       })
@@ -373,14 +372,15 @@ export default function Home() {
       ? `Endereco: ${formData.endereco}, ${formData.numero}\nReferencia: ${formData.referencia}${formData.localizacao ? `\nLocalizacao: ${formData.localizacao}` : ""}`
       : "Retirada no local"
 
-    const message = `━━━━━━━━━━━━━━━━━━
-���� PEDIDO PAGO
+const message = `━━━━━━━━━━━━━━━━━━
+🛒 PEDIDO PAGO
 ━━━━━━━━━━━━━━━━━━
 
 Pedido No: ${orderId}
 
 Cliente:
 ${formData.nome}
+Tel: ${formData.telefone}
 
 Itens:
 ${orderItems}
@@ -420,6 +420,7 @@ ${paymentTime}
     const message = `Ola! Tive problema para pagar pelo Pix automatico no site. Quero pagar manualmente meu pedido.
 
 Nome: ${formData.nome}
+Tel: ${formData.telefone}
 
 Itens:
 ${orderItems}
@@ -468,6 +469,7 @@ ${formatCurrency(getTotal())}
 
 Dados para ${deliveryType === "entrega" ? "Entrega" : "Retirada"}:
 Nome: ${formData.nome}
+Tel: ${formData.telefone}
 ${deliveryInfo}
 
 Pagamento:
@@ -839,21 +841,20 @@ ${formData.observacao || "Nenhuma"}`
 
                     <div>
                       <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                        <CreditCard className="w-4 h-4" />
-                        CPF * <span className="text-xs text-muted-foreground">(obrigatorio para Pix)</span>
+                        <Phone className="w-4 h-4" />
+                        Telefone/WhatsApp *
                       </label>
                       <input
-                        type="text"
-                        value={formData.cpf}
+                        type="tel"
+                        value={formData.telefone}
                         onChange={(e) => {
                           const value = e.target.value.replace(/\D/g, "").slice(0, 11)
                           const formatted = value
-                            .replace(/(\d{3})(\d)/, "$1.$2")
-                            .replace(/(\d{3})(\d)/, "$1.$2")
-                            .replace(/(\d{3})(\d{1,2})$/, "$1-$2")
-                          setFormData({ ...formData, cpf: formatted })
+                            .replace(/(\d{2})(\d)/, "($1) $2")
+                            .replace(/(\d{5})(\d)/, "$1-$2")
+                          setFormData({ ...formData, telefone: formatted })
                         }}
-                        placeholder="000.000.000-00"
+                        placeholder="(11) 99999-9999"
                         className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                       />
                     </div>
