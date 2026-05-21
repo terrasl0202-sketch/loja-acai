@@ -55,47 +55,56 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { password, config } = body
 
-    console.log("[Config POST] Recebendo requisicao de salvamento")
+    console.log("[Config POST] Iniciando salvamento...")
 
     // Verificar senha
     if (password !== ADMIN_PASSWORD) {
       console.log("[Config POST] Senha incorreta")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Senha incorreta" }, { status: 401 })
     }
 
     // Validar config
     if (!config) {
       console.log("[Config POST] Config vazia")
-      return NextResponse.json({ error: "Config is required" }, { status: 400 })
+      return NextResponse.json({ error: "Config vazia" }, { status: 400 })
     }
 
-    // Deletar configs antigas
-    try {
-      const { blobs } = await list({ prefix: CONFIG_PREFIX })
-      console.log("[Config POST] Deletando", blobs.length, "configs antigas")
-      for (const blob of blobs) {
-        await del(blob.url)
-      }
-    } catch (e) {
-      console.log("[Config POST] Erro ao deletar antigas (ignorando):", e)
-    }
-
-    // Salvar nova config com timestamp para garantir unicidade
+    // Salvar nova config com timestamp
     const timestamp = Date.now()
     const filename = `${CONFIG_PREFIX}${timestamp}.json`
+    
+    console.log("[Config POST] Salvando arquivo:", filename)
     
     const blob = await put(filename, JSON.stringify(config, null, 2), {
       access: "public",
       contentType: "application/json",
     })
 
-    console.log("[Config POST] Salvo com sucesso em:", blob.url)
+    console.log("[Config POST] Arquivo salvo:", blob.url)
+
+    // Limpar configs antigas (em background, sem bloquear)
+    list({ prefix: CONFIG_PREFIX }).then(async ({ blobs }) => {
+      const oldBlobs = blobs
+        .filter(b => b.url !== blob.url)
+        .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+        .slice(1) // manter apenas a mais recente além da atual
+      
+      for (const oldBlob of oldBlobs) {
+        try {
+          await del(oldBlob.url)
+          console.log("[Config POST] Deletado antigo:", oldBlob.pathname)
+        } catch (e) {
+          // ignorar erro de delete
+        }
+      }
+    }).catch(() => {})
 
     return NextResponse.json({ success: true, config, url: blob.url })
   } catch (error) {
-    console.error("[Config POST] Erro ao salvar:", error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error("[Config POST] ERRO:", errorMessage)
     return NextResponse.json(
-      { error: "Failed to save config", details: String(error) },
+      { error: errorMessage },
       { status: 500 }
     )
   }
