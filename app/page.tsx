@@ -4,54 +4,34 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
 import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
+import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
 interface Product {
   id: number
   name: string
   price: number
   description: string
+  active?: boolean
+  stock?: number
 }
-
-const products: Product[] = [
-  {
-    id: 1,
-    name: "Açaí Tradicional",
-    price: 15,
-    description: "Açaí puro e cremoso",
-  },
-  {
-    id: 2,
-    name: "Açaí Ovomaltine",
-    price: 15,
-    description: "Açaí cremoso com Ovomaltine crocante",
-  },
-  {
-    id: 3,
-    name: "Mousse Maracujá",
-    price: 6,
-    description: "Mousse cremoso de maracujá",
-  },
-  {
-    id: 4,
-    name: "Mousse Morango",
-    price: 6,
-    description: "Mousse cremoso de morango",
-  },
-]
-
-const WHATSAPP_NUMBER = "5511918505799"
-const PIX_RECEIVER_NAME = "Ailton Fernandes Miranda"
-const MIN_VALUE_FOR_ASAAS = 15
-
-// Dados para PIX Manual (pedidos abaixo de R$15)
-const PIX_MANUAL_KEY = "11918505799"
-const PIX_MANUAL_KEY_FULL = "+5511918505799"
-const PIX_MANUAL_NAME = "Carina Karen da Silva"
 
 type PaymentStatus = "idle" | "loading" | "awaiting" | "confirmed" | "error" | "manual"
 type DeliveryType = "entrega" | "retirada"
 
 export default function Home() {
+  // Config do site carregada da API
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultConfig)
+  const [configLoaded, setConfigLoaded] = useState(false)
+
+  // Dados derivados da config
+  const products = siteConfig.products.filter(p => p.active !== false)
+  const WHATSAPP_NUMBER = siteConfig.whatsapp.number
+  const MIN_VALUE_FOR_ASAAS = siteConfig.payment.minValueForAsaas
+  const PIX_MANUAL_KEY = siteConfig.pixManual.key
+  const PIX_MANUAL_KEY_FULL = siteConfig.pixManual.keyFull
+  const PIX_MANUAL_NAME = siteConfig.pixManual.receiverName
+  const PIX_RECEIVER_NAME = siteConfig.pixManual.receiverName
+
   const [quantities, setQuantities] = useState<Record<number, number>>({})
   const [formData, setFormData] = useState({
     nome: "",
@@ -86,6 +66,24 @@ export default function Home() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const addToCartAudioRef = useRef<HTMLAudioElement | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Carregar config do site
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await fetch("/api/config")
+        const data = await response.json()
+        if (data.success && data.config) {
+          setSiteConfig(data.config)
+        }
+      } catch (error) {
+        console.error("Erro ao carregar config:", error)
+      } finally {
+        setConfigLoaded(true)
+      }
+    }
+    loadConfig()
+  }, [])
 
   // Som ao adicionar item
   const playAddSound = useCallback(() => {
@@ -371,7 +369,7 @@ export default function Home() {
       : "Retirada no local"
 
     const message = `━━━━━━━━━━━━━━━━━━
-🟢 PEDIDO PAGO
+���� PEDIDO PAGO
 ━━━━━━━━━━━━━━━━━━
 
 Pedido No: ${orderId}
@@ -520,20 +518,28 @@ ${formData.observacao || "Nenhuma"}`
           className="object-cover"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background" />
-        <div className="absolute bottom-4 left-4 right-4">
-          <h2 className="text-2xl font-extrabold text-foreground drop-shadow-lg">
-            Os melhores açaís de garrafa
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Frescos e deliciosos, direto para você!
+<div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background" />
+              <div className="absolute bottom-4 left-4 right-4">
+                <h2 className="text-2xl font-extrabold text-foreground drop-shadow-lg">
+                  {siteConfig.banner.mainText}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {siteConfig.banner.secondaryText}
+                </p>
+              </div>
+</section>
+
+      {/* Aviso Loja Fechada */}
+      {!siteConfig.storeHours.isOpen && (
+        <div className="mx-4 mt-4 p-4 bg-red-500/20 border border-red-500/50 rounded-xl">
+          <p className="text-center text-red-400 font-medium">
+            {siteConfig.storeHours.closedMessage || "Estamos fechados no momento. Volte em breve!"}
           </p>
         </div>
-      </section>
+      )}
 
-      <div className="max-w-lg mx-auto px-4">
-        {/* Products */}
-        <section className="mt-6 space-y-4">
+      {/* Products */}
+      <section className="mt-6 space-y-4">
           <h3 className="text-lg font-semibold text-foreground">Cardápio</h3>
           
           {products.map((product) => (
@@ -619,7 +625,6 @@ ${formData.observacao || "Nenhuma"}`
             DEVELOPED BY <span className="font-semibold text-foreground/80">AILTON</span>
           </p>
         </footer>
-      </div>
 
       {/* Fixed Bottom Button */}
       <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border p-4">

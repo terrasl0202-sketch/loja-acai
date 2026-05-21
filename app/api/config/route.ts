@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
 const CONFIG_PATHNAME = "site-config.json"
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "pk2024admin"
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
 
 export async function GET(request: Request) {
   try {
