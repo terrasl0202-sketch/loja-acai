@@ -1400,7 +1400,7 @@ ${formData.observacao || "Nenhuma"}`
                   </section>
 
                   {/* Payment Method */}
-                  <section className="bg-card rounded-2xl p-4 border border-border space-y-4">
+                  <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderLocked ? 'opacity-50' : ''}`}>
                     <h3 className="font-semibold text-foreground flex items-center gap-2">
                       <CreditCard className="w-5 h-5 text-primary" />
                       Forma de Pagamento
@@ -1410,20 +1410,26 @@ ${formData.observacao || "Nenhuma"}`
                       {[
                         { value: "pix", label: "Pix" },
                         { value: "dinheiro", label: "Dinheiro" },
-                        { value: "cartao", label: "Cartão" },
+                        { value: "cartao", label: "Cartao" },
                       ].map((option) => (
                         <button
                           key={option.value}
                           onClick={() => {
+                            // Bloquear mudanca de pagamento se PIX ativo
+                            if (isOrderLocked) {
+                              alert("Ja existe um PIX ativo para este pedido. Para alterar a forma de pagamento, faca um novo pedido.")
+                              return
+                            }
                             setFormData({ ...formData, pagamento: option.value })
                             setPaymentStatus("idle")
                             setPixData(null)
                           }}
+                          disabled={isOrderLocked}
                           className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${
                             formData.pagamento === option.value
                               ? "bg-primary text-primary-foreground"
                               : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                          }`}
+                          } ${isOrderLocked ? 'cursor-not-allowed' : ''}`}
                         >
                           {option.label}
                         </button>
@@ -1724,7 +1730,7 @@ ${formData.observacao || "Nenhuma"}`
 
       {/* Modal de confirmacao para fechar com PIX ativo */}
       {showCloseConfirmModal && (
-        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
           <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
             <div className="text-center">
               <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
@@ -1757,7 +1763,7 @@ ${formData.observacao || "Nenhuma"}`
 
       {/* Modal de opcoes para novo pedido */}
       {showNewOrderModal && (
-        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
           <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
             <div className="text-center">
               <ShoppingCart className="w-12 h-12 text-primary mx-auto mb-4" />
