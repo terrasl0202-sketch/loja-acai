@@ -26,7 +26,7 @@ export default function Home() {
   // Dados derivados da config
   const products = siteConfig.products.filter(p => p.active !== false)
   const WHATSAPP_NUMBER = siteConfig.whatsapp.number
-  const MIN_VALUE_FOR_ASAAS = siteConfig.payment.minValueForAsaas
+  const MIN_VALUE_FOR_ASAAS = Number(siteConfig.payment.minValueForAsaas) || 15
   const PIX_MANUAL_KEY = siteConfig.pixManual.key
   const PIX_MANUAL_KEY_FULL = siteConfig.pixManual.keyFull
   const PIX_MANUAL_NAME = siteConfig.pixManual.receiverName
@@ -114,7 +114,8 @@ export default function Home() {
 
   const getTotal = () => {
     return products.reduce((total, product) => {
-      return total + product.price * (quantities[product.id] || 0)
+      const price = Number(product.price) || 0
+      return total + price * (quantities[product.id] || 0)
     }, 0)
   }
 
@@ -279,12 +280,16 @@ export default function Home() {
       .map((p) => `${quantities[p.id]}x ${p.name}`)
       .join(", ")
 
+    // Garantir que total seja numero
+    const totalValue = Number(total)
+    console.log("[v0] Criando PIX Asaas - Valor:", totalValue, "Tipo:", typeof totalValue)
+
     try {
       const response = await fetch("/api/asaas/create-pix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          value: total,
+          value: totalValue,
           description: `Pedido ${newOrderId} - ${orderItems}`,
           customerName: formData.nome,
           customerCpf: cleanCpf,
