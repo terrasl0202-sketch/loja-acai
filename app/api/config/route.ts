@@ -1,8 +1,8 @@
-import { put, get } from "@vercel/blob"
+import { put, list } from "@vercel/blob"
 import { NextResponse } from "next/server"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
-const CONFIG_PATHNAME = "site-config.json"
+const CONFIG_FILENAME = "site-config.json"
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
 
 export async function GET(request: Request) {
@@ -16,17 +16,25 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Tentar carregar config do Blob
+    // Tentar carregar config do Blob usando list para encontrar o arquivo
     try {
-      const result = await get(CONFIG_PATHNAME, { access: "private" })
+      const { blobs } = await list({ prefix: CONFIG_FILENAME })
       
-      if (result) {
-        const text = await new Response(result.stream).text()
-        const config = JSON.parse(text) as SiteConfig
-        return NextResponse.json({ success: true, config })
+      if (blobs.length > 0) {
+        // Pegar o blob mais recente
+        const latestBlob = blobs.sort((a, b) => 
+          new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+        )[0]
+        
+        // Fazer fetch do conteudo usando a URL do blob
+        const response = await fetch(latestBlob.url)
+        if (response.ok) {
+          const config = await response.json() as SiteConfig
+          return NextResponse.json({ success: true, config })
+        }
       }
-    } catch {
-      // Config nao existe ainda, retornar padrao
+    } catch (e) {
+      console.error("[Config] Erro ao buscar do Blob:", e)
     }
 
     return NextResponse.json({ success: true, config: defaultConfig })
@@ -51,14 +59,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Config is required" }, { status: 400 })
     }
 
-    // Salvar no Blob
-    const blob = await put(CONFIG_PATHNAME, JSON.stringify(config, null, 2), {
-      access: "private",
+    // Salvar no Blob (public para poder fazer fetch da URL)
+    const blob = await put(CONFIG_FILENAME, JSON.stringify(config, null, 2), {
+      access: "public",
       contentType: "application/json",
       addRandomSuffix: false,
     })
 
-    console.log("[Config] Salvo com sucesso:", blob.pathname)
+    console.log("[Config] Salvo com sucesso:", blob.url)
 
     return NextResponse.json({ success: true, config })
   } catch (error) {
