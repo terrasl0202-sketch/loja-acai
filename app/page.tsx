@@ -75,6 +75,7 @@ export default function Home() {
   
   // Asaas PIX states
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("idle")
+  const [paymentErrorMessage, setPaymentErrorMessage] = useState<string>("")
   const [pixData, setPixData] = useState<{
     paymentId: string
     pixQrCode: string
@@ -318,6 +319,54 @@ export default function Home() {
   // Cancelar pedido e limpar tudo (compatibilidade)
   const cancelOrderAndStartNew = () => {
     setShowNewOrderModal(true)
+  }
+
+  // Resetar loja completamente (apos finalizar pedido)
+  const resetStoreAfterOrder = () => {
+    // Limpar PIX
+    setPixData(null)
+    setPaymentStatus("idle")
+    setOrderSnapshot(null)
+    setPixExpired(false)
+    setPixTimeLeft(0)
+    setOrderId("")
+    
+    // Limpar cooldown
+    setPixCooldownEnd(null)
+    setPixCooldownLeft(0)
+    setShowManualPixDuringCooldown(false)
+    
+    // Limpar carrinho
+    setQuantities({})
+    
+    // Limpar formulario
+    setFormData({
+      nome: "",
+      telefone: "",
+      endereco: "",
+      numero: "",
+      referencia: "",
+      pagamento: "pix",
+      observacao: "",
+      localizacao: "",
+      bairro: "",
+    })
+    
+    // Limpar cupom
+    setAppliedCoupon(null)
+    setCouponCode("")
+    setCouponError("")
+    
+    // Parar polling
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+    
+    // Fechar modais e checkout
+    setShowNewOrderModal(false)
+    setShowCloseConfirmModal(false)
+    setShowCheckout(false)
   }
 
   // Timer do PIX
@@ -672,6 +721,19 @@ export default function Home() {
 
       if (!response.ok || data.error) {
         console.error("[v0] Erro da API Asaas:", data.error || data.details || "Erro desconhecido")
+        
+        // Verificar se e erro de telefone invalido
+        const errorMsg = data.error || data.details || ""
+        if (errorMsg.toLowerCase().includes("phone") || errorMsg.toLowerCase().includes("telefone") || errorMsg.toLowerCase().includes("celular") || errorMsg.toLowerCase().includes("mobilePhone")) {
+          setPaymentErrorMessage("Telefone invalido. Verifique se o numero foi digitado corretamente com DDD (ex: 11999999999).")
+        } else if (errorMsg.toLowerCase().includes("cpf") || errorMsg.toLowerCase().includes("document")) {
+          setPaymentErrorMessage("CPF/CNPJ invalido. Verifique o documento informado.")
+        } else if (errorMsg.toLowerCase().includes("name") || errorMsg.toLowerCase().includes("nome")) {
+          setPaymentErrorMessage("Nome invalido. Informe seu nome completo.")
+        } else {
+          setPaymentErrorMessage(errorMsg || "Erro ao gerar PIX. Tente novamente.")
+        }
+        
         setPaymentStatus("error")
         return
       }
@@ -695,6 +757,7 @@ export default function Home() {
       }
     } catch (error) {
       console.error("[v0] Erro ao criar PIX:", error)
+      setPaymentErrorMessage("Erro de conexao. Verifique sua internet e tente novamente.")
       setPaymentStatus("error")
     }
   }
@@ -792,8 +855,11 @@ ${paymentTime}
     // Registrar pedido
     await registerOrder("PIX Asaas")
 
-    const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=5511918505799&text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")
+    
+    // Resetar loja apos enviar para WhatsApp
+    resetStoreAfterOrder()
   }
 
   // Mensagem WhatsApp para problema com PIX
@@ -825,8 +891,11 @@ Observacao: ${formData.observacao || "Nenhuma"}`
     // Registrar pedido
     await registerOrder("PIX Manual")
 
-    const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=5511918505799&text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")
+    
+    // Resetar loja apos enviar para WhatsApp
+    resetStoreAfterOrder()
   }
 
   // Pagamento manual (dinheiro/cartao)
@@ -880,9 +949,11 @@ ${formData.observacao || "Nenhuma"}`
     // Registrar pedido
     await registerOrder(pagamentoTexto)
 
-    const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=5511918505799&text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")
-    setShowCheckout(false)
+    
+    // Resetar loja apos enviar para WhatsApp
+    resetStoreAfterOrder()
   }
 
   return (
@@ -1617,10 +1688,14 @@ ${formData.observacao || "Nenhuma"}`
                                         `Nome: ${formData.nome}\n` +
                                         `Telefone: ${formData.telefone}\n` +
                                         `Endereco: ${formData.endereco}, ${formData.numero}, ${bairroInfo}\n` +
-                                        `Referencia: ${formData.referencia || "Nao informada"}\n\n` +
+                                        `Referencia: ${formData.referencia || "Nao informada"}\n` +
+                                        `Observacao: ${formData.observacao || "Nenhuma"}\n\n` +
                                         `Vou enviar o comprovante agora.`
                                       )
                                       window.open(`https://api.whatsapp.com/send?phone=5511918505799&text=${message}`, "_blank")
+                                      
+                                      // Resetar loja apos enviar para WhatsApp
+                                      resetStoreAfterOrder()
                                     }}
                                     className="w-full py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
                                   >
@@ -1651,12 +1726,18 @@ ${formData.observacao || "Nenhuma"}`
                         {paymentStatus === "error" && (
                           <div className="text-center py-4">
                             <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-                            <p className="text-red-400 font-medium mb-4">Erro ao gerar PIX</p>
+                            <p className="text-red-400 font-medium mb-2">Erro ao gerar PIX</p>
+                            {paymentErrorMessage && (
+                              <p className="text-sm text-red-300 mb-4 px-4">{paymentErrorMessage}</p>
+                            )}
                             <button
-                              onClick={createPixCharge}
+                              onClick={() => {
+                                setPaymentStatus("idle")
+                                setPaymentErrorMessage("")
+                              }}
                               className="px-6 py-2 bg-primary text-primary-foreground rounded-lg"
                             >
-                              Tentar novamente
+                              Corrigir e tentar novamente
                             </button>
                           </div>
                         )}
