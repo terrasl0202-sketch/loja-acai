@@ -2,18 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
-import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle } from "lucide-react"
+import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
-import { type SiteConfig, defaultConfig } from "@/lib/config-types"
-
-interface Product {
-  id: number
-  name: string
-  price: number
-  description: string
-  active?: boolean
-  stock?: number
-}
+import { type SiteConfig, type Coupon, defaultConfig } from "@/lib/config-types"
 
 type PaymentStatus = "idle" | "loading" | "awaiting" | "confirmed" | "error" | "manual"
 type DeliveryType = "entrega" | "retirada"
@@ -24,13 +15,21 @@ export default function Home() {
   const [configLoaded, setConfigLoaded] = useState(false)
 
   // Dados derivados da config
-  const products = siteConfig.products.filter(p => p.active !== false)
-  const WHATSAPP_NUMBER = siteConfig.whatsapp.number
-  const MIN_VALUE_FOR_ASAAS = Number(siteConfig.payment.minValueForAsaas) || 15
-  const PIX_MANUAL_KEY = siteConfig.pixManual.key
-  const PIX_MANUAL_KEY_FULL = siteConfig.pixManual.keyFull
-  const PIX_MANUAL_NAME = siteConfig.pixManual.receiverName
-  const PIX_RECEIVER_NAME = siteConfig.pixManual.receiverName
+  const products = siteConfig.products
+    .filter(p => p.active !== false)
+    .filter(p => !p.outOfStock)
+    .sort((a, b) => (a.order || 0) - (b.order || 0))
+  const WHATSAPP_NUMBER = siteConfig.whatsapp?.number || ""
+  const MIN_VALUE_FOR_ASAAS = Number(siteConfig.payment?.minValueForAsaas) || 15
+  const PIX_MANUAL_KEY = siteConfig.pixManual?.key || ""
+  const PIX_MANUAL_KEY_FULL = siteConfig.pixManual?.keyFull || ""
+  const PIX_MANUAL_NAME = siteConfig.pixManual?.receiverName || ""
+  const PIX_RECEIVER_NAME = siteConfig.pixManual?.receiverName || ""
+  const DELIVERY_FEE = siteConfig.delivery?.defaultFee || 0
+  const MINIMUM_ORDER = siteConfig.delivery?.minimumOrder || 0
+  const DELIVERY_ENABLED = siteConfig.delivery?.enabled !== false
+  const PICKUP_ENABLED = siteConfig.delivery?.pickupEnabled !== false
+  const STORE_NAME = siteConfig.storeName || "P.K Gostosuras"
 
   const [quantities, setQuantities] = useState<Record<number, number>>({})
   const [formData, setFormData] = useState({
@@ -42,8 +41,14 @@ export default function Home() {
     pagamento: "pix",
     observacao: "",
     localizacao: "",
+    bairro: "",
   })
-  const [deliveryType, setDeliveryType] = useState<DeliveryType>("entrega")
+  
+  // Cupom
+  const [couponCode, setCouponCode] = useState("")
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
+  const [couponError, setCouponError] = useState("")
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>(DELIVERY_ENABLED ? "entrega" : "retirada")
   const [showCart, setShowCart] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -70,6 +75,65 @@ export default function Home() {
   const addToCartAudioRef = useRef<HTMLAudioElement | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const pixTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Calcula taxa de entrega baseado no bairro
+  const getDeliveryFee = () => {
+    if (deliveryType === "retirada") return 0
+    const neighborhoodFees = siteConfig.delivery?.neighborhoodFees || []
+    const fee = neighborhoodFees.find(f => 
+      f.name.toLowerCase() === formData.bairro.toLowerCase()
+    )
+    return fee ? fee.fee : DELIVERY_FEE
+  }
+
+  // Aplica cupom
+  const applyCoupon = () => {
+    setCouponError("")
+    const coupons = siteConfig.coupons || []
+    const coupon = coupons.find(c => 
+      c.code.toLowerCase() === couponCode.toLowerCase() && c.active
+    )
+    
+    if (!coupon) {
+      setCouponError("Cupom invalido ou expirado")
+      return
+    }
+    
+    const subtotal = getSubtotal()
+    if (coupon.minimumOrder > 0 && subtotal < coupon.minimumOrder) {
+      setCouponError(`Pedido minimo de R$ ${coupon.minimumOrder.toFixed(2)} para este cupom`)
+      return
+    }
+    
+    setAppliedCoupon(coupon)
+    setCouponCode("")
+  }
+
+  // Calcula desconto
+  const getDiscount = () => {
+    if (!appliedCoupon) return 0
+    const subtotal = getSubtotal()
+    if (appliedCoupon.type === "percentage") {
+      return subtotal * (appliedCoupon.value / 100)
+    }
+    return Math.min(appliedCoupon.value, subtotal)
+  }
+
+  // Subtotal (sem entrega e sem desconto)
+  const getSubtotal = () => {
+    return products.reduce((total, product) => {
+      const price = Number(product.price) || 0
+      return total + price * (quantities[product.id] || 0)
+    }, 0)
+  }
+
+  // Total final
+  const getTotal = () => {
+    const subtotal = getSubtotal()
+    const discount = getDiscount()
+    const deliveryFee = getDeliveryFee()
+    return Math.max(0, subtotal - discount + deliveryFee)
+  }
 
   // Timer do PIX
   useEffect(() => {
@@ -137,13 +201,6 @@ export default function Home() {
     }
   }
 
-  const getTotal = () => {
-    return products.reduce((total, product) => {
-      const price = Number(product.price) || 0
-      return total + price * (quantities[product.id] || 0)
-    }, 0)
-  }
-
   const getTotalItems = () => {
     return Object.values(quantities).reduce((sum, qty) => sum + qty, 0)
   }
@@ -159,6 +216,36 @@ export default function Home() {
     const now = new Date()
     const id = `PK${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`
     return id
+  }
+
+  // Registra pedido na API
+  const registerOrder = async (paymentMethod: string) => {
+    const orderItems = products
+      .filter((p) => quantities[p.id] > 0)
+      .map((p) => `${quantities[p.id]}x ${p.name}`)
+      .join(", ")
+
+    try {
+      await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order: {
+            customerName: formData.nome,
+            customerPhone: formData.telefone,
+            items: orderItems,
+            total: getTotal(),
+            paymentMethod,
+            deliveryType,
+            address: deliveryType === "entrega" 
+              ? `${formData.endereco}, ${formData.numero} - ${formData.bairro} (Ref: ${formData.referencia})`
+              : "Retirada no local",
+          },
+        }),
+      })
+    } catch (error) {
+      console.error("Erro ao registrar pedido:", error)
+    }
   }
 
   // Gera codigo PIX EMV para pagamento manual
@@ -262,9 +349,17 @@ export default function Home() {
       alert("Adicione pelo menos um item ao carrinho!")
       return
     }
+    const subtotal = getSubtotal()
+    if (MINIMUM_ORDER > 0 && subtotal < MINIMUM_ORDER) {
+      alert(`Pedido minimo de R$ ${MINIMUM_ORDER.toFixed(2)}`)
+      return
+    }
     setShowCheckout(true)
     setPaymentStatus("idle")
     setPixData(null)
+    setAppliedCoupon(null)
+    setCouponCode("")
+    setCouponError("")
   }
 
   // Criar cobranca PIX via Asaas
@@ -387,20 +482,33 @@ export default function Home() {
   }, [])
 
   // Mensagem WhatsApp para pedido confirmado
-  const sendConfirmedOrder = () => {
+  const sendConfirmedOrder = async () => {
     const orderItems = products
       .filter((p) => quantities[p.id] > 0)
       .map((p) => `${quantities[p.id]}x ${p.name}`)
       .join("\n")
 
     const totalQty = getTotalItems()
+    const subtotal = getSubtotal()
+    const discount = getDiscount()
+    const deliveryFee = getDeliveryFee()
 
     const deliveryInfo = deliveryType === "entrega"
-      ? `Endereco: ${formData.endereco}, ${formData.numero}\nReferencia: ${formData.referencia}${formData.localizacao ? `\nLocalizacao: ${formData.localizacao}` : ""}`
+      ? `Endereco: ${formData.endereco}, ${formData.numero}${formData.bairro ? ` - ${formData.bairro}` : ""}\nReferencia: ${formData.referencia}${formData.localizacao ? `\nLocalizacao: ${formData.localizacao}` : ""}`
       : "Retirada no local"
 
+    let discountLine = ""
+    if (appliedCoupon && discount > 0) {
+      discountLine = `\nCupom: ${appliedCoupon.code} (-${formatCurrency(discount)})`
+    }
+
+    let deliveryFeeLine = ""
+    if (deliveryFee > 0 && deliveryType === "entrega") {
+      deliveryFeeLine = `\nTaxa de entrega: ${formatCurrency(deliveryFee)}`
+    }
+
 const message = `━━━━━━━━━━━━━━━━━━
-🛒 PEDIDO PAGO
+PEDIDO PAGO
 ━━━━━━━━━━━━━━━━━━
 
 Pedido No: ${orderId}
@@ -415,11 +523,11 @@ ${orderItems}
 Quantidade:
 ${totalQty} item(s)
 
-Total:
-${formatCurrency(getTotal())}
+Subtotal: ${formatCurrency(subtotal)}${discountLine}${deliveryFeeLine}
+Total: ${formatCurrency(getTotal())}
 
 Pagamento:
-PIX CONFIRMADO ✅
+PIX CONFIRMADO
 
 ${deliveryType === "entrega" ? "Entrega:" : "Retirada:"}
 ${deliveryInfo}
@@ -429,22 +537,25 @@ ${paymentTime}
 
 ━━━━━━━━━━━━━━━━━━`
 
+    // Registrar pedido
+    await registerOrder("PIX Asaas")
+
     const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")
   }
 
   // Mensagem WhatsApp para problema com PIX
-  const sendManualPayment = () => {
+  const sendManualPayment = async () => {
     const orderItems = products
       .filter((p) => quantities[p.id] > 0)
       .map((p) => `${quantities[p.id]}x ${p.name}`)
       .join("\n")
 
     const deliveryInfo = deliveryType === "entrega"
-      ? `Endereco: ${formData.endereco}, ${formData.numero}\nReferencia: ${formData.referencia}${formData.localizacao ? `\nLocalizacao: ${formData.localizacao}` : ""}`
+      ? `Endereco: ${formData.endereco}, ${formData.numero}${formData.bairro ? ` - ${formData.bairro}` : ""}\nReferencia: ${formData.referencia}${formData.localizacao ? `\nLocalizacao: ${formData.localizacao}` : ""}`
       : "Retirada no local"
 
-    const message = `Ola! Tive problema para pagar pelo Pix automatico no site. Quero pagar manualmente meu pedido.
+    const message = `Ola! Quero pagar meu pedido pelo PIX manual.
 
 Nome: ${formData.nome}
 Tel: ${formData.telefone}
@@ -459,12 +570,15 @@ ${deliveryInfo}
 
 Observacao: ${formData.observacao || "Nenhuma"}`
 
+    // Registrar pedido
+    await registerOrder("PIX Manual")
+
     const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")
   }
 
   // Pagamento manual (dinheiro/cartao)
-  const handleManualPayment = () => {
+  const handleManualPayment = async () => {
     if (!formData.nome) {
       alert("Por favor, preencha seu nome!")
       return
@@ -483,10 +597,10 @@ Observacao: ${formData.observacao || "Nenhuma"}`
     const pagamentoTexto = formData.pagamento === "dinheiro" ? "Dinheiro" : "Cartao"
 
     const deliveryInfo = deliveryType === "entrega"
-      ? `Endereco: ${formData.endereco}, ${formData.numero}\nReferencia: ${formData.referencia}${formData.localizacao ? `\nLocalizacao: ${formData.localizacao}` : ""}`
+      ? `Endereco: ${formData.endereco}, ${formData.numero}${formData.bairro ? ` - ${formData.bairro}` : ""}\nReferencia: ${formData.referencia}${formData.localizacao ? `\nLocalizacao: ${formData.localizacao}` : ""}`
       : "Retirada no local"
 
-    const message = `🛒 NOVO PEDIDO - P.K Gostosuras
+    const message = `NOVO PEDIDO - ${STORE_NAME}
 
 Itens:
 ${orderItems}
@@ -504,6 +618,9 @@ ${pagamentoTexto}
 
 Observacao:
 ${formData.observacao || "Nenhuma"}`
+
+    // Registrar pedido
+    await registerOrder(pagamentoTexto)
 
     const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")
@@ -525,7 +642,7 @@ ${formData.observacao || "Nenhuma"}`
         <div className="max-w-lg mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-primary">P.K Gostosuras</h1>
+              <h1 className="text-xl font-bold text-primary">{STORE_NAME}</h1>
               <p className="text-xs text-muted-foreground">Paulo e Karina</p>
             </div>
             <button
@@ -811,41 +928,110 @@ ${formData.observacao || "Nenhuma"}`
                         )
                       })}
                     </div>
-                    <div className="border-t border-border mt-3 pt-3 flex justify-between items-center">
-                      <span className="text-foreground font-semibold">Total</span>
-                      <span className="text-xl font-bold text-primary">
-                        {formatCurrency(getTotal())}
-                      </span>
+                    
+                    {/* Subtotal, Desconto, Taxa, Total */}
+                    <div className="border-t border-border mt-3 pt-3 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span className="text-foreground">{formatCurrency(getSubtotal())}</span>
+                      </div>
+                      {appliedCoupon && getDiscount() > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-400">Cupom {appliedCoupon.code}</span>
+                          <span className="text-green-400">-{formatCurrency(getDiscount())}</span>
+                        </div>
+                      )}
+                      {deliveryType === "entrega" && getDeliveryFee() > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Taxa de entrega</span>
+                          <span className="text-foreground">{formatCurrency(getDeliveryFee())}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center pt-2 border-t border-border">
+                        <span className="text-foreground font-semibold">Total</span>
+                        <span className="text-xl font-bold text-primary">{formatCurrency(getTotal())}</span>
+                      </div>
                     </div>
+
+                    {/* Cupom */}
+                    {(siteConfig.coupons || []).length > 0 && !appliedCoupon && (
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={couponCode}
+                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                            placeholder="Codigo do cupom"
+                            className="flex-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground"
+                          />
+                          <button
+                            onClick={applyCoupon}
+                            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
+                          >
+                            Aplicar
+                          </button>
+                        </div>
+                        {couponError && (
+                          <p className="text-red-400 text-xs mt-2">{couponError}</p>
+                        )}
+                      </div>
+                    )}
+                    {appliedCoupon && (
+                      <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-green-400">
+                          <Tag className="w-4 h-4" />
+                          <span className="text-sm font-medium">Cupom {appliedCoupon.code} aplicado</span>
+                        </div>
+                        <button
+                          onClick={() => setAppliedCoupon(null)}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    )}
                   </section>
 
                   {/* Delivery Type */}
                   <section className="bg-card rounded-2xl p-4 border border-border space-y-4">
-                    <h3 className="font-semibold text-foreground">Tipo de Entrega</h3>
+                    <h3 className="font-semibold text-foreground flex items-center gap-2">
+                      <Truck className="w-5 h-5 text-primary" />
+                      Tipo de Entrega
+                    </h3>
                     <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => setDeliveryType("entrega")}
-                        className={`py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                          deliveryType === "entrega"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                        }`}
-                      >
-                        <MapPin className="w-4 h-4" />
-                        Entrega
-                      </button>
-                      <button
-                        onClick={() => setDeliveryType("retirada")}
-                        className={`py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                          deliveryType === "retirada"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                        }`}
-                      >
-                        <HomeIcon className="w-4 h-4" />
-                        Retirada
-                      </button>
+                      {DELIVERY_ENABLED && (
+                        <button
+                          onClick={() => setDeliveryType("entrega")}
+                          className={`py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                            deliveryType === "entrega"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                          }`}
+                        >
+                          <MapPin className="w-4 h-4" />
+                          Entrega
+                          {DELIVERY_FEE > 0 && <span className="text-xs opacity-75">(+R${DELIVERY_FEE})</span>}
+                        </button>
+                      )}
+                      {PICKUP_ENABLED && (
+                        <button
+                          onClick={() => setDeliveryType("retirada")}
+                          className={`py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                            deliveryType === "retirada"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                          }`}
+                        >
+                          <HomeIcon className="w-4 h-4" />
+                          Retirada
+                        </button>
+                      )}
                     </div>
+                    {deliveryType === "entrega" && siteConfig.delivery?.estimatedTime && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        Tempo estimado: {siteConfig.delivery.estimatedTime}
+                      </p>
+                    )}
                   </section>
 
                   {/* Customer Info */}
@@ -897,23 +1083,38 @@ ${formData.observacao || "Nenhuma"}`
                             type="text"
                             value={formData.endereco}
                             onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                            placeholder="Rua, bairro"
+                            placeholder="Rua"
                             className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                           />
                         </div>
 
-                        <div>
-                          <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                            <HomeIcon className="w-4 h-4" />
-                            Numero *
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.numero}
-                            onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
-                            placeholder="Numero da casa/apartamento"
-                            className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                          />
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                              <HomeIcon className="w-4 h-4" />
+                              Numero *
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.numero}
+                              onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
+                              placeholder="Numero"
+                              className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                              <MapPin className="w-4 h-4" />
+                              Bairro
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.bairro}
+                              onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
+                              placeholder="Bairro"
+                              className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                            />
+                          </div>
                         </div>
 
                         <div>
