@@ -98,48 +98,7 @@ export interface SiteConfig {
 
 export const defaultConfig: SiteConfig = {
   storeName: "P.K Gostosuras",
-  products: [
-    {
-      id: 1,
-      name: "Açaí Tradicional",
-      price: 15,
-      description: "Açaí puro e cremoso",
-      active: true,
-      stock: 100,
-      outOfStock: false,
-      order: 1,
-    },
-    {
-      id: 2,
-      name: "Açaí Ovomaltine",
-      price: 15,
-      description: "Açaí cremoso com Ovomaltine crocante",
-      active: true,
-      stock: 100,
-      outOfStock: false,
-      order: 2,
-    },
-    {
-      id: 3,
-      name: "Mousse Maracujá",
-      price: 6,
-      description: "Mousse cremoso de maracujá",
-      active: true,
-      stock: 100,
-      outOfStock: false,
-      order: 3,
-    },
-    {
-      id: 4,
-      name: "Mousse Morango",
-      price: 6,
-      description: "Mousse cremoso de morango",
-      active: true,
-      stock: 100,
-      outOfStock: false,
-      order: 4,
-    },
-  ],
+  products: [], // Vazio - produtos vem da API/Blob
   banner: {
     mainText: "Os melhores açaís de garrafa",
     secondaryText: "da região!",

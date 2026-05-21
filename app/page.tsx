@@ -411,7 +411,7 @@ export default function Home() {
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const response = await fetch("/api/config")
+        const response = await fetch("/api/config", { cache: "no-store" })
         const data = await response.json()
         if (data.success && data.config) {
           setSiteConfig(data.config)
@@ -1020,9 +1020,31 @@ ${formData.observacao || "Nenhuma"}`
 
       {/* Products */}
       <section className="mt-6 space-y-4">
-          <h3 className="text-lg font-semibold text-foreground">Cardápio</h3>
+          <h3 className="text-lg font-semibold text-foreground">Cardapio</h3>
           
-          {products.map((product) => (
+          {/* Loading state */}
+          {!configLoaded && (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="bg-card rounded-2xl p-4 border border-border shadow-lg animate-pulse"
+                >
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 space-y-3">
+                      <div className="h-5 bg-secondary rounded w-2/3"></div>
+                      <div className="h-4 bg-secondary rounded w-full"></div>
+                      <div className="h-6 bg-secondary rounded w-1/4"></div>
+                    </div>
+                    <div className="w-28 h-10 bg-secondary rounded-full"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Products loaded */}
+          {configLoaded && products.map((product) => (
             <div
               key={product.id}
               className="bg-card rounded-2xl p-4 border border-border shadow-lg shadow-primary/5 transition-all hover:shadow-primary/10"

@@ -5,6 +5,17 @@ import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 const CONFIG_PREFIX = "pk-config-"
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
 
+// Evitar cache
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
+// Headers para evitar cache
+const noCacheHeaders = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  "Pragma": "no-cache",
+  "Expires": "0",
+}
+
 export async function GET(request: Request) {
   try {
     // Verificar senha para acesso admin (opcional)
@@ -32,17 +43,17 @@ export async function GET(request: Request) {
         if (result && result.stream) {
           const text = await new Response(result.stream).text()
           const config = JSON.parse(text) as SiteConfig
-          return NextResponse.json({ success: true, config })
+          return NextResponse.json({ success: true, config }, { headers: noCacheHeaders })
         }
       }
     } catch (e) {
       console.error("[Config GET] Erro ao buscar do Blob:", e)
     }
 
-    return NextResponse.json({ success: true, config: defaultConfig })
+    return NextResponse.json({ success: true, config: defaultConfig }, { headers: noCacheHeaders })
   } catch (error) {
     console.error("[Config GET] Erro geral:", error)
-    return NextResponse.json({ success: true, config: defaultConfig })
+    return NextResponse.json({ success: true, config: defaultConfig }, { headers: noCacheHeaders })
   }
 }
 
