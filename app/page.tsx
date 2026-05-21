@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
-import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck } from "lucide-react"
+import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { type SiteConfig, type Coupon, defaultConfig } from "@/lib/config-types"
 
@@ -93,6 +93,12 @@ export default function Home() {
   // Snapshot do pedido - bloqueio apos gerar PIX
   const [orderSnapshot, setOrderSnapshot] = useState<OrderSnapshot | null>(null)
   const isOrderLocked = orderSnapshot !== null && paymentStatus === "awaiting" && !pixExpired
+  
+  // Cooldown para novo PIX (anti-spam)
+  const [pixCooldownEnd, setPixCooldownEnd] = useState<number | null>(null)
+  const [pixCooldownLeft, setPixCooldownLeft] = useState<number>(0)
+  const [showChangePaymentModal, setShowChangePaymentModal] = useState(false)
+  const [showManualPixDuringCooldown, setShowManualPixDuringCooldown] = useState(false)
   
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const addToCartAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -271,6 +277,28 @@ export default function Home() {
     }
   }
 
+  // Alterar forma de pagamento com cooldown
+  const handleChangePaymentMethod = () => {
+    // Cancelar PIX atual
+    setPixData(null)
+    setPaymentStatus("idle")
+    setOrderSnapshot(null)
+    setPixExpired(false)
+    setPixTimeLeft(0)
+    
+    // Parar polling
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+    
+    // Iniciar cooldown de 5 minutos
+    setPixCooldownEnd(Date.now() + 5 * 60 * 1000)
+    
+    // Fechar modal
+    setShowChangePaymentModal(false)
+  }
+
   // Cancelar pedido e limpar tudo (compatibilidade)
   const cancelOrderAndStartNew = () => {
     setShowNewOrderModal(true)
@@ -278,24 +306,41 @@ export default function Home() {
 
   // Timer do PIX
   useEffect(() => {
-    if (pixData?.expiresAt && paymentStatus === "awaiting") {
-      const updateTimer = () => {
+  if (pixData?.expiresAt && paymentStatus === "awaiting") {
+  const updateTimer = () => {
+  const now = Date.now()
+  const expires = new Date(pixData.expiresAt!).getTime()
+  const diff = Math.max(0, Math.floor((expires - now) / 1000))
+  setPixTimeLeft(diff)
+  if (diff <= 0) {
+  setPixExpired(true)
+  if (pixTimerRef.current) clearInterval(pixTimerRef.current)
+  }
+  }
+  updateTimer()
+  pixTimerRef.current = setInterval(updateTimer, 1000)
+  return () => {
+  if (pixTimerRef.current) clearInterval(pixTimerRef.current)
+  }
+  }
+  }, [pixData?.expiresAt, paymentStatus])
+
+  // Timer do cooldown (anti-spam)
+  useEffect(() => {
+    if (pixCooldownEnd) {
+      const updateCooldown = () => {
         const now = Date.now()
-        const expires = new Date(pixData.expiresAt!).getTime()
-        const diff = Math.max(0, Math.floor((expires - now) / 1000))
-        setPixTimeLeft(diff)
+        const diff = Math.max(0, Math.floor((pixCooldownEnd - now) / 1000))
+        setPixCooldownLeft(diff)
         if (diff <= 0) {
-          setPixExpired(true)
-          if (pixTimerRef.current) clearInterval(pixTimerRef.current)
+          setPixCooldownEnd(null)
         }
       }
-      updateTimer()
-      pixTimerRef.current = setInterval(updateTimer, 1000)
-      return () => {
-        if (pixTimerRef.current) clearInterval(pixTimerRef.current)
-      }
+      updateCooldown()
+      const interval = setInterval(updateCooldown, 1000)
+      return () => clearInterval(interval)
     }
-  }, [pixData?.expiresAt, paymentStatus])
+  }, [pixCooldownEnd])
 
   // Carregar config do site
   useEffect(() => {
@@ -510,7 +555,15 @@ export default function Home() {
       alert("Ja existe um PIX ativo para este pedido. Aguarde o pagamento ou cancele para comecar um novo pedido.")
       return
     }
-
+    
+    // Verificar cooldown anti-spam
+    if (pixCooldownEnd && Date.now() < pixCooldownEnd) {
+      const minutes = Math.floor(pixCooldownLeft / 60)
+      const seconds = pixCooldownLeft % 60
+      alert(`Aguarde ${minutes}:${seconds.toString().padStart(2, '0')} para gerar um novo PIX automatico. Use o PIX manual como alternativa.`)
+      return
+    }
+    
     if (!formData.nome) {
       alert("Por favor, preencha seu nome!")
       return
@@ -1400,41 +1453,57 @@ ${formData.observacao || "Nenhuma"}`
                   </section>
 
                   {/* Payment Method */}
-                  <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderLocked ? 'opacity-50' : ''}`}>
+                  <section className="bg-card rounded-2xl p-4 border border-border space-y-4">
                     <h3 className="font-semibold text-foreground flex items-center gap-2">
                       <CreditCard className="w-5 h-5 text-primary" />
                       Forma de Pagamento
                     </h3>
                     
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { value: "pix", label: "Pix" },
-                        { value: "dinheiro", label: "Dinheiro" },
-                        { value: "cartao", label: "Cartao" },
-                      ].map((option) => (
-                        <button
-                          key={option.value}
-                          onClick={() => {
-                            // Bloquear mudanca de pagamento se PIX ativo
-                            if (isOrderLocked) {
-                              alert("Ja existe um PIX ativo para este pedido. Para alterar a forma de pagamento, faca um novo pedido.")
-                              return
-                            }
-                            setFormData({ ...formData, pagamento: option.value })
-                            setPaymentStatus("idle")
-                            setPixData(null)
-                          }}
-                          disabled={isOrderLocked}
-                          className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                            formData.pagamento === option.value
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                          } ${isOrderLocked ? 'cursor-not-allowed' : ''}`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
+                    {/* Esconder botões quando PIX está ativo */}
+                    {!isOrderLocked && (
+                      <>
+                        {/* Aviso de cooldown */}
+                        {pixCooldownEnd && pixCooldownLeft > 0 && (
+                          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
+                            <p className="text-amber-400 text-sm text-center">
+                              Novo PIX automatico disponivel em:{" "}
+                              <span className="font-mono font-bold">
+                                {Math.floor(pixCooldownLeft / 60).toString().padStart(2, '0')}:{(pixCooldownLeft % 60).toString().padStart(2, '0')}
+                              </span>
+                            </p>
+                          </div>
+                        )}
+                        
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { value: "pix", label: "Pix", disabled: pixCooldownEnd && pixCooldownLeft > 0 },
+                            { value: "dinheiro", label: "Dinheiro", disabled: false },
+                            { value: "cartao", label: "Cartao", disabled: false },
+                          ].map((option) => (
+                            <button
+                              key={option.value}
+                              onClick={() => {
+                                if (option.disabled) {
+                                  alert(`Aguarde ${Math.floor(pixCooldownLeft / 60)}:${(pixCooldownLeft % 60).toString().padStart(2, '0')} para usar PIX automatico.`)
+                                  return
+                                }
+                                setFormData({ ...formData, pagamento: option.value })
+                                setPaymentStatus("idle")
+                                setPixData(null)
+                              }}
+                              disabled={option.disabled as boolean}
+                              className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+                                formData.pagamento === option.value
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                              } ${option.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
 
                     {/* PIX Section */}
                     {formData.pagamento === "pix" && (
@@ -1576,13 +1645,13 @@ ${formData.observacao || "Nenhuma"}`
                               </p>
                             </div>
                             
-                            {/* Botao cancelar */}
+                            {/* Botao alterar forma de pagamento */}
                             {!pixExpired && (
                               <button
-                                onClick={cancelOrderAndStartNew}
-                                className="w-full py-3 text-sm text-muted-foreground hover:text-destructive transition-colors"
+                                onClick={() => setShowChangePaymentModal(true)}
+                                className="w-full py-3 text-sm text-muted-foreground hover:text-primary transition-colors"
                               >
-                                Cancelar e comecar novo pedido
+                                Alterar forma de pagamento
                               </button>
                             )}
                           </div>
@@ -1721,8 +1790,118 @@ ${formData.observacao || "Nenhuma"}`
                       Finalizar Pedido no WhatsApp
                     </button>
                   )}
-                </>
-              )}
+                      </>
+                    )}
+
+                    {/* Opcao de PIX manual durante cooldown */}
+                    {!isOrderLocked && pixCooldownEnd && pixCooldownLeft > 0 && formData.pagamento === "pix" && (
+                      <div className="bg-secondary/50 rounded-xl p-4 space-y-4">
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Nao quer esperar? Pague pelo PIX manual e envie o comprovante no WhatsApp.
+                          </p>
+                          <button
+                            onClick={() => setShowManualPixDuringCooldown(true)}
+                            className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
+                          >
+                            Pagar com PIX manual
+                          </button>
+                        </div>
+                        
+                        {showManualPixDuringCooldown && (
+                          <div className="space-y-4 animate-in fade-in duration-300 border-t border-border pt-4">
+                            <div className="text-center">
+                              <h4 className="font-bold text-foreground">PIX Manual</h4>
+                              <p className="text-xs text-muted-foreground mt-1">Pague e envie o comprovante</p>
+                            </div>
+                            
+                            <div className="flex flex-col items-center">
+                              <div className="bg-white p-4 rounded-xl shadow-md">
+                                <QRCodeSVG
+                                  value={generateManualPixCode(getTotal())}
+                                  size={150}
+                                  level="M"
+                                  includeMargin={false}
+                                />
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <div className="bg-input rounded-xl px-4 py-3">
+                                <p className="text-xs text-muted-foreground">Recebedor</p>
+                                <p className="font-semibold text-foreground">Carina Karen da Silva</p>
+                              </div>
+                              
+                              <div className="bg-input rounded-xl px-4 py-3">
+                                <p className="text-xs text-muted-foreground">Valor</p>
+                                <p className="font-bold text-xl text-primary">{formatCurrency(getTotal())}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <p className="text-xs text-muted-foreground text-center">Codigo copia e cola:</p>
+                              <div className="bg-input rounded-xl p-3 relative">
+                                <p className="text-xs text-foreground break-all pr-8 font-mono">
+                                  {generateManualPixCode(getTotal()).substring(0, 50)}...
+                                </p>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(generateManualPixCode(getTotal()))
+                                    alert("Codigo PIX copiado!")
+                                  }}
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary/20 rounded-lg hover:bg-primary/30 transition-colors"
+                                >
+                                  <Copy className="w-4 h-4 text-primary" />
+                                </button>
+                              </div>
+                            </div>
+                            
+                            <button
+                              onClick={() => {
+                                const message = encodeURIComponent(
+                                  `Ola! Fiz um pedido e paguei via PIX manual.\n\nValor: ${formatCurrency(getTotal())}\n\nVou enviar o comprovante.`
+                                )
+                                window.open(`https://wa.me/5511999999999?text=${message}`, "_blank")
+                              }}
+                              className="w-full py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                            >
+                              <MessageCircle className="w-5 h-5" />
+                              Enviar comprovante no WhatsApp
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmacao para alterar forma de pagamento */}
+      {showChangePaymentModal && (
+        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
+            <div className="text-center">
+              <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-foreground mb-2">Alterar Forma de Pagamento</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Se voce alterar a forma de pagamento, so sera possivel gerar um novo PIX automatico apos 5 minutos.
+              </p>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={() => setShowChangePaymentModal(false)}
+                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Continuar com este PIX
+                </button>
+                <button
+                  onClick={handleChangePaymentMethod}
+                  className="w-full py-3 bg-secondary text-secondary-foreground rounded-xl font-medium hover:bg-secondary/80 transition-colors"
+                >
+                  Alterar forma de pagamento
+                </button>
+              </div>
             </div>
           </div>
         </div>
