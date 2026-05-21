@@ -100,6 +100,12 @@ export default function Home() {
   const [showChangePaymentModal, setShowChangePaymentModal] = useState(false)
   const [showManualPixDuringCooldown, setShowManualPixDuringCooldown] = useState(false)
   
+  // Verifica se esta em cooldown (bloqueio anti-spam)
+  const isInCooldown = pixCooldownEnd !== null && pixCooldownLeft > 0
+  
+  // Pedido bloqueado = PIX ativo OU em cooldown
+  const isOrderBlocked = isOrderLocked || isInCooldown
+  
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const addToCartAudioRef = useRef<HTMLAudioElement | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -178,6 +184,11 @@ export default function Home() {
     setPixTimeLeft(0)
     setOrderId("")
     
+    // Limpar cooldown
+    setPixCooldownEnd(null)
+    setPixCooldownLeft(0)
+    setShowManualPixDuringCooldown(false)
+    
     // Limpar carrinho
     setQuantities({})
     
@@ -229,6 +240,11 @@ export default function Home() {
     setPixTimeLeft(0)
     setOrderId("")
     
+    // Limpar cooldown
+    setPixCooldownEnd(null)
+    setPixCooldownLeft(0)
+    setShowManualPixDuringCooldown(false)
+    
     // Limpar carrinho
     setQuantities({})
     
@@ -262,13 +278,13 @@ export default function Home() {
     setShowCheckout(false)
   }
 
-  // Tentar fechar checkout - verifica se tem PIX ativo
+  // Tentar fechar checkout - verifica se tem PIX ativo ou cooldown
   const handleCloseCheckout = () => {
-    if (isOrderLocked) {
+    if (isOrderBlocked) {
       setShowCloseConfirmModal(true)
       return
     }
-    // Se nao tem PIX ativo, pode fechar normalmente
+    // Se nao tem PIX ativo nem cooldown, pode fechar normalmente
     setShowCheckout(false)
     setPaymentStatus("idle")
     setPixData(null)
@@ -551,7 +567,7 @@ export default function Home() {
   // Criar cobranca PIX via Asaas
   const createPixCharge = async () => {
     // Verificar se ja existe PIX ativo
-    if (isOrderLocked) {
+    if (isOrderBlocked) {
       alert("Ja existe um PIX ativo para este pedido. Aguarde o pagamento ou cancele para comecar um novo pedido.")
       return
     }
@@ -1228,7 +1244,7 @@ ${formData.observacao || "Nenhuma"}`
                   </section>
 
                   {/* Mensagem de pedido bloqueado */}
-                  {isOrderLocked && (
+                  {isOrderBlocked && (
                     <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
                       <div className="flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
@@ -1249,7 +1265,7 @@ ${formData.observacao || "Nenhuma"}`
                   )}
 
                   {/* Delivery Type */}
-                  <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderLocked ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`}>
                     <h3 className="font-semibold text-foreground flex items-center gap-2">
                       <Truck className="w-5 h-5 text-primary" />
                       Tipo de Entrega
@@ -1257,8 +1273,8 @@ ${formData.observacao || "Nenhuma"}`
                     <div className="grid grid-cols-2 gap-2">
                       {DELIVERY_ENABLED && (
                         <button
-                          onClick={() => !isOrderLocked && setDeliveryType("entrega")}
-                          disabled={isOrderLocked}
+                          onClick={() => !isOrderBlocked && setDeliveryType("entrega")}
+                          disabled={isOrderBlocked}
                           className={`py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                             deliveryType === "entrega"
                               ? "bg-primary text-primary-foreground"
@@ -1272,8 +1288,8 @@ ${formData.observacao || "Nenhuma"}`
                       )}
                       {PICKUP_ENABLED && (
                         <button
-                          onClick={() => !isOrderLocked && setDeliveryType("retirada")}
-                          disabled={isOrderLocked}
+                          onClick={() => !isOrderBlocked && setDeliveryType("retirada")}
+                          disabled={isOrderBlocked}
                           className={`py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                             deliveryType === "retirada"
                               ? "bg-primary text-primary-foreground"
@@ -1293,7 +1309,7 @@ ${formData.observacao || "Nenhuma"}`
                   </section>
 
                   {/* Customer Info */}
-                  <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderLocked ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`}>
                     <h3 className="font-semibold text-foreground">Seus Dados</h3>
                     
                     <div>
@@ -1304,8 +1320,8 @@ ${formData.observacao || "Nenhuma"}`
                       <input
                         type="text"
                         value={formData.nome}
-                        onChange={(e) => !isOrderLocked && setFormData({ ...formData, nome: e.target.value })}
-                        disabled={isOrderLocked}
+                        onChange={(e) => !isOrderBlocked && setFormData({ ...formData, nome: e.target.value })}
+                        disabled={isOrderBlocked}
                         placeholder="Seu nome completo"
                         className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
                       />
@@ -1319,7 +1335,7 @@ ${formData.observacao || "Nenhuma"}`
                       <input
                         type="tel"
                         value={formData.telefone}
-                        disabled={isOrderLocked}
+                        disabled={isOrderBlocked}
                         onChange={(e) => {
                           const value = e.target.value.replace(/\D/g, "").slice(0, 11)
                           const formatted = value
@@ -1342,8 +1358,8 @@ ${formData.observacao || "Nenhuma"}`
                           <input
                             type="text"
                             value={formData.endereco}
-                            onChange={(e) => !isOrderLocked && setFormData({ ...formData, endereco: e.target.value })}
-                            disabled={isOrderLocked}
+                            onChange={(e) => !isOrderBlocked && setFormData({ ...formData, endereco: e.target.value })}
+                            disabled={isOrderBlocked}
                             placeholder="Rua"
                             className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
                           />
@@ -1358,8 +1374,8 @@ ${formData.observacao || "Nenhuma"}`
                             <input
                               type="text"
                               value={formData.numero}
-                              onChange={(e) => !isOrderLocked && setFormData({ ...formData, numero: e.target.value })}
-                              disabled={isOrderLocked}
+                              onChange={(e) => !isOrderBlocked && setFormData({ ...formData, numero: e.target.value })}
+                              disabled={isOrderBlocked}
                               placeholder="Numero"
                               className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
                             />
@@ -1374,9 +1390,9 @@ ${formData.observacao || "Nenhuma"}`
                           </label>
                           <select
                             value={formData.bairro}
-                            onChange={(e) => !isOrderLocked && setFormData({ ...formData, bairro: e.target.value })}
-                            disabled={isOrderLocked}
-                            className={`w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all appearance-none ${isOrderLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            onChange={(e) => !isOrderBlocked && setFormData({ ...formData, bairro: e.target.value })}
+                            disabled={isOrderBlocked}
+                            className={`w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all appearance-none ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '20px' }}
                           >
                             <option value="">Selecione seu bairro</option>
@@ -1401,7 +1417,7 @@ ${formData.observacao || "Nenhuma"}`
                               </div>
                             </div>
                           )}
-                          {!formData.bairro && !isOrderLocked && (
+                          {!formData.bairro && !isOrderBlocked && (
                             <p className="text-xs text-amber-400 mt-2">
                               Selecione seu bairro para calcular a entrega.
                             </p>
@@ -1416,8 +1432,8 @@ ${formData.observacao || "Nenhuma"}`
                           <input
                             type="text"
                             value={formData.referencia}
-                            onChange={(e) => !isOrderLocked && setFormData({ ...formData, referencia: e.target.value })}
-                            disabled={isOrderLocked}
+                            onChange={(e) => !isOrderBlocked && setFormData({ ...formData, referencia: e.target.value })}
+                            disabled={isOrderBlocked}
                             placeholder="Ponto de referencia"
                             className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
                           />
@@ -1425,8 +1441,8 @@ ${formData.observacao || "Nenhuma"}`
 
                         <button
                           onClick={getLocation}
-                          disabled={isOrderLocked}
-                          className={`w-full py-3 bg-secondary text-secondary-foreground rounded-xl flex items-center justify-center gap-2 transition-all ${isOrderLocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-secondary/80'}`}
+                          disabled={isOrderBlocked}
+                          className={`w-full py-3 bg-secondary text-secondary-foreground rounded-xl flex items-center justify-center gap-2 transition-all ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-secondary/80'}`}
                         >
                           <MapPinned className="w-4 h-4" />
                           Enviar minha localizacao
@@ -1459,50 +1475,127 @@ ${formData.observacao || "Nenhuma"}`
                       Forma de Pagamento
                     </h3>
                     
-                    {/* Esconder botões quando PIX está ativo */}
-                    {!isOrderLocked && (
+                    {/* Esconder botões quando PIX está ativo ou em cooldown */}
+                    {!isOrderBlocked && (
                       <>
-                        {/* Aviso de cooldown */}
-                        {pixCooldownEnd && pixCooldownLeft > 0 && (
-                          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
-                            <p className="text-amber-400 text-sm text-center">
-                              Novo PIX automatico disponivel em:{" "}
-                              <span className="font-mono font-bold">
-                                {Math.floor(pixCooldownLeft / 60).toString().padStart(2, '0')}:{(pixCooldownLeft % 60).toString().padStart(2, '0')}
-                              </span>
-                            </p>
-                          </div>
-                        )}
-                        
+                        {/* Aviso de cooldown - so mostra se nao esta bloqueado */}
                         <div className="grid grid-cols-3 gap-2">
                           {[
-                            { value: "pix", label: "Pix", disabled: pixCooldownEnd && pixCooldownLeft > 0 },
+                            { value: "pix", label: "Pix", disabled: false },
                             { value: "dinheiro", label: "Dinheiro", disabled: false },
                             { value: "cartao", label: "Cartao", disabled: false },
                           ].map((option) => (
                             <button
                               key={option.value}
                               onClick={() => {
-                                if (option.disabled) {
-                                  alert(`Aguarde ${Math.floor(pixCooldownLeft / 60)}:${(pixCooldownLeft % 60).toString().padStart(2, '0')} para usar PIX automatico.`)
-                                  return
-                                }
                                 setFormData({ ...formData, pagamento: option.value })
                                 setPaymentStatus("idle")
                                 setPixData(null)
                               }}
-                              disabled={option.disabled as boolean}
                               className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${
                                 formData.pagamento === option.value
                                   ? "bg-primary text-primary-foreground"
                                   : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                              } ${option.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              }`}
                             >
                               {option.label}
                             </button>
                           ))}
                         </div>
                       </>
+                    )}
+
+                    {/* Card de cooldown com PIX manual sempre visivel */}
+                    {isInCooldown && (
+                      <div className="space-y-4">
+                        {/* Aviso de cooldown */}
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
+                          <p className="text-amber-400 text-sm text-center">
+                            Novo PIX automatico disponivel em:{" "}
+                            <span className="font-mono font-bold">
+                              {Math.floor(pixCooldownLeft / 60).toString().padStart(2, '0')}:{(pixCooldownLeft % 60).toString().padStart(2, '0')}
+                            </span>
+                          </p>
+                        </div>
+                        
+                        {/* PIX Manual sempre visivel durante cooldown */}
+                        <div className="bg-secondary/50 rounded-xl p-4 space-y-4">
+                          <div className="text-center">
+                            <p className="text-sm text-muted-foreground mb-3">
+                              Nao quer esperar? Pague pelo PIX manual e envie o comprovante no WhatsApp.
+                            </p>
+                            {!showManualPixDuringCooldown ? (
+                              <button
+                                onClick={() => setShowManualPixDuringCooldown(true)}
+                                className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
+                              >
+                                Pagar com PIX manual
+                              </button>
+                            ) : (
+                              <div className="space-y-4 animate-in fade-in duration-300 border-t border-border pt-4 mt-4">
+                                <div className="text-center">
+                                  <h4 className="font-bold text-foreground">PIX Manual</h4>
+                                  <p className="text-xs text-muted-foreground mt-1">Pague e envie o comprovante</p>
+                                </div>
+                                
+                                <div className="flex flex-col items-center">
+                                  <div className="bg-white p-4 rounded-xl shadow-md">
+                                    <QRCodeSVG
+                                      value={generateManualPixCode(orderSnapshot?.total || getTotal())}
+                                      size={150}
+                                      level="M"
+                                      includeMargin={false}
+                                    />
+                                  </div>
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <div className="bg-input rounded-xl px-4 py-3">
+                                    <p className="text-xs text-muted-foreground">Recebedor</p>
+                                    <p className="font-semibold text-foreground">Carina Karen da Silva</p>
+                                  </div>
+                                  
+                                  <div className="bg-input rounded-xl px-4 py-3">
+                                    <p className="text-xs text-muted-foreground">Valor</p>
+                                    <p className="font-bold text-xl text-primary">{formatCurrency(orderSnapshot?.total || getTotal())}</p>
+                                  </div>
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <p className="text-xs text-muted-foreground text-center">Codigo copia e cola:</p>
+                                  <div className="bg-input rounded-xl p-3 relative">
+                                    <p className="text-xs text-foreground break-all pr-8 font-mono">
+                                      {generateManualPixCode(orderSnapshot?.total || getTotal()).substring(0, 50)}...
+                                    </p>
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(generateManualPixCode(orderSnapshot?.total || getTotal()))
+                                        alert("Codigo PIX copiado!")
+                                      }}
+                                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary/20 rounded-lg hover:bg-primary/30 transition-colors"
+                                    >
+                                      <Copy className="w-4 h-4 text-primary" />
+                                    </button>
+                                  </div>
+                                </div>
+                                
+                                <button
+                                  onClick={() => {
+                                    const message = encodeURIComponent(
+                                      `Ola! Fiz um pedido e paguei via PIX manual.\n\nValor: ${formatCurrency(orderSnapshot?.total || getTotal())}\n\nVou enviar o comprovante.`
+                                    )
+                                    window.open(`https://wa.me/5511999999999?text=${message}`, "_blank")
+                                  }}
+                                  className="w-full py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                  <MessageCircle className="w-5 h-5" />
+                                  Enviar comprovante no WhatsApp
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     )}
 
                     {/* PIX Section */}
@@ -1791,86 +1884,6 @@ ${formData.observacao || "Nenhuma"}`
                     </button>
                   )}
                       </>
-                    )}
-
-                    {/* Opcao de PIX manual durante cooldown */}
-                    {!isOrderLocked && pixCooldownEnd && pixCooldownLeft > 0 && formData.pagamento === "pix" && (
-                      <div className="bg-secondary/50 rounded-xl p-4 space-y-4">
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground mb-3">
-                            Nao quer esperar? Pague pelo PIX manual e envie o comprovante no WhatsApp.
-                          </p>
-                          <button
-                            onClick={() => setShowManualPixDuringCooldown(true)}
-                            className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
-                          >
-                            Pagar com PIX manual
-                          </button>
-                        </div>
-                        
-                        {showManualPixDuringCooldown && (
-                          <div className="space-y-4 animate-in fade-in duration-300 border-t border-border pt-4">
-                            <div className="text-center">
-                              <h4 className="font-bold text-foreground">PIX Manual</h4>
-                              <p className="text-xs text-muted-foreground mt-1">Pague e envie o comprovante</p>
-                            </div>
-                            
-                            <div className="flex flex-col items-center">
-                              <div className="bg-white p-4 rounded-xl shadow-md">
-                                <QRCodeSVG
-                                  value={generateManualPixCode(getTotal())}
-                                  size={150}
-                                  level="M"
-                                  includeMargin={false}
-                                />
-                              </div>
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <div className="bg-input rounded-xl px-4 py-3">
-                                <p className="text-xs text-muted-foreground">Recebedor</p>
-                                <p className="font-semibold text-foreground">Carina Karen da Silva</p>
-                              </div>
-                              
-                              <div className="bg-input rounded-xl px-4 py-3">
-                                <p className="text-xs text-muted-foreground">Valor</p>
-                                <p className="font-bold text-xl text-primary">{formatCurrency(getTotal())}</p>
-                              </div>
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <p className="text-xs text-muted-foreground text-center">Codigo copia e cola:</p>
-                              <div className="bg-input rounded-xl p-3 relative">
-                                <p className="text-xs text-foreground break-all pr-8 font-mono">
-                                  {generateManualPixCode(getTotal()).substring(0, 50)}...
-                                </p>
-                                <button
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(generateManualPixCode(getTotal()))
-                                    alert("Codigo PIX copiado!")
-                                  }}
-                                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary/20 rounded-lg hover:bg-primary/30 transition-colors"
-                                >
-                                  <Copy className="w-4 h-4 text-primary" />
-                                </button>
-                              </div>
-                            </div>
-                            
-                            <button
-                              onClick={() => {
-                                const message = encodeURIComponent(
-                                  `Ola! Fiz um pedido e paguei via PIX manual.\n\nValor: ${formatCurrency(getTotal())}\n\nVou enviar o comprovante.`
-                                )
-                                window.open(`https://wa.me/5511999999999?text=${message}`, "_blank")
-                              }}
-                              className="w-full py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                            >
-                              <MessageCircle className="w-5 h-5" />
-                              Enviar comprovante no WhatsApp
-                            </button>
-                          </div>
-                        )}
-                      </div>
                     )}
             </div>
           </div>
