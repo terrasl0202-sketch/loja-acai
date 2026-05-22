@@ -45,9 +45,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Atualizar status de pagamento
+    const now = new Date().toISOString()
     orders[orderIndex].paymentStatus = "confirmed"
-    orders[orderIndex].confirmedAt = new Date().toISOString()
+    orders[orderIndex].confirmedAt = now
+    orders[orderIndex].paidAt = now
     orders[orderIndex].status = "confirmed"
+    orders[orderIndex].confirmedAutomatically = true
 
     // Salvar
     const timestamp = Date.now()

@@ -37,12 +37,15 @@ import {
   MapPin,
   CheckCircle2,
   XCircle,
-  ClockIcon
+  ClockIcon,
+  ChefHat,
+  PackageCheck,
+  Ban
 } from "lucide-react"
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, defaultConfig } from "@/lib/config-types"
 
-type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "orders" | "reports" | "pix-confirmed"
+type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "reports"
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -475,24 +478,34 @@ export default function AdminPage() {
       .slice(0, 10)
   }
 
-  // Pedidos PIX automatico confirmados
-  const pixConfirmedOrders = activeOrders.filter(o => 
-    (o.isPixAutomatic || o.paymentMethod === "PIX Asaas") && 
-    o.paymentStatus === "confirmed"
-  )
-
-  // Pedidos PENDENTES (nao pagos e nao em estados avancados)
-  const pendingOrders = activeOrders.filter(o => 
+  // ====== FILTROS DE PEDIDOS POR ABA ======
+  
+  // 1. PENDENTES DE CONFIRMACAO - pagamento nao confirmado
+  const ordersPendingPayment = activeOrders.filter(o => 
     o.paymentStatus !== "confirmed" && 
     !o.manuallyConfirmed &&
+    !o.confirmedAutomatically &&
+    !o.paidAt &&
     !["preparing", "delivering", "completed", "cancelled"].includes(o.status)
   )
 
-  // Pedidos PAGOS aguardando preparo
-  const paidWaitingOrders = activeOrders.filter(o => 
-    (o.paymentStatus === "confirmed" || o.manuallyConfirmed) &&
+  // 2. PENDENTES DE PREPARACAO - pagamento confirmado, aguardando preparo
+  const ordersPaidWaiting = activeOrders.filter(o => 
+    (o.paymentStatus === "confirmed" || o.manuallyConfirmed || o.confirmedAutomatically || o.paidAt) &&
     o.status === "confirmed"
   )
+
+  // 3. EM PREPARACAO
+  const ordersPreparing = activeOrders.filter(o => o.status === "preparing")
+
+  // 4. SAIU PARA ENTREGA
+  const ordersDelivering = activeOrders.filter(o => o.status === "delivering")
+
+  // 5. FINALIZADOS
+  const ordersCompleted = orders.filter(o => o.status === "completed" && !o.archived)
+
+  // 6. CANCELADOS
+  const ordersCancelled = orders.filter(o => o.status === "cancelled" && !o.archived)
 
   // Atualizar status de pagamento manual
   const updatePaymentStatus = async (orderId: string, paymentStatus: Order["paymentStatus"], manuallyConfirmed: boolean) => {
@@ -719,9 +732,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 { id: "payment" as TabType, icon: CreditCard, label: "Pagamento" },
                 { id: "whatsapp" as TabType, icon: MessageCircle, label: "WhatsApp" },
                 { id: "coupons" as TabType, icon: Tag, label: "Cupons" },
-                { id: "orders" as TabType, icon: ShoppingBag, label: "Pendentes", badge: pendingOrders.length },
-                { id: "reports" as TabType, icon: BarChart3, label: "Relatorios", badge: 0 },
-                { id: "pix-confirmed" as TabType, icon: CheckCircle2, label: "Pagos", badge: paidWaitingOrders.length },
+                { id: "reports" as TabType, icon: BarChart3, label: "Relatorios" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -736,13 +747,45 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                     <tab.icon className="w-5 h-5" />
                     {tab.label}
                   </div>
-                  {tab.badge && tab.badge > 0 && (
-                    <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">
-                      {tab.badge}
-                    </span>
-                  )}
                 </button>
               ))}
+
+              {/* Secao de Pedidos */}
+              <div className="pt-4 mt-4 border-t border-border">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide px-4 mb-2">Pedidos</p>
+                {[
+                  { id: "orders-pending" as TabType, icon: ClockIcon, label: "Aguardando Pagamento", badge: ordersPendingPayment.length, color: "text-yellow-400" },
+                  { id: "orders-paid" as TabType, icon: CheckCircle2, label: "Aguardando Preparo", badge: ordersPaidWaiting.length, color: "text-green-400" },
+                  { id: "orders-preparing" as TabType, icon: ChefHat, label: "Em Preparacao", badge: ordersPreparing.length, color: "text-blue-400" },
+                  { id: "orders-delivering" as TabType, icon: Truck, label: "Saiu p/ Entrega", badge: ordersDelivering.length, color: "text-purple-400" },
+                  { id: "orders-completed" as TabType, icon: PackageCheck, label: "Finalizados", badge: ordersCompleted.length, color: "text-emerald-400" },
+                  { id: "orders-cancelled" as TabType, icon: Ban, label: "Cancelados", badge: ordersCancelled.length, color: "text-red-400" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all mb-1 ${
+                      activeTab === tab.id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-card hover:bg-secondary text-foreground"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? "" : tab.color}`} />
+                      <span className="text-sm">{tab.label}</span>
+                    </div>
+                    {tab.badge > 0 && (
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                        activeTab === tab.id 
+                          ? "bg-primary-foreground/20 text-primary-foreground" 
+                          : "bg-primary/20 text-primary"
+                      }`}>
+                        {tab.badge}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
 
               <div className="pt-4 border-t border-border">
                 <Link
@@ -1571,11 +1614,11 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 </div>
               )}
 
-              {/* Pedidos */}
-              {activeTab === "orders" && (
+              {/* 1. Pedidos Pendentes de Confirmacao */}
+              {activeTab === "orders-pending" && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground">Pedidos Pendentes ({pendingOrders.length})</h2>
+                    <h2 className="text-xl font-bold text-foreground">Aguardando Pagamento ({ordersPendingPayment.length})</h2>
                     <button
                       onClick={loadOrders}
                       className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"
@@ -1586,11 +1629,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                   </div>
 
                   <div className="space-y-3">
-                    {pendingOrders.map((order) => (
-                      <div
-                        key={order.id}
-                        className="p-4 rounded-xl border border-border bg-secondary/30"
-                      >
+                    {ordersPendingPayment.map((order) => (
+                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <p className="font-bold text-foreground">{order.id}</p>
@@ -1598,8 +1638,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                               {new Date(order.createdAt).toLocaleString("pt-BR")}
                             </p>
                           </div>
-                          <span className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(order.status)}`}>
-                            {getStatusLabel(order.status)}
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-yellow-500/20 text-yellow-400">
+                            Aguardando Pagamento
                           </span>
                         </div>
 
@@ -1611,9 +1651,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="text-lg font-bold text-foreground">
-                              R$ {order.total.toFixed(2)}
-                            </p>
+                            <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
                             <p className="text-xs text-muted-foreground">{order.paymentMethod}</p>
                           </div>
                         </div>
@@ -1630,71 +1668,30 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           </div>
                         )}
 
+                        {/* Botoes: Confirmar manualmente, Cancelar */}
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                          {(["pending", "confirmed", "preparing", "delivering", "completed", "cancelled"] as Order["status"][]).map((status) => (
-                            <button
-                              key={status}
-                              onClick={() => updateOrderStatus(order.id, status)}
-                              disabled={order.status === status}
-                              className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
-                                order.status === status
-                                  ? getStatusColor(status)
-                                  : "bg-secondary text-muted-foreground hover:text-foreground"
-                              }`}
-                            >
-                              {getStatusLabel(status)}
-                            </button>
-                          ))}
-                        </div>
-                        
-                        {/* Botoes de pagamento manual */}
-                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border mt-3">
-                          <span className="text-xs text-muted-foreground w-full mb-1">Pagamento:</span>
                           <button
                             onClick={() => updatePaymentStatus(order.id, "confirmed", true)}
-                            disabled={order.paymentStatus === "confirmed"}
-                            className={`px-3 py-1 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
-                              order.paymentStatus === "confirmed"
-                                ? "bg-green-500/20 text-green-400"
-                                : "bg-secondary text-muted-foreground hover:text-foreground"
-                            }`}
+                            className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"
                           >
-                            <CheckCircle2 className="w-3 h-3" />
-                            Pago
+                            <CheckCircle2 className="w-4 h-4" />
+                            Confirmar Pagamento
                           </button>
                           <button
-                            onClick={() => updatePaymentStatus(order.id, "pending", false)}
-                            disabled={order.paymentStatus === "pending"}
-                            className={`px-3 py-1 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
-                              order.paymentStatus === "pending"
-                                ? "bg-yellow-500/20 text-yellow-400"
-                                : "bg-secondary text-muted-foreground hover:text-foreground"
-                            }`}
+                            onClick={() => updateOrderStatus(order.id, "cancelled")}
+                            className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"
                           >
-                            <ClockIcon className="w-3 h-3" />
-                            Pendente
-                          </button>
-                          <button
-                            onClick={() => updatePaymentStatus(order.id, "failed", false)}
-                            disabled={order.paymentStatus === "failed"}
-                            className={`px-3 py-1 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
-                              order.paymentStatus === "failed"
-                                ? "bg-red-500/20 text-red-400"
-                                : "bg-secondary text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            <XCircle className="w-3 h-3" />
-                            Cancelado
+                            <Ban className="w-4 h-4" />
+                            Cancelar
                           </button>
                         </div>
                       </div>
                     ))}
 
-                    {pendingOrders.length === 0 && (
+                    {ordersPendingPayment.length === 0 && (
                       <div className="text-center py-8 text-muted-foreground">
-                        <ShoppingBag className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Nenhum pedido pendente</p>
-                        <p className="text-sm">Pedidos aguardando pagamento aparecerao aqui</p>
+                        <ClockIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Nenhum pedido aguardando pagamento</p>
                       </div>
                     )}
                   </div>
@@ -1869,114 +1866,311 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 </div>
               )}
 
-              {/* Aba de Pagos / Aguardando Preparo */}
-              {activeTab === "pix-confirmed" && (
+              {/* 2. Pedidos Pagos - Aguardando Preparo */}
+              {activeTab === "orders-paid" && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground">Pagos - Aguardando Preparo ({paidWaitingOrders.length})</h2>
-                    <button
-                      onClick={loadOrders}
-                      className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"
-                    >
-                      <Loader2 className="w-4 h-4" />
-                      Atualizar
+                    <h2 className="text-xl font-bold text-foreground">Aguardando Preparo ({ordersPaidWaiting.length})</h2>
+                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                      <Loader2 className="w-4 h-4" /> Atualizar
                     </button>
                   </div>
 
-                  <div className="space-y-4">
-                    {paidWaitingOrders.length > 0 ? (
-                      paidWaitingOrders.map((order) => (
-                        <div key={order.id} className="bg-card p-6 rounded-xl border border-border space-y-4">
-                          {/* Header do pedido */}
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="font-bold text-lg text-foreground">{order.id}</p>
-                              <p className="text-sm text-muted-foreground">{formatDate(order.createdAt)}</p>
-                              {order.confirmedAt && (
-                                <p className="text-xs text-green-400">Pago em: {formatDate(order.confirmedAt)}</p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm font-medium rounded-full">
-                                {order.isPixAutomatic ? "PIX Automatico" : order.manuallyConfirmed ? "Confirmado Manual" : "Pago"}
-                              </span>
-                            </div>
+                  <div className="space-y-3">
+                    {ordersPaidWaiting.map((order) => (
+                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="font-bold text-foreground">{order.id}</p>
+                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                            {order.paidAt && <p className="text-xs text-green-400">Pago em: {new Date(order.paidAt).toLocaleString("pt-BR")}</p>}
                           </div>
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
+                            {order.confirmedAutomatically ? "PIX Auto" : order.manuallyConfirmed ? "Manual" : "Pago"}
+                          </span>
+                        </div>
 
-                          {/* Dados do cliente */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-secondary/30 rounded-lg">
-                            <div>
-                              <p className="text-xs text-muted-foreground">Cliente</p>
-                              <p className="font-medium text-foreground">{order.customerName}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">Telefone</p>
-                              <p className="font-medium text-foreground">{order.customerPhone}</p>
-                            </div>
-                            {order.address && (
-                              <div className="md:col-span-2">
-                                <p className="text-xs text-muted-foreground">Endereco</p>
-                                <p className="font-medium text-foreground">{order.address}</p>
-                              </div>
-                            )}
-                            {order.neighborhood && (
-                              <div>
-                                <p className="text-xs text-muted-foreground">Bairro</p>
-                                <p className="font-medium text-foreground">{order.neighborhood}</p>
-                              </div>
-                            )}
-                            {order.reference && (
-                              <div>
-                                <p className="text-xs text-muted-foreground">Referencia</p>
-                                <p className="font-medium text-foreground">{order.reference}</p>
-                              </div>
-                            )}
+                        <div className="grid sm:grid-cols-2 gap-4 mb-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Cliente</p>
+                            <p className="text-sm text-foreground">{order.customerName}</p>
+                            <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
                           </div>
-
-                          {/* Itens e total */}
-                          <div className="p-4 bg-secondary/30 rounded-lg">
-                            <p className="text-xs text-muted-foreground mb-2">Itens do Pedido</p>
-                            <p className="text-foreground whitespace-pre-wrap">{order.items}</p>
-                            <div className="mt-3 pt-3 border-t border-border flex justify-between items-center">
-                              <span className="text-muted-foreground">Total:</span>
-                              <span className="text-xl font-bold text-primary">{formatCurrency(order.total)}</span>
-                            </div>
-                          </div>
-
-                          {/* ID do pagamento Asaas */}
-                          {order.asaasPaymentId && (
-                            <div className="p-3 bg-blue-500/10 rounded-lg">
-                              <p className="text-xs text-muted-foreground">ID Pagamento Asaas</p>
-                              <p className="font-mono text-sm text-blue-400">{order.asaasPaymentId}</p>
-                            </div>
-                          )}
-
-                          {/* Botoes de acao */}
-                          <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                            <button
-                              onClick={() => copyOrderData(order)}
-                              className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors"
-                            >
-                              <Copy className="w-4 h-4" />
-                              Copiar Dados
-                            </button>
-                            {order.customerPhone && (
-                              <button
-                                onClick={() => openCustomerWhatsApp(order.customerPhone)}
-                                className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors"
-                              >
-                                <Phone className="w-4 h-4" />
-                                WhatsApp
-                              </button>
-                            )}
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
                           </div>
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-12 text-muted-foreground">
+
+                        <div className="mb-3">
+                          <p className="text-xs text-muted-foreground">Itens</p>
+                          <p className="text-sm text-foreground">{order.items}</p>
+                        </div>
+
+                        {order.address && (
+                          <div className="mb-3">
+                            <p className="text-xs text-muted-foreground">Endereco</p>
+                            <p className="text-sm text-foreground">{order.address}</p>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                          <button onClick={() => updateOrderStatus(order.id, "preparing")} className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-2">
+                            <ChefHat className="w-4 h-4" /> Iniciar Preparo
+                          </button>
+                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
+                            <Ban className="w-4 h-4" /> Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {ordersPaidWaiting.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
                         <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Nenhum pedido pago aguardando preparo</p>
-                        <p className="text-sm">Pedidos pagos aparecerao aqui</p>
+                        <p>Nenhum pedido aguardando preparo</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Pedidos em Preparacao */}
+              {activeTab === "orders-preparing" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground">Em Preparacao ({ordersPreparing.length})</h2>
+                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                      <Loader2 className="w-4 h-4" /> Atualizar
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {ordersPreparing.map((order) => (
+                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="font-bold text-foreground">{order.id}</p>
+                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                          </div>
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-blue-500/20 text-blue-400">Em Preparacao</span>
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 gap-4 mb-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Cliente</p>
+                            <p className="text-sm text-foreground">{order.customerName}</p>
+                            <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
+                          </div>
+                        </div>
+
+                        <div className="mb-3">
+                          <p className="text-xs text-muted-foreground">Itens</p>
+                          <p className="text-sm text-foreground">{order.items}</p>
+                        </div>
+
+                        {order.address && (
+                          <div className="mb-3">
+                            <p className="text-xs text-muted-foreground">Endereco</p>
+                            <p className="text-sm text-foreground">{order.address}</p>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                          {order.deliveryType === "entrega" ? (
+                            <button onClick={() => updateOrderStatus(order.id, "delivering")} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2">
+                              <Truck className="w-4 h-4" /> Saiu p/ Entrega
+                            </button>
+                          ) : (
+                            <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2">
+                              <PackageCheck className="w-4 h-4" /> Finalizar (Retirada)
+                            </button>
+                          )}
+                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
+                            <Ban className="w-4 h-4" /> Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {ordersPreparing.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Nenhum pedido em preparacao</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Saiu para Entrega */}
+              {activeTab === "orders-delivering" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground">Saiu para Entrega ({ordersDelivering.length})</h2>
+                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                      <Loader2 className="w-4 h-4" /> Atualizar
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {ordersDelivering.map((order) => (
+                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="font-bold text-foreground">{order.id}</p>
+                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                          </div>
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-purple-500/20 text-purple-400">Em Entrega</span>
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 gap-4 mb-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Cliente</p>
+                            <p className="text-sm text-foreground">{order.customerName}</p>
+                            <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
+                          </div>
+                        </div>
+
+                        {order.address && (
+                          <div className="mb-3 p-3 bg-purple-500/10 rounded-lg">
+                            <p className="text-xs text-muted-foreground">Endereco de Entrega</p>
+                            <p className="text-sm text-foreground font-medium">{order.address}</p>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                          <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2">
+                            <PackageCheck className="w-4 h-4" /> Finalizar Entrega
+                          </button>
+                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
+                            <Ban className="w-4 h-4" /> Cancelar
+                          </button>
+                          {order.customerPhone && (
+                            <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
+                              <Phone className="w-4 h-4" /> WhatsApp
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    {ordersDelivering.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Truck className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Nenhum pedido em entrega</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Finalizados */}
+              {activeTab === "orders-completed" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground">Finalizados ({ordersCompleted.length})</h2>
+                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                      <Loader2 className="w-4 h-4" /> Atualizar
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {ordersCompleted.map((order) => (
+                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="font-bold text-foreground">{order.id}</p>
+                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                          </div>
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400">Finalizado</span>
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 gap-4 mb-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Cliente</p>
+                            <p className="text-sm text-foreground">{order.customerName}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
+                          </div>
+                        </div>
+
+                        <div className="mb-3">
+                          <p className="text-xs text-muted-foreground">Itens</p>
+                          <p className="text-sm text-foreground">{order.items}</p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                          <button onClick={() => copyOrderData(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-all flex items-center gap-2">
+                            <Copy className="w-4 h-4" /> Copiar Dados
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {ordersCompleted.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <PackageCheck className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Nenhum pedido finalizado</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 6. Cancelados */}
+              {activeTab === "orders-cancelled" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground">Cancelados ({ordersCancelled.length})</h2>
+                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                      <Loader2 className="w-4 h-4" /> Atualizar
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {ordersCancelled.map((order) => (
+                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30 opacity-70">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="font-bold text-foreground">{order.id}</p>
+                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                          </div>
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-red-500/20 text-red-400">Cancelado</span>
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 gap-4 mb-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Cliente</p>
+                            <p className="text-sm text-foreground">{order.customerName}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-lg font-bold text-foreground line-through">R$ {order.total.toFixed(2)}</p>
+                          </div>
+                        </div>
+
+                        <div className="mb-3">
+                          <p className="text-xs text-muted-foreground">Itens</p>
+                          <p className="text-sm text-foreground">{order.items}</p>
+                        </div>
+                      </div>
+                    ))}
+
+                    {ordersCancelled.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Ban className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Nenhum pedido cancelado</p>
                       </div>
                     )}
                   </div>

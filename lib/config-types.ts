@@ -96,6 +96,7 @@ export interface Order {
   paymentStatus: "pending" | "confirmed" | "failed"
   createdAt: string
   confirmedAt?: string
+  paidAt?: string
   // Campos para PIX automatico
   asaasPaymentId?: string
   asaasPixCode?: string
@@ -103,6 +104,7 @@ export interface Order {
   // Campos para controle
   isPixAutomatic?: boolean
   manuallyConfirmed?: boolean
+  confirmedAutomatically?: boolean
   archived?: boolean
 }
 
