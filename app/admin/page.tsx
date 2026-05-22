@@ -61,9 +61,12 @@ export default function AdminPage() {
   const [sessionPassword, setSessionPassword] = useState("")
   const [orders, setOrders] = useState<Order[]>([])
   const [expandedProduct, setExpandedProduct] = useState<number | null>(null)
-  const [soundEnabled, setSoundEnabled] = useState(true)
-  const [lastOrderCount, setLastOrderCount] = useState(0)
+  const [soundEnabled, setSoundEnabled] = useState(false)
+  const [soundActivated, setSoundActivated] = useState(false)
+  const [lastOrderIds, setLastOrderIds] = useState<Set<string>>(new Set())
+  const [lastPaidIds, setLastPaidIds] = useState<Set<string>>(new Set())
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null)
@@ -86,7 +89,7 @@ export default function AdminPage() {
 
   // Notificacao sonora quando chegar novo pedido
   const playNotificationSound = () => {
-    if (!soundEnabled) return
+    if (!soundEnabled || !soundActivated) return
     try {
       const audio = new Audio("/notification.mp3")
       audio.volume = 0.5
@@ -108,6 +111,34 @@ export default function AdminPage() {
     }
   }
 
+  // Mostrar toast de notificacao
+  const showToast = (message: string) => {
+    setToastMessage(message)
+    setTimeout(() => setToastMessage(null), 4000)
+  }
+
+  // Ativar som (necessario interacao do usuario)
+  const activateSound = () => {
+    setSoundActivated(true)
+    setSoundEnabled(true)
+    // Tocar som de teste para confirmar ativacao
+    try {
+      const ctx = new AudioContext()
+      const oscillator = ctx.createOscillator()
+      const gainNode = ctx.createGain()
+      oscillator.connect(gainNode)
+      gainNode.connect(ctx.destination)
+      oscillator.frequency.value = 600
+      oscillator.type = "sine"
+      gainNode.gain.value = 0.2
+      oscillator.start()
+      setTimeout(() => oscillator.stop(), 150)
+    } catch {
+      // Ignorar erro
+    }
+    showToast("Som ativado!")
+  }
+
   const loadOrdersWithNotification = async () => {
     try {
       const res = await fetch(`/api/orders?password=${encodeURIComponent(sessionPassword)}`, { cache: "no-store" })
@@ -115,20 +146,38 @@ export default function AdminPage() {
       if (data.success && data.orders) {
         const newOrders = data.orders as Order[]
         
-        // Verificar se tem novos pedidos
-        if (newOrders.length > lastOrderCount && lastOrderCount > 0) {
-          playNotificationSound()
-          // Mostrar alerta visual
-          if (Notification.permission === "granted") {
-            new Notification("Novo Pedido!", {
-              body: "Voce recebeu um novo pedido na loja.",
-              icon: "/favicon.ico"
-            })
+        // Verificar novos pedidos (IDs que nao existiam antes)
+        const currentIds = new Set(newOrders.map(o => o.id))
+        const newPedidos = newOrders.filter(o => !lastOrderIds.has(o.id))
+        
+        // Verificar pedidos com Pix confirmado que nao estavam pagos antes
+        const currentPaidIds = new Set(
+          newOrders
+            .filter(o => o.paymentStatus === "confirmed" || o.confirmedAutomatically || o.paidAt)
+            .map(o => o.id)
+        )
+        const newPaid = newOrders.filter(o => 
+          (o.paymentStatus === "confirmed" || o.confirmedAutomatically || o.paidAt) && 
+          !lastPaidIds.has(o.id)
+        )
+        
+        // So notificar se ja temos dados anteriores (nao e primeira carga)
+        if (lastOrderIds.size > 0) {
+          // Novos pedidos criados
+          if (newPedidos.length > 0) {
+            playNotificationSound()
+            showToast(`Novo pedido recebido! (${newPedidos[0].id})`)
+          }
+          // Pix confirmado
+          else if (newPaid.length > 0 && lastPaidIds.size > 0) {
+            playNotificationSound()
+            showToast(`Pix confirmado! (${newPaid[0].id})`)
           }
         }
         
         setOrders(newOrders)
-        setLastOrderCount(newOrders.length)
+        setLastOrderIds(currentIds)
+        setLastPaidIds(currentPaidIds)
       }
     } catch (error) {
       console.error("Erro ao carregar pedidos:", error)
@@ -819,15 +868,23 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
           <div className="flex items-center gap-3">
             {/* Botao de som */}
             <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
+              onClick={() => {
+                if (!soundActivated) {
+                  activateSound()
+                } else {
+                  setSoundEnabled(!soundEnabled)
+                }
+              }}
               className={`p-2 rounded-xl transition-all ${
-                soundEnabled
+                soundEnabled && soundActivated
                   ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                  : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                  : !soundActivated
+                    ? "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 animate-pulse"
+                    : "bg-secondary text-muted-foreground hover:bg-secondary/80"
               }`}
-              title={soundEnabled ? "Som ativado" : "Som desativado"}
+              title={!soundActivated ? "Clique para ativar som" : soundEnabled ? "Som ativado" : "Som desativado"}
             >
-              {soundEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+              {soundEnabled && soundActivated ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
             </button>
             
             <button
@@ -2395,6 +2452,14 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Toast de Notificacao */}
+        {toastMessage && (
+          <div className="fixed top-4 right-4 z-50 bg-primary text-primary-foreground px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-in slide-in-from-top-2 fade-in duration-300">
+            <Bell className="w-4 h-4" />
+            <span className="text-sm font-medium">{toastMessage}</span>
           </div>
         )}
 
