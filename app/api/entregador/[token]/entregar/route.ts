@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { get, list, put } from "@vercel/blob"
 import type { SiteConfig, Order } from "@/lib/config-types"
 
-const CONFIG_PREFIX = "config/"
+const CONFIG_PREFIX = "pk-config-"
 const ORDERS_PREFIX = "orders/"
 
 // POST: Marcar pedido como entregue

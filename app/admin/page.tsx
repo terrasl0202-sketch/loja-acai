@@ -2487,6 +2487,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           {entregador.token && entregador.pin && (
                             <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
                               <label className="text-xs text-blue-400 font-medium">Link do Painel do Entregador</label>
+                              <p className="text-xs text-muted-foreground mt-1 break-all select-all">{getEntregadorPanelLink(entregador.token)}</p>
                               <div className="flex gap-2 mt-2">
                                 <button
                                   onClick={() => {
