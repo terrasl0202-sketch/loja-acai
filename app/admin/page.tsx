@@ -68,6 +68,7 @@ export default function AdminPage() {
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
+  const [dateFilter, setDateFilter] = useState<"today" | "yesterday" | "week" | "month" | "all">("all")
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null)
   const [manualCopyText, setManualCopyText] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -424,6 +425,35 @@ export default function AdminPage() {
     }
   }
 
+  // Filtro por data
+  const filterByDate = (order: Order): boolean => {
+    if (dateFilter === "all") return true
+    
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+    const weekStart = new Date(today.getTime() - today.getDay() * 24 * 60 * 60 * 1000)
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    
+    // Usar paidAt para pedidos confirmados, senao createdAt
+    const isConfirmed = order.paymentStatus === "confirmed" || order.manuallyConfirmed || order.confirmedAutomatically || order.paidAt
+    const dateStr = isConfirmed && order.paidAt ? order.paidAt : order.createdAt
+    const orderDate = new Date(dateStr)
+    
+    switch (dateFilter) {
+      case "today":
+        return orderDate >= today
+      case "yesterday":
+        return orderDate >= yesterday && orderDate < today
+      case "week":
+        return orderDate >= weekStart
+      case "month":
+        return orderDate >= monthStart
+      default:
+        return true
+    }
+  }
+
   const getStatusColor = (status: Order["status"]) => {
     switch (status) {
       case "pending": return "bg-yellow-500/20 text-yellow-400"
@@ -478,6 +508,10 @@ export default function AdminPage() {
   // Calcular estatisticas de relatorios
   const activeOrders = orders.filter(o => {
     if (o.archived) return false
+    
+    // Aplicar filtro de data
+    if (!filterByDate(o)) return false
+    
     // Aplicar filtro de busca (so quando searchQuery tem valor - apos clicar em Buscar)
     if (searchQuery.trim()) {
       const query = normalizeText(searchQuery)
@@ -1033,6 +1067,22 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                       }
                     </p>
                   )}
+
+                  {/* Filtro por Data */}
+                  <div className="pt-2 border-t border-border/50">
+                    <p className="text-xs text-muted-foreground mb-1">Filtrar por periodo:</p>
+                    <select
+                      value={dateFilter}
+                      onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
+                      className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    >
+                      <option value="all">Todos</option>
+                      <option value="today">Hoje</option>
+                      <option value="yesterday">Ontem</option>
+                      <option value="week">Esta semana</option>
+                      <option value="month">Este mes</option>
+                    </select>
+                  </div>
                 </div>
 
                 {[
