@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
     orders[orderIndex].paidAt = now
     orders[orderIndex].status = "confirmed"
     orders[orderIndex].confirmedAutomatically = true
+    
+    console.log("[Confirm Payment] Pedido confirmado:", orders[orderIndex].id)
 
     // Salvar
     const timestamp = Date.now()

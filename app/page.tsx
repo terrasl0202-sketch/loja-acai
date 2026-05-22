@@ -877,6 +877,38 @@ export default function Home() {
         // Salvar snapshot do pedido
         setOrderSnapshot(snapshot)
         setPaymentStatus("awaiting")
+        
+        // SALVAR PEDIDO NO BACKEND IMEDIATAMENTE (com status pendente)
+        try {
+          await fetch("/api/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              order: {
+                orderId: newOrderId,
+                customerName: formData.nome,
+                customerPhone: formData.telefone,
+                items: snapshot.items.map((i: { quantity: number; name: string }) => `${i.quantity}x ${i.name}`).join(", "),
+                itemsDetailed: snapshot.items,
+                total: snapshot.total,
+                paymentMethod: "PIX Asaas",
+                deliveryType,
+                address: deliveryType === "entrega" 
+                  ? `${formData.endereco}, ${formData.numero} - ${formData.bairro} (Ref: ${formData.referencia})`
+                  : "Retirada no local",
+                neighborhood: formData.bairro,
+                reference: formData.referencia,
+                observation: formData.observacao,
+                isPixAutomatic: true,
+                asaasPaymentId: data.paymentId,
+              },
+            }),
+          })
+          console.log("[v0] Pedido PIX salvo no backend:", newOrderId)
+        } catch (err) {
+          console.error("[v0] Erro ao salvar pedido PIX:", err)
+        }
+        
         startPaymentPolling(data.paymentId)
       } else {
         console.error("[v0] PIX incompleto ou erro:", data)
@@ -906,6 +938,21 @@ export default function Home() {
           playConfirmSound()
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current)
+          }
+          
+          // ATUALIZAR PEDIDO NO BACKEND COMO CONFIRMADO
+          try {
+            await fetch("/api/orders/confirm", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                orderId: orderId,
+                asaasPaymentId: paymentId,
+              }),
+            })
+            console.log("[v0] Pedido confirmado no backend:", orderId)
+          } catch (err) {
+            console.error("[v0] Erro ao confirmar pedido:", err)
           }
         }
       } catch (error) {

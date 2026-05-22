@@ -82,10 +82,18 @@ export async function POST(request: NextRequest) {
     // Determinar se e PIX automatico
     const isPixAutomatic = order.paymentMethod === "PIX Asaas" || order.isPixAutomatic
 
-    // Adicionar novo pedido
     // Usar o ID publico que vem do frontend (PK...) ou gerar um interno
     const publicOrderId = order.orderId || order.id || `ORD-${Date.now()}`
     
+    // Verificar se pedido ja existe (para evitar duplicacao)
+    const existingOrderIndex = orders.findIndex((o) => o.id === publicOrderId)
+    if (existingOrderIndex !== -1) {
+      // Pedido ja existe, retornar o existente sem duplicar
+      console.log("[Orders POST] Pedido ja existe, ignorando duplicacao:", publicOrderId)
+      return NextResponse.json({ success: true, order: orders[existingOrderIndex], duplicate: true })
+    }
+
+    // Adicionar novo pedido
     const newOrder: Order = {
       id: publicOrderId,
       customerName: order.customerName,
