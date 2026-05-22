@@ -394,6 +394,11 @@ export default function Home() {
 
   // Tentar fechar checkout - verifica se tem PIX ativo ou cooldown
   const handleCloseCheckout = () => {
+    // Se pagamento foi confirmado, mostrar modal de novo pedido diretamente
+    if (paymentStatus === "confirmed") {
+      setShowNewOrderModal(true)
+      return
+    }
     if (isOrderBlocked) {
       setShowCloseConfirmModal(true)
       return
