@@ -481,6 +481,19 @@ export default function AdminPage() {
     o.paymentStatus === "confirmed"
   )
 
+  // Pedidos PENDENTES (nao pagos e nao em estados avancados)
+  const pendingOrders = activeOrders.filter(o => 
+    o.paymentStatus !== "confirmed" && 
+    !o.manuallyConfirmed &&
+    !["preparing", "delivering", "completed", "cancelled"].includes(o.status)
+  )
+
+  // Pedidos PAGOS aguardando preparo
+  const paidWaitingOrders = activeOrders.filter(o => 
+    (o.paymentStatus === "confirmed" || o.manuallyConfirmed) &&
+    o.status === "confirmed"
+  )
+
   // Atualizar status de pagamento manual
   const updatePaymentStatus = async (orderId: string, paymentStatus: Order["paymentStatus"], manuallyConfirmed: boolean) => {
     try {
@@ -706,10 +719,10 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 { id: "payment" as TabType, icon: CreditCard, label: "Pagamento" },
                 { id: "whatsapp" as TabType, icon: MessageCircle, label: "WhatsApp" },
                 { id: "coupons" as TabType, icon: Tag, label: "Cupons" },
-              { id: "orders" as TabType, icon: ShoppingBag, label: "Pedidos", badge: orders.filter(o => o.status === "pending" && !o.archived).length },
-              { id: "reports" as TabType, icon: BarChart3, label: "Relatorios", badge: 0 },
-              { id: "pix-confirmed" as TabType, icon: CheckCircle2, label: "PIX Confirmados", badge: pixConfirmedOrders.length },
-            ].map((tab) => (
+                { id: "orders" as TabType, icon: ShoppingBag, label: "Pendentes", badge: pendingOrders.length },
+                { id: "reports" as TabType, icon: BarChart3, label: "Relatorios", badge: 0 },
+                { id: "pix-confirmed" as TabType, icon: CheckCircle2, label: "Pagos", badge: paidWaitingOrders.length },
+              ].map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -1562,7 +1575,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               {activeTab === "orders" && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground">Pedidos ({orders.length})</h2>
+                    <h2 className="text-xl font-bold text-foreground">Pedidos Pendentes ({pendingOrders.length})</h2>
                     <button
                       onClick={loadOrders}
                       className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"
@@ -1573,7 +1586,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                   </div>
 
                   <div className="space-y-3">
-                    {orders.map((order) => (
+                    {pendingOrders.map((order) => (
                       <div
                         key={order.id}
                         className="p-4 rounded-xl border border-border bg-secondary/30"
@@ -1677,11 +1690,11 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                       </div>
                     ))}
 
-                    {orders.length === 0 && (
+                    {pendingOrders.length === 0 && (
                       <div className="text-center py-8 text-muted-foreground">
                         <ShoppingBag className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Nenhum pedido ainda</p>
-                        <p className="text-sm">Os pedidos aparecerao aqui</p>
+                        <p>Nenhum pedido pendente</p>
+                        <p className="text-sm">Pedidos aguardando pagamento aparecerao aqui</p>
                       </div>
                     )}
                   </div>
@@ -1856,11 +1869,11 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 </div>
               )}
 
-              {/* Aba de PIX Confirmados */}
+              {/* Aba de Pagos / Aguardando Preparo */}
               {activeTab === "pix-confirmed" && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground">PIX Automatico Confirmados ({pixConfirmedOrders.length})</h2>
+                    <h2 className="text-xl font-bold text-foreground">Pagos - Aguardando Preparo ({paidWaitingOrders.length})</h2>
                     <button
                       onClick={loadOrders}
                       className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"
@@ -1871,8 +1884,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                   </div>
 
                   <div className="space-y-4">
-                    {pixConfirmedOrders.length > 0 ? (
-                      pixConfirmedOrders.map((order) => (
+                    {paidWaitingOrders.length > 0 ? (
+                      paidWaitingOrders.map((order) => (
                         <div key={order.id} className="bg-card p-6 rounded-xl border border-border space-y-4">
                           {/* Header do pedido */}
                           <div className="flex items-start justify-between">
@@ -1885,7 +1898,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm font-medium rounded-full">
-                                PIX Pago
+                                {order.isPixAutomatic ? "PIX Automatico" : order.manuallyConfirmed ? "Confirmado Manual" : "Pago"}
                               </span>
                             </div>
                           </div>
@@ -1962,8 +1975,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                     ) : (
                       <div className="text-center py-12 text-muted-foreground">
                         <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Nenhum pagamento PIX confirmado</p>
-                        <p className="text-sm">Pagamentos confirmados aparecerao aqui</p>
+                        <p>Nenhum pedido pago aguardando preparo</p>
+                        <p className="text-sm">Pedidos pagos aparecerao aqui</p>
                       </div>
                     )}
                   </div>
