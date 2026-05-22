@@ -40,7 +40,9 @@ import {
   ClockIcon,
   ChefHat,
   PackageCheck,
-  Ban
+  Ban,
+  Search,
+  X
 } from "lucide-react"
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, defaultConfig } from "@/lib/config-types"
@@ -698,6 +700,33 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
             </div>
           </div>
 
+          {/* Campo de Busca Global */}
+          <div className="flex-1 max-w-md mx-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Buscar pedido por ID, nome ou telefone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-10 py-2 text-sm bg-secondary border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {searchQuery && (
+              <p className="text-xs text-muted-foreground mt-1 text-center">
+                {activeOrders.length} pedido(s) encontrado(s)
+              </p>
+            )}
+          </div>
+
           <div className="flex items-center gap-3">
             {/* Botao de som */}
             <button
@@ -788,22 +817,6 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               {/* Secao de Pedidos */}
               <div className="pt-4 mt-4 border-t border-border">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide px-4 mb-2">Pedidos</p>
-                
-                {/* Campo de Busca */}
-                <div className="px-4 mb-3">
-                  <input
-                    type="text"
-                    placeholder="Buscar pedido..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                  {searchQuery && (
-                    <p className="text-xs text-muted-foreground mt-1 px-1">
-                      {activeOrders.length} resultado(s)
-                    </p>
-                  )}
-                </div>
 
                 {[
                   { id: "orders-pending" as TabType, icon: ClockIcon, label: "Aguardando Pagamento", badge: ordersPendingPayment.length, color: "text-yellow-400" },
