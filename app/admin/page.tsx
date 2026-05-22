@@ -43,7 +43,9 @@ import {
   PackageCheck,
   Ban,
   Search,
-  X
+  X,
+  Link2,
+  ExternalLink
 } from "lucide-react"
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, type Entregador, defaultConfig } from "@/lib/config-types"
@@ -77,6 +79,7 @@ export default function AdminPage() {
   const [filtroEntregador, setFiltroEntregador] = useState<string>("todos")
   const [problemaEntregaOrderId, setProblemaEntregaOrderId] = useState<string | null>(null)
   const [problemaEntregaObs, setProblemaEntregaObs] = useState("")
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
   useEffect(() => {
@@ -1054,6 +1057,34 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
     const defaultMessage = message || "Ola, seu pedido esta em preparacao!"
     const encodedMessage = encodeURIComponent(defaultMessage)
     window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, "_blank")
+  }
+
+  // Gerar link de acompanhamento do pedido
+  const getOrderTrackingLink = (orderId: string) => {
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://pkgostosuras.shop"
+    return `${baseUrl}/pedido/${orderId}`
+  }
+
+  // Copiar link de acompanhamento
+  const copyTrackingLink = async (orderId: string) => {
+    const link = getOrderTrackingLink(orderId)
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiedLinkId(orderId)
+      showToast("Link copiado!")
+      setTimeout(() => setCopiedLinkId(null), 2000)
+    } catch {
+      // Fallback para navegadores que nao suportam clipboard API
+      setManualCopyText(link)
+    }
+  }
+
+  // Enviar link de acompanhamento ao cliente via WhatsApp
+  const sendTrackingLinkToCustomer = (order: Order) => {
+    const link = getOrderTrackingLink(order.id)
+    const phone = normalizePhoneForWhatsApp(order.customerPhone)
+    const message = `Ola!\n\nAcompanhe seu pedido em tempo real:\n\n${link}`
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank")
   }
 
   // Formatar moeda
@@ -2503,6 +2534,12 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                             <CheckCircle2 className="w-4 h-4" />
                             Confirmar Pagamento
                           </button>
+                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>
+                            {copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}
+                          </button>
+                          <button onClick={() => sendTrackingLinkToCustomer(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2">
+                            <ExternalLink className="w-4 h-4" /> Enviar Link
+                          </button>
                           <button
                             onClick={() => updateOrderStatus(order.id, "cancelled")}
                             className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"
@@ -2772,6 +2809,12 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
                             {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
                           </button>
+                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>
+                            {copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}
+                          </button>
+                          <button onClick={() => sendTrackingLinkToCustomer(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2">
+                            <ExternalLink className="w-4 h-4" /> Enviar Link
+                          </button>
                           <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
                             <Phone className="w-4 h-4" /> WhatsApp
                           </button>
@@ -2878,6 +2921,12 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           )}
                           <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
                             {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
+                          </button>
+                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>
+                            {copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}
+                          </button>
+                          <button onClick={() => sendTrackingLinkToCustomer(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2">
+                            <ExternalLink className="w-4 h-4" /> Enviar Link
                           </button>
                           <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
                             <Phone className="w-4 h-4" /> WhatsApp
