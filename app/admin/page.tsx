@@ -62,6 +62,7 @@ export default function AdminPage() {
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [lastOrderCount, setLastOrderCount] = useState(0)
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
   useEffect(() => {
@@ -405,7 +406,18 @@ export default function AdminPage() {
   }
 
   // Calcular estatisticas de relatorios
-  const activeOrders = orders.filter(o => !o.archived)
+  const activeOrders = orders.filter(o => {
+    if (o.archived) return false
+    // Aplicar filtro de busca
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      const matchId = o.id.toLowerCase().includes(query)
+      const matchName = o.customerName.toLowerCase().includes(query)
+      const matchPhone = o.customerPhone.replace(/\D/g, "").includes(query.replace(/\D/g, ""))
+      return matchId || matchName || matchPhone
+    }
+    return true
+  })
   
   const reportStats = {
     totalOrders: activeOrders.length,
@@ -776,6 +788,23 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               {/* Secao de Pedidos */}
               <div className="pt-4 mt-4 border-t border-border">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide px-4 mb-2">Pedidos</p>
+                
+                {/* Campo de Busca */}
+                <div className="px-4 mb-3">
+                  <input
+                    type="text"
+                    placeholder="Buscar pedido..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                  {searchQuery && (
+                    <p className="text-xs text-muted-foreground mt-1 px-1">
+                      {activeOrders.length} resultado(s)
+                    </p>
+                  )}
+                </div>
+
                 {[
                   { id: "orders-pending" as TabType, icon: ClockIcon, label: "Aguardando Pagamento", badge: ordersPendingPayment.length, color: "text-yellow-400" },
                   { id: "orders-paid" as TabType, icon: CheckCircle2, label: "Aguardando Preparo", badge: ordersPaidWaiting.length, color: "text-green-400" },
