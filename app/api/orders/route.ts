@@ -232,7 +232,9 @@ export async function PATCH(request: NextRequest) {
       orders[orderIndex].manuallyConfirmed = manuallyConfirmed
       if (manuallyConfirmed) {
         orders[orderIndex].paymentStatus = "confirmed"
+        orders[orderIndex].status = "confirmed" // Mover para aguardando preparo
         orders[orderIndex].confirmedAt = new Date().toISOString()
+        orders[orderIndex].paidAt = new Date().toISOString()
       }
     }
     if (archived !== undefined) {
