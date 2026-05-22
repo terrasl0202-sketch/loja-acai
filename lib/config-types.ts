@@ -123,6 +123,7 @@ export interface Order {
   entregadorNome?: string
   entregadorWhatsapp?: string
   saiuParaEntregaEm?: string
+  historicoEntrega?: { data: string; evento: string; observacao?: string }[]
 }
 
 export interface SiteConfig {

@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { password, orderId, status, paymentStatus, manuallyConfirmed, archived, entregadorId, entregadorNome, entregadorWhatsapp } = body
+    const { password, orderId, status, paymentStatus, manuallyConfirmed, archived, entregadorId, entregadorNome, entregadorWhatsapp, historicoEntrega, limparEntregador } = body
 
     if (password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -253,6 +253,17 @@ export async function PATCH(request: NextRequest) {
     }
     if (entregadorWhatsapp !== undefined) {
       orders[orderIndex].entregadorWhatsapp = entregadorWhatsapp
+    }
+    // Historico de entrega
+    if (historicoEntrega !== undefined) {
+      orders[orderIndex].historicoEntrega = historicoEntrega
+    }
+    // Limpar dados do entregador (quando volta para preparo)
+    if (limparEntregador === true) {
+      orders[orderIndex].entregadorId = undefined
+      orders[orderIndex].entregadorNome = undefined
+      orders[orderIndex].entregadorWhatsapp = undefined
+      orders[orderIndex].saiuParaEntregaEm = undefined
     }
 
     // Salvar

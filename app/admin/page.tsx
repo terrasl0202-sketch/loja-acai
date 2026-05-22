@@ -74,6 +74,9 @@ export default function AdminPage() {
   const [manualCopyText, setManualCopyText] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [deleteProductId, setDeleteProductId] = useState<number | null>(null)
+  const [filtroEntregador, setFiltroEntregador] = useState<string>("todos")
+  const [problemaEntregaOrderId, setProblemaEntregaOrderId] = useState<string | null>(null)
+  const [problemaEntregaObs, setProblemaEntregaObs] = useState("")
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
   useEffect(() => {
@@ -497,6 +500,95 @@ export default function AdminPage() {
     const phone = normalizePhoneForWhatsApp(entregadorWhatsapp)
     const message = generateEntregadorMessage(order)
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank")
+  }
+
+  // Calcular tempo decorrido desde saida para entrega
+  const calcularTempoEntrega = (saiuParaEntregaEm: string): { minutos: number; texto: string } => {
+    const saiu = new Date(saiuParaEntregaEm).getTime()
+    const agora = Date.now()
+    const diffMs = agora - saiu
+    const minutos = Math.floor(diffMs / 60000)
+    
+    if (minutos < 1) return { minutos: 0, texto: "Agora mesmo" }
+    if (minutos === 1) return { minutos: 1, texto: "Ha 1 minuto" }
+    if (minutos < 60) return { minutos, texto: `Ha ${minutos} minutos` }
+    
+    const horas = Math.floor(minutos / 60)
+    const mins = minutos % 60
+    if (horas === 1) return { minutos, texto: mins > 0 ? `Ha 1h ${mins}min` : "Ha 1 hora" }
+    return { minutos, texto: mins > 0 ? `Ha ${horas}h ${mins}min` : `Ha ${horas} horas` }
+  }
+
+  // Registrar problema na entrega
+  const registrarProblemaEntrega = async (orderId: string, observacao: string) => {
+    const order = orders.find(o => o.id === orderId)
+    if (!order) return
+
+    const novoHistorico = [
+      ...(order.historicoEntrega || []),
+      { data: new Date().toISOString(), evento: "PROBLEMA", observacao }
+    ]
+
+    try {
+      const res = await fetch("/api/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          password: sessionPassword, 
+          orderId,
+          historicoEntrega: novoHistorico
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, historicoEntrega: novoHistorico } : o))
+        showToast("Problema registrado")
+        setProblemaEntregaOrderId(null)
+        setProblemaEntregaObs("")
+      }
+    } catch (error) {
+      console.error("Erro ao registrar problema:", error)
+    }
+  }
+
+  // Voltar pedido para preparo (limpa entregador)
+  const voltarParaPreparo = async (orderId: string) => {
+    const order = orders.find(o => o.id === orderId)
+    if (!order) return
+
+    const novoHistorico = [
+      ...(order.historicoEntrega || []),
+      { data: new Date().toISOString(), evento: "RETORNOU_PREPARO", observacao: `Retornou do entregador: ${order.entregadorNome || "N/A"}` }
+    ]
+
+    try {
+      const res = await fetch("/api/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          password: sessionPassword, 
+          orderId,
+          status: "preparing",
+          limparEntregador: true,
+          historicoEntrega: novoHistorico
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { 
+          ...o, 
+          status: "preparing",
+          entregadorId: undefined,
+          entregadorNome: undefined,
+          entregadorWhatsapp: undefined,
+          saiuParaEntregaEm: undefined,
+          historicoEntrega: novoHistorico
+        } : o))
+        showToast("Pedido voltou para preparo")
+      }
+    } catch (error) {
+      console.error("Erro ao voltar para preparo:", error)
+    }
   }
 
   // Filtro por data
@@ -2810,93 +2902,195 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               {/* 4. Saiu para Entrega */}
               {activeTab === "orders-delivering" && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <h2 className="text-xl font-bold text-foreground">Saiu para Entrega ({ordersDelivering.length})</h2>
-                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                      <Loader2 className="w-4 h-4" /> Atualizar
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* Filtro por entregador */}
+                      <select
+                        value={filtroEntregador}
+                        onChange={(e) => setFiltroEntregador(e.target.value)}
+                        className="px-3 py-2 text-sm bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="todos">Todos Entregadores</option>
+                        {Array.from(new Set(ordersDelivering.map(o => o.entregadorId).filter(Boolean))).map(entId => {
+                          const ent = (config.entregadores || []).find(e => e.id === entId)
+                          return ent ? <option key={ent.id} value={ent.id}>{ent.nome}</option> : null
+                        })}
+                      </select>
+                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                        <Loader2 className="w-4 h-4" /> Atualizar
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-3">
-                    {ordersDelivering.map((order) => (
-                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <p className="font-bold text-foreground">{order.id}</p>
-                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
-                          </div>
-                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-purple-500/20 text-purple-400">Em Entrega</span>
-                        </div>
-
-                        <div className="grid sm:grid-cols-2 gap-4 mb-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Cliente</p>
-                            <p className="text-sm text-foreground">{order.customerName}</p>
-                            <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
-                          </div>
-                        </div>
-
-                        {order.address && (
-                          <div className="mb-3 p-3 bg-purple-500/10 rounded-lg">
-                            <p className="text-xs text-muted-foreground">Endereco de Entrega</p>
-                            <p className="text-sm text-foreground font-medium">{order.address}</p>
-                          </div>
-                        )}
-
-                        {/* Informacoes do Entregador */}
-                        {order.entregadorNome && (
-                          <div className="mb-3 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                            <p className="text-xs text-muted-foreground mb-1">Entregador</p>
-                            <div className="flex items-center justify-between">
+                    {ordersDelivering
+                      .filter(order => filtroEntregador === "todos" || order.entregadorId === filtroEntregador)
+                      .map((order) => {
+                        const tempoInfo = order.saiuParaEntregaEm ? calcularTempoEntrega(order.saiuParaEntregaEm) : null
+                        const corTempo = tempoInfo 
+                          ? tempoInfo.minutos > 40 ? "border-red-500/50 bg-red-500/5" 
+                          : tempoInfo.minutos > 20 ? "border-yellow-500/50 bg-yellow-500/5" 
+                          : "border-border bg-secondary/30"
+                          : "border-border bg-secondary/30"
+                        
+                        return (
+                          <div key={order.id} className={`p-4 rounded-xl border ${corTempo}`}>
+                            <div className="flex items-start justify-between mb-3">
                               <div>
-                                <p className="text-sm text-foreground font-medium flex items-center gap-2">
-                                  <Users2 className="w-4 h-4 text-blue-400" />
-                                  {order.entregadorNome}
-                                </p>
-                                {order.entregadorWhatsapp && (
-                                  <p className="text-xs text-muted-foreground">{order.entregadorWhatsapp}</p>
-                                )}
-                                {order.saiuParaEntregaEm && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Saiu as {new Date(order.saiuParaEntregaEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                                  </p>
+                                <p className="font-bold text-foreground">{order.id}</p>
+                                <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {tempoInfo && (
+                                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                                    tempoInfo.minutos > 40 ? "bg-red-500/20 text-red-400" :
+                                    tempoInfo.minutos > 20 ? "bg-yellow-500/20 text-yellow-400" :
+                                    "bg-purple-500/20 text-purple-400"
+                                  }`}>
+                                    {tempoInfo.texto}
+                                  </span>
                                 )}
                               </div>
-                              {order.entregadorWhatsapp && (
-                                <button
-                                  onClick={() => sendOrderToEntregador(order, order.entregadorWhatsapp!)}
-                                  className="px-3 py-2 text-xs font-medium rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-1"
-                                >
-                                  <MessageCircle className="w-3 h-3" />
-                                  Enviar Pedido
-                                </button>
-                              )}
+                            </div>
+
+                            <div className="grid sm:grid-cols-2 gap-4 mb-3">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Cliente</p>
+                                <p className="text-sm text-foreground">{order.customerName}</p>
+                                <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Total</p>
+                                <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
+                              </div>
+                            </div>
+
+                            {order.address && (
+                              <div className="mb-3 p-3 bg-purple-500/10 rounded-lg">
+                                <p className="text-xs text-muted-foreground">Endereco de Entrega</p>
+                                <p className="text-sm text-foreground font-medium">{order.address}</p>
+                                {order.neighborhood && <p className="text-xs text-muted-foreground">Bairro: {order.neighborhood}</p>}
+                                {order.reference && <p className="text-xs text-muted-foreground">Ref: {order.reference}</p>}
+                              </div>
+                            )}
+
+                            {/* Informacoes do Entregador - Melhorado */}
+                            {order.entregadorNome && (
+                              <div className="mb-3 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                      <Users2 className="w-5 h-5 text-blue-400" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm text-foreground font-medium">{order.entregadorNome}</p>
+                                      {order.entregadorWhatsapp && (
+                                        <p className="text-xs text-muted-foreground">{order.entregadorWhatsapp}</p>
+                                      )}
+                                      {order.saiuParaEntregaEm && (
+                                        <p className="text-xs text-blue-400">
+                                          Saiu as {new Date(order.saiuParaEntregaEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {order.entregadorWhatsapp && (
+                                    <button
+                                      onClick={() => sendOrderToEntregador(order, order.entregadorWhatsapp!)}
+                                      className="px-3 py-2 text-xs font-medium rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-1"
+                                    >
+                                      <MessageCircle className="w-3 h-3" />
+                                      Enviar Pedido
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Historico de problemas */}
+                            {order.historicoEntrega && order.historicoEntrega.filter(h => h.evento === "PROBLEMA").length > 0 && (
+                              <div className="mb-3 p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
+                                <p className="text-xs text-orange-400 font-medium mb-2">Problemas Registrados:</p>
+                                {order.historicoEntrega.filter(h => h.evento === "PROBLEMA").map((h, i) => (
+                                  <div key={i} className="text-xs text-muted-foreground">
+                                    <span className="text-orange-400">{new Date(h.data).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+                                    {" - "}{h.observacao}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Area de registro de problema */}
+                            {problemaEntregaOrderId === order.id && (
+                              <div className="mb-3 p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
+                                <p className="text-xs text-orange-400 font-medium mb-2">Registrar Problema:</p>
+                                <input
+                                  type="text"
+                                  value={problemaEntregaObs}
+                                  onChange={(e) => setProblemaEntregaObs(e.target.value)}
+                                  placeholder="Descreva o problema..."
+                                  className="w-full px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 mb-2"
+                                />
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => {
+                                      if (problemaEntregaObs.trim()) {
+                                        registrarProblemaEntrega(order.id, problemaEntregaObs.trim())
+                                      }
+                                    }}
+                                    disabled={!problemaEntregaObs.trim()}
+                                    className="px-3 py-1 text-xs font-medium rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 disabled:opacity-50"
+                                  >
+                                    Salvar
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setProblemaEntregaOrderId(null)
+                                      setProblemaEntregaObs("")
+                                    }}
+                                    className="px-3 py-1 text-xs font-medium rounded-lg bg-secondary text-muted-foreground hover:bg-secondary/80"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                              <button 
+                                onClick={() => updateOrderStatus(order.id, "completed")} 
+                                className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2"
+                              >
+                                <PackageCheck className="w-4 h-4" /> Cliente Recebeu
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setProblemaEntregaOrderId(order.id)
+                                  setProblemaEntregaObs("")
+                                }} 
+                                className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-all flex items-center gap-2"
+                              >
+                                <AlertCircle className="w-4 h-4" /> Problema
+                              </button>
+                              <button 
+                                onClick={() => voltarParaPreparo(order.id)} 
+                                className="px-4 py-2 text-sm font-medium rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all flex items-center gap-2"
+                              >
+                                <ChefHat className="w-4 h-4" /> Voltar Preparo
+                              </button>
+                              <button 
+                                onClick={() => openCustomerWhatsApp(order.customerPhone, "Ola, sua entrega esta a caminho!")} 
+                                className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"
+                              >
+                                <Phone className="w-4 h-4" /> WhatsApp Cliente
+                              </button>
                             </div>
                           </div>
-                        )}
+                        )
+                      })}
 
-                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                          <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2">
-                            <PackageCheck className="w-4 h-4" /> Finalizar Entrega
-                          </button>
-                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
-                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
-                          </button>
-                          <button onClick={() => openCustomerWhatsApp(order.customerPhone, "Ola, sua entrega esta a caminho!")} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
-                            <Phone className="w-4 h-4" /> WhatsApp
-                          </button>
-                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
-                            <Ban className="w-4 h-4" /> Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-
-                    {ordersDelivering.length === 0 && (
+                    {ordersDelivering.filter(order => filtroEntregador === "todos" || order.entregadorId === filtroEntregador).length === 0 && (
                       <div className="text-center py-8 text-muted-foreground">
                         <Truck className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p>Nenhum pedido em entrega</p>
