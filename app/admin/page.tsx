@@ -80,6 +80,7 @@ export default function AdminPage() {
   const [problemaEntregaOrderId, setProblemaEntregaOrderId] = useState<string | null>(null)
   const [problemaEntregaObs, setProblemaEntregaObs] = useState("")
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
+  const [manualEntregadorLink, setManualEntregadorLink] = useState<string | null>(null)
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
   useEffect(() => {
@@ -1085,6 +1086,43 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
     const defaultMessage = message || "Ola, seu pedido esta em preparacao!"
     const encodedMessage = encodeURIComponent(defaultMessage)
     window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, "_blank")
+  }
+
+  // Funcao robusta de copia que funciona em mobile e desktop
+  const copyToClipboardRobust = async (text: string, onSuccess: () => void, onFallback: (text: string) => void) => {
+    // Tentar clipboard API primeiro
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text)
+        onSuccess()
+        return
+      } catch {
+        // Fallback abaixo
+      }
+    }
+    
+    // Fallback com textarea temporario
+    try {
+      const textarea = document.createElement("textarea")
+      textarea.value = text
+      textarea.style.position = "fixed"
+      textarea.style.left = "-9999px"
+      textarea.style.top = "0"
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      const success = document.execCommand("copy")
+      document.body.removeChild(textarea)
+      if (success) {
+        onSuccess()
+        return
+      }
+    } catch {
+      // Fallback manual
+    }
+    
+    // Se nada funcionou, mostrar caixa para copia manual
+    onFallback(text)
   }
 
   // Gerar link de acompanhamento do pedido (usando dominio publico oficial)
@@ -2444,9 +2482,14 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                               <div className="flex gap-2 mt-2">
                                 <button
                                   onClick={() => {
-                                    const link = `https://www.pkgostosuras.shop/entregador/${entregador.token}`
-                                    navigator.clipboard.writeText(link)
-                                    showToast("Link copiado!")
+                                    const isProduction = typeof window !== "undefined" && window.location.hostname === "www.pkgostosuras.shop"
+                                    const baseUrl = isProduction ? "https://www.pkgostosuras.shop" : (typeof window !== "undefined" ? window.location.origin : "")
+                                    const link = `${baseUrl}/entregador/${entregador.token}`
+                                    copyToClipboardRobust(
+                                      link,
+                                      () => showToast("Link copiado!"),
+                                      (text) => setManualEntregadorLink(text)
+                                    )
                                   }}
                                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 text-sm font-medium"
                                 >
@@ -2455,7 +2498,9 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                                 </button>
                                 <button
                                   onClick={() => {
-                                    const link = `https://www.pkgostosuras.shop/entregador/${entregador.token}`
+                                    const isProduction = typeof window !== "undefined" && window.location.hostname === "www.pkgostosuras.shop"
+                                    const baseUrl = isProduction ? "https://www.pkgostosuras.shop" : (typeof window !== "undefined" ? window.location.origin : "")
+                                    const link = `${baseUrl}/entregador/${entregador.token}`
                                     const phone = normalizePhoneForWhatsApp(entregador.whatsapp)
                                     const message = `Ola ${entregador.nome}!\n\nAcesse seu painel de entregas:\n${link}\n\nSeu PIN: ${entregador.pin}`
                                     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank")
@@ -3559,6 +3604,31 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               />
               <button
                 onClick={() => setManualCopyText(null)}
+                className="w-full mt-4 py-3 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Copia Manual do Link do Entregador */}
+        {manualEntregadorLink && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-bold text-foreground">Copiar Link do Entregador</h3>
+                <p className="text-sm text-muted-foreground mt-1">Nao foi possivel copiar automaticamente. Copie manualmente abaixo:</p>
+              </div>
+              <input
+                type="text"
+                readOnly
+                value={manualEntregadorLink}
+                className="w-full p-3 text-sm bg-secondary border border-border rounded-xl text-foreground focus:outline-none"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <button
+                onClick={() => setManualEntregadorLink(null)}
                 className="w-full mt-4 py-3 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-colors"
               >
                 Fechar
