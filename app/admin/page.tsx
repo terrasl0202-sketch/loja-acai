@@ -670,13 +670,15 @@ Pagamento: ${order.paymentMethod}
 Status: ${getPaymentStatusLabel(order.paymentStatus)}`
     
     navigator.clipboard.writeText(text)
-    alert("Dados copiados!")
+    alert("Pedido copiado!")
   }
 
   // Abrir WhatsApp do cliente
-  const openCustomerWhatsApp = (phone: string) => {
+  const openCustomerWhatsApp = (phone: string, message?: string) => {
     const cleanPhone = phone.replace(/\D/g, "")
-    window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}`, "_blank")
+    const defaultMessage = message || "Ola, seu pedido esta em preparacao!"
+    const encodedMessage = encodeURIComponent(defaultMessage)
+    window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMessage}`, "_blank")
   }
 
   // Formatar moeda
@@ -2082,6 +2084,12 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <button onClick={() => updateOrderStatus(order.id, "preparing")} className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-2">
                             <ChefHat className="w-4 h-4" /> Iniciar Preparo
                           </button>
+                          <button onClick={() => copyOrderData(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-all flex items-center gap-2">
+                            <Copy className="w-4 h-4" /> Copiar
+                          </button>
+                          <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
+                            <Phone className="w-4 h-4" /> WhatsApp
+                          </button>
                           <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
                             <Ban className="w-4 h-4" /> Cancelar
                           </button>
@@ -2154,6 +2162,12 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                               <PackageCheck className="w-4 h-4" /> Finalizar (Retirada)
                             </button>
                           )}
+                          <button onClick={() => copyOrderData(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-all flex items-center gap-2">
+                            <Copy className="w-4 h-4" /> Copiar
+                          </button>
+                          <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
+                            <Phone className="w-4 h-4" /> WhatsApp
+                          </button>
                           <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
                             <Ban className="w-4 h-4" /> Cancelar
                           </button>
@@ -2215,14 +2229,15 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2">
                             <PackageCheck className="w-4 h-4" /> Finalizar Entrega
                           </button>
+                          <button onClick={() => copyOrderData(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-all flex items-center gap-2">
+                            <Copy className="w-4 h-4" /> Copiar
+                          </button>
+                          <button onClick={() => openCustomerWhatsApp(order.customerPhone, "Ola, sua entrega esta a caminho!")} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
+                            <Phone className="w-4 h-4" /> WhatsApp
+                          </button>
                           <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
                             <Ban className="w-4 h-4" /> Cancelar
                           </button>
-                          {order.customerPhone && (
-                            <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
-                              <Phone className="w-4 h-4" /> WhatsApp
-                            </button>
-                          )}
                         </div>
                       </div>
                     ))}
