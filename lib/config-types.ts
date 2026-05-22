@@ -73,6 +73,16 @@ export interface Coupon {
   minimumOrder: number
 }
 
+export interface DeliveryDriver {
+  id: string
+  name: string
+  phone: string
+  available: boolean
+  availableFrom?: string
+  availableTo?: string
+  notes?: string
+}
+
 export interface OrderItem {
   productId: number
   productName: string
@@ -108,6 +118,10 @@ export interface Order {
   manuallyConfirmed?: boolean
   confirmedAutomatically?: boolean
   archived?: boolean
+  // Campos para entregador
+  driverId?: string
+  driverName?: string
+  driverPhone?: string
 }
 
 export interface SiteConfig {

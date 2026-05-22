@@ -44,12 +44,15 @@ import {
   Search,
   X,
   RotateCcw,
-  FolderArchive
+  FolderArchive,
+  UserCheck,
+  Navigation,
+  Edit3
 } from "lucide-react"
 import Link from "next/link"
-import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, defaultConfig } from "@/lib/config-types"
+import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, type DeliveryDriver, defaultConfig } from "@/lib/config-types"
 
-type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
+type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "drivers" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -77,12 +80,17 @@ export default function AdminPage() {
   const [deleteProductId, setDeleteProductId] = useState<number | null>(null)
   const [archivedSearchInput, setArchivedSearchInput] = useState("")
   const [archivedSearchQuery, setArchivedSearchQuery] = useState("")
+  // Estados para entregadores
+  const [drivers, setDrivers] = useState<DeliveryDriver[]>([])
+  const [editingDriver, setEditingDriver] = useState<DeliveryDriver | null>(null)
+  const [newDriver, setNewDriver] = useState<Partial<DeliveryDriver>>({ name: "", phone: "", available: true, availableFrom: "08:00", availableTo: "22:00", notes: "" })
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
   useEffect(() => {
     if (isAuthenticated && sessionPassword) {
       loadConfig()
       loadOrders()
+      loadDrivers()
       
       // Polling para detectar novos pedidos a cada 30 segundos
       const pollInterval = setInterval(() => {
@@ -224,6 +232,112 @@ export default function AdminPage() {
       console.error("Erro ao carregar pedidos:", error)
     }
   }
+
+  // === FUNCOES DE ENTREGADORES ===
+  const loadDrivers = async () => {
+    try {
+      const res = await fetch(`/api/drivers?password=${encodeURIComponent(sessionPassword)}`)
+      const data = await res.json()
+      if (data.success && data.drivers) {
+        setDrivers(data.drivers)
+      }
+    } catch (error) {
+      console.error("Erro ao carregar entregadores:", error)
+    }
+  }
+
+  const saveDriver = async (driver: DeliveryDriver) => {
+    try {
+      const res = await fetch("/api/drivers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sessionPassword, driver }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        await loadDrivers()
+        setEditingDriver(null)
+        setNewDriver({ name: "", phone: "", available: true, availableFrom: "08:00", availableTo: "22:00", notes: "" })
+        showToast("Entregador salvo")
+      }
+    } catch (error) {
+      console.error("Erro ao salvar entregador:", error)
+    }
+  }
+
+  const deleteDriver = async (driverId: string) => {
+    try {
+      const res = await fetch("/api/drivers", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sessionPassword, driverId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        await loadDrivers()
+        showToast("Entregador removido")
+      }
+    } catch (error) {
+      console.error("Erro ao remover entregador:", error)
+    }
+  }
+
+  const toggleDriverAvailability = async (driver: DeliveryDriver) => {
+    await saveDriver({ ...driver, available: !driver.available })
+  }
+
+  const assignDriverToOrder = async (orderId: string, driver: DeliveryDriver | null) => {
+    try {
+      const res = await fetch("/api/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          password: sessionPassword, 
+          orderId, 
+          driverId: driver?.id || null,
+          driverName: driver?.name || null,
+          driverPhone: driver?.phone || null
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { 
+          ...o, 
+          driverId: driver?.id || undefined,
+          driverName: driver?.name || undefined,
+          driverPhone: driver?.phone || undefined
+        } : o))
+        showToast(driver ? `Entregador ${driver.name} atribuido` : "Entregador removido")
+      }
+    } catch (error) {
+      console.error("Erro ao atribuir entregador:", error)
+    }
+  }
+
+  const sendRouteToDriver = (order: Order) => {
+    if (!order.driverPhone || !order.address) return
+    
+    const address = encodeURIComponent(order.address + (order.neighborhood ? `, ${order.neighborhood}` : ""))
+    const mapsLink = `https://www.google.com/maps/search/?api=1&query=${address}`
+    
+    const message = `*NOVA ENTREGA - ${order.id}*
+
+*Cliente:* ${order.customerName}
+*Telefone:* ${order.customerPhone}
+*Endereco:* ${order.address}${order.neighborhood ? `
+*Bairro:* ${order.neighborhood}` : ""}${order.reference ? `
+*Referencia:* ${order.reference}` : ""}
+
+*Valor Total:* R$ ${order.total.toFixed(2)}
+*Pagamento:* ${order.paymentMethod}
+
+*Link do Mapa:* ${mapsLink}`
+
+    const whatsappUrl = `https://wa.me/${order.driverPhone.replace(/\D/g, "")}?text=${encodeURIComponent(message)}`
+    window.open(whatsappUrl, "_blank")
+  }
+
+  const availableDrivers = drivers.filter(d => d.available)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1125,6 +1239,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 { id: "banner" as TabType, icon: ImageIcon, label: "Banner" },
                 { id: "hours" as TabType, icon: Clock, label: "Horario" },
                 { id: "delivery" as TabType, icon: Truck, label: "Entrega" },
+                { id: "drivers" as TabType, icon: UserCheck, label: "Entregadores" },
                 { id: "payment" as TabType, icon: CreditCard, label: "Pagamento" },
                 { id: "whatsapp" as TabType, icon: MessageCircle, label: "WhatsApp" },
                 { id: "coupons" as TabType, icon: Tag, label: "Cupons" },
