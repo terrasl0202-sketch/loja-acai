@@ -522,10 +522,55 @@ export default function AdminPage() {
   const ordersDelivering = activeOrders.filter(o => o.status === "delivering")
 
   // 5. FINALIZADOS
-  const ordersCompleted = orders.filter(o => o.status === "completed" && !o.archived)
+  const ordersCompleted = activeOrders.filter(o => o.status === "completed")
 
   // 6. CANCELADOS
-  const ordersCancelled = orders.filter(o => o.status === "cancelled" && !o.archived)
+  const ordersCancelled = activeOrders.filter(o => o.status === "cancelled")
+
+  // Funcao para executar busca e navegar para aba correta
+  const executeSearch = () => {
+    setSearchQuery(searchInput)
+    
+    // Se houver busca, encontrar em qual aba o primeiro resultado esta
+    if (searchInput.trim()) {
+      const query = searchInput.toLowerCase().trim()
+      
+      // Buscar em todas as ordens (sem filtro de busca anterior)
+      const matchingOrder = orders.find(o => {
+        if (o.archived) return false
+        const matchId = o.id.toLowerCase().includes(query)
+        const matchName = o.customerName.toLowerCase().includes(query)
+        const matchPhone = o.customerPhone.replace(/\D/g, "").includes(query.replace(/\D/g, ""))
+        const matchAddress = o.address ? o.address.toLowerCase().includes(query) : false
+        const matchPayment = o.paymentMethod ? o.paymentMethod.toLowerCase().includes(query) : false
+        return matchId || matchName || matchPhone || matchAddress || matchPayment
+      })
+      
+      if (matchingOrder) {
+        // Determinar em qual aba esse pedido esta
+        const isPendingPayment = matchingOrder.paymentStatus !== "confirmed" && 
+          !matchingOrder.manuallyConfirmed &&
+          !matchingOrder.confirmedAutomatically &&
+          !matchingOrder.paidAt &&
+          !["preparing", "delivering", "completed", "cancelled"].includes(matchingOrder.status)
+        
+        const isPaidWaiting = (matchingOrder.paymentStatus === "confirmed" || matchingOrder.manuallyConfirmed || matchingOrder.confirmedAutomatically || matchingOrder.paidAt) &&
+          matchingOrder.status === "confirmed"
+        
+        const isPreparing = matchingOrder.status === "preparing"
+        const isDelivering = matchingOrder.status === "delivering"
+        const isCompleted = matchingOrder.status === "completed"
+        const isCancelled = matchingOrder.status === "cancelled"
+        
+        if (isPendingPayment) setActiveTab("orders-pending")
+        else if (isPaidWaiting) setActiveTab("orders-paid")
+        else if (isPreparing) setActiveTab("orders-preparing")
+        else if (isDelivering) setActiveTab("orders-delivering")
+        else if (isCompleted) setActiveTab("orders-completed")
+        else if (isCancelled) setActiveTab("orders-cancelled")
+      }
+    }
+  }
 
   // Atualizar status de pagamento manual
   const updatePaymentStatus = async (orderId: string, paymentStatus: Order["paymentStatus"], manuallyConfirmed: boolean) => {
@@ -803,14 +848,14 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                     onChange={(e) => setSearchInput(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
-                        setSearchQuery(searchInput)
+                        executeSearch()
                       }
                     }}
                     className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setSearchQuery(searchInput)}
+                      onClick={executeSearch}
                       className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all"
                     >
                       <Search className="w-3 h-3" />
