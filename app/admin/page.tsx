@@ -494,10 +494,7 @@ export default function AdminPage() {
 
   // Abrir WhatsApp do entregador com mensagem do pedido
   const sendOrderToEntregador = (order: Order, entregadorWhatsapp: string) => {
-    let phone = entregadorWhatsapp.replace(/\D/g, "")
-    if (phone.length === 10 || phone.length === 11) {
-      phone = "55" + phone
-    }
+    const phone = normalizePhoneForWhatsApp(entregadorWhatsapp)
     const message = generateEntregadorMessage(order)
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank")
   }
@@ -580,6 +577,30 @@ export default function AdminPage() {
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .trim()
+  }
+
+  // Funcao para normalizar telefone para WhatsApp
+  // REGRAS:
+  // 1. Remove TUDO que nao for digito
+  // 2. Se tiver 11 digitos (DDD + celular com 9), adiciona 55
+  // 3. Se tiver 13 digitos e comecar com 55, mantem
+  // 4. NAO altera ordem, NAO remove digitos, NAO troca DDD
+  const normalizePhoneForWhatsApp = (phone: string): string => {
+    // Passo 1: Remove tudo que nao for numero
+    const digits = phone.replace(/\D/g, "")
+    
+    // Passo 2: Se tem exatamente 11 digitos, adiciona 55
+    if (digits.length === 11) {
+      return "55" + digits
+    }
+    
+    // Passo 3: Se tem 13 digitos e comeca com 55, mantem
+    if (digits.length === 13 && digits.startsWith("55")) {
+      return digits
+    }
+    
+    // Caso contrario, retorna apenas os digitos (para numeros ja formatados ou incorretos)
+    return digits
   }
 
   // Calcular estatisticas de relatorios
@@ -765,11 +786,7 @@ export default function AdminPage() {
   
   // Funcao para cobrar no WhatsApp
   const chargeOnWhatsApp = (order: Order) => {
-    let phone = order.customerPhone.replace(/\D/g, "")
-    // Se tem 10 ou 11 digitos (DDD + numero), adiciona 55
-    if (phone.length === 10 || phone.length === 11) {
-      phone = "55" + phone
-    }
+    const phone = normalizePhoneForWhatsApp(order.customerPhone)
     const message = encodeURIComponent(`Ola! Vimos que seu pedido na P.K Gostosuras ficou pendente. Deseja finalizar agora?`)
     window.open(`https://wa.me/${phone}?text=${message}`, "_blank")
   }
@@ -941,11 +958,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
 
   // Abrir WhatsApp do cliente
   const openCustomerWhatsApp = (phone: string, message?: string) => {
-    let cleanPhone = phone.replace(/\D/g, "")
-    // Se tem 10 ou 11 digitos (DDD + numero), adiciona 55
-    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
-      cleanPhone = "55" + cleanPhone
-    }
+    const cleanPhone = normalizePhoneForWhatsApp(phone)
     const defaultMessage = message || "Ola, seu pedido esta em preparacao!"
     const encodedMessage = encodeURIComponent(defaultMessage)
     window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, "_blank")
@@ -2268,12 +2281,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
 
                             <button
                               onClick={() => {
-                                let phone = entregador.whatsapp.replace(/\D/g, "")
+                                const phone = normalizePhoneForWhatsApp(entregador.whatsapp)
                                 if (phone) {
-                                  // Se tem 10 ou 11 digitos (DDD + numero), adiciona 55
-                                  if (phone.length === 10 || phone.length === 11) {
-                                    phone = "55" + phone
-                                  }
                                   window.open(`https://wa.me/${phone}`, "_blank")
                                 }
                               }}
