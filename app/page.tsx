@@ -1002,6 +1002,8 @@ ${paymentTime}
 
     const message = `Ola! Quero pagar meu pedido pelo PIX manual.
 
+Pedido: ${orderId || generateOrderId()}
+
 Nome: ${formData.nome}
 Tel: ${formData.telefone}
 
@@ -1055,6 +1057,8 @@ Observacao: ${formData.observacao || "Nenhuma"}`
       : "Retirada no local"
 
     const message = `NOVO PEDIDO - ${STORE_NAME}
+
+Pedido: ${orderId || generateOrderId()}
 
 Itens:
 ${orderItems}
@@ -1837,6 +1841,7 @@ ${formData.observacao || "Nenhuma"}`
                                       
                                       const message = encodeURIComponent(
                                         `Ola! Fiz um pedido e paguei via PIX manual.\n\n` +
+                                        `Pedido: ${orderId || generateOrderId()}\n\n` +
                                         `Resumo do pedido:\n${itemsList}\n\n` +
                                         `Forma de pagamento: PIX manual\n` +
                                         `Valor total: ${formatCurrency(valorTotal)}\n\n` +
