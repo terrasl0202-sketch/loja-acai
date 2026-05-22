@@ -50,6 +50,35 @@ export default function Home() {
   const PICKUP_ENABLED = siteConfig.delivery?.pickupEnabled !== false
   const STORE_NAME = siteConfig.storeName || "P.K Gostosuras"
 
+  // Verificar se esta dentro do horario de funcionamento
+  const isWithinBusinessHours = (): boolean => {
+    const openTime = siteConfig.storeHours?.openTime || "18:00"
+    const closeTime = siteConfig.storeHours?.closeTime || "23:30"
+    
+    const now = new Date()
+    const currentHour = now.getHours()
+    const currentMinute = now.getMinutes()
+    const currentMinutes = currentHour * 60 + currentMinute
+    
+    const [openHour, openMin] = openTime.split(":").map(Number)
+    const [closeHour, closeMin] = closeTime.split(":").map(Number)
+    const openMinutes = openHour * 60 + openMin
+    const closeMinutes = closeHour * 60 + closeMin
+    
+    // Se horario de fechamento e menor que abertura (passa da meia-noite)
+    // Ex: abre 18:00, fecha 01:15
+    if (closeMinutes < openMinutes) {
+      // Esta aberto se: depois da abertura OU antes do fechamento
+      return currentMinutes >= openMinutes || currentMinutes < closeMinutes
+    } else {
+      // Horario normal (ex: 08:00 as 22:00)
+      return currentMinutes >= openMinutes && currentMinutes < closeMinutes
+    }
+  }
+
+  // Loja esta realmente aberta = status manual E dentro do horario
+  const isStoreOpen = siteConfig.storeHours?.isOpen && isWithinBusinessHours()
+
   const [quantities, setQuantities] = useState<Record<number, number>>({})
   const [formData, setFormData] = useState({
     nome: "",
@@ -725,8 +754,8 @@ export default function Home() {
   }
 
   const openCheckout = () => {
-    // Verificar se loja esta aberta
-    if (!siteConfig.storeHours.isOpen) {
+    // Verificar se loja esta aberta (manual + horario)
+    if (!isStoreOpen) {
       showToast("A loja esta fechada no momento")
       return
     }
@@ -1195,7 +1224,7 @@ ${formData.observacao || "Nenhuma"}`
 </section>
 
       {/* Aviso Loja Fechada com Horario */}
-      {!siteConfig.storeHours.isOpen && (
+      {!isStoreOpen && (
         <div className="mx-4 mt-4 p-5 bg-gradient-to-br from-red-500/20 to-orange-500/10 border border-red-500/40 rounded-2xl">
           <div className="text-center space-y-3">
             <div className="flex justify-center">
@@ -1334,7 +1363,7 @@ ${formData.observacao || "Nenhuma"}`
       {/* Fixed Bottom Button */}
       <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border p-4">
         <div className="max-w-lg mx-auto">
-          {!siteConfig.storeHours.isOpen ? (
+            {!isStoreOpen ? (
             <div className="w-full py-4 bg-red-500/20 text-red-400 font-bold text-lg rounded-2xl flex items-center justify-center gap-3 border border-red-500/50">
               <X className="w-5 h-5" />
               Loja Fechada
