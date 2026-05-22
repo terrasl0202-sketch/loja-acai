@@ -432,8 +432,8 @@ export default function AdminPage() {
     }
   }
 
-  // Atualizar pedido com entregador e mudar para "delivering"
-  const assignEntregadorAndDeliver = async (orderId: string, entregador: Entregador) => {
+  // Atribuir entregador ao pedido (SEM mudar status)
+  const assignEntregador = async (orderId: string, entregador: Entregador) => {
     try {
       const res = await fetch("/api/orders", {
         method: "PATCH",
@@ -441,7 +441,6 @@ export default function AdminPage() {
         body: JSON.stringify({ 
           password: sessionPassword, 
           orderId, 
-          status: "delivering",
           entregadorId: entregador.id,
           entregadorNome: entregador.nome,
           entregadorWhatsapp: entregador.whatsapp,
@@ -451,17 +450,41 @@ export default function AdminPage() {
       if (data.success) {
         setOrders(prev => prev.map(o => o.id === orderId ? { 
           ...o, 
-          status: "delivering",
           entregadorId: entregador.id,
           entregadorNome: entregador.nome,
           entregadorWhatsapp: entregador.whatsapp,
-          saiuParaEntregaEm: new Date().toISOString(),
         } : o))
-        showToast(`Pedido enviado para ${entregador.nome}`)
-        setTimeout(() => loadOrders(), 500)
+        showToast(`Entregador ${entregador.nome} selecionado`)
       }
     } catch (error) {
       console.error("Erro ao atribuir entregador:", error)
+    }
+  }
+
+  // Marcar pedido como saiu para entrega
+  const marcarSaiuParaEntrega = async (orderId: string) => {
+    try {
+      const res = await fetch("/api/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          password: sessionPassword, 
+          orderId, 
+          status: "delivering",
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { 
+          ...o, 
+          status: "delivering",
+          saiuParaEntregaEm: new Date().toISOString(),
+        } : o))
+        showToast("Pedido saiu para entrega!")
+        setTimeout(() => loadOrders(), 500)
+      }
+    } catch (error) {
+      console.error("Erro ao marcar saiu para entrega:", error)
     }
   }
 
@@ -480,6 +503,11 @@ export default function AdminPage() {
       lines.push(order.address)
       if (order.neighborhood) lines.push(`Bairro: ${order.neighborhood}`)
       if (order.reference) lines.push(`Referencia: ${order.reference}`)
+      // Link do Google Maps
+      const enderecoCompleto = `${order.address}${order.neighborhood ? `, ${order.neighborhood}` : ""}`
+      lines.push(``)
+      lines.push(`*Google Maps:*`)
+      lines.push(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(enderecoCompleto)}`)
       lines.push(``)
     }
 
@@ -2882,36 +2910,81 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
                           {order.deliveryType === "entrega" ? (
                             <>
-                              {/* Seletor de Entregador */}
-                              {(() => {
-                                const entregadoresDisponiveis = (config.entregadores || []).filter(
-                                  e => e.status === "ativo" && e.disponibilidade === "disponivel"
-                                )
-                                return entregadoresDisponiveis.length > 0 ? (
-                                  <select
-                                    onChange={(e) => {
-                                      const entregador = entregadoresDisponiveis.find(ent => ent.id === e.target.value)
-                                      if (entregador) {
-                                        assignEntregadorAndDeliver(order.id, entregador)
-                                      }
-                                    }}
-                                    defaultValue=""
-                                    className="px-3 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                  >
-                                    <option value="" disabled>Enviar P/ Entregador</option>
-                                    {entregadoresDisponiveis.map(ent => (
-                                      <option key={ent.id} value={ent.id}>{ent.nome}</option>
-                                    ))}
-                                  </select>
-                                ) : (
+                              {/* Fluxo de entrega com entregador */}
+                              {!order.entregadorId ? (
+                                // Passo 1: Selecionar entregador
+                                (() => {
+                                  const entregadoresDisponiveis = (config.entregadores || []).filter(
+                                    e => e.status === "ativo" && e.disponibilidade === "disponivel"
+                                  )
+                                  return entregadoresDisponiveis.length > 0 ? (
+                                    <select
+                                      onChange={(e) => {
+                                        const entregador = entregadoresDisponiveis.find(ent => ent.id === e.target.value)
+                                        if (entregador) {
+                                          assignEntregador(order.id, entregador)
+                                        }
+                                      }}
+                                      defaultValue=""
+                                      className="px-3 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    >
+                                      <option value="" disabled>Selecionar Entregador</option>
+                                      {entregadoresDisponiveis.map(ent => (
+                                        <option key={ent.id} value={ent.id}>{ent.nome}</option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <button 
+                                      onClick={() => updateOrderStatus(order.id, "delivering")} 
+                                      className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2"
+                                    >
+                                      <Truck className="w-4 h-4" /> Saiu p/ Entrega
+                                    </button>
+                                  )
+                                })()
+                              ) : (
+                                // Passo 2 e 3: Entregador selecionado - mostrar acoes
+                                <div className="flex flex-wrap gap-2 w-full">
+                                  {/* Info do entregador selecionado */}
+                                  <div className="w-full mb-2 p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <Users2 className="w-4 h-4 text-blue-400" />
+                                      <span className="text-sm text-foreground font-medium">{order.entregadorNome}</span>
+                                      <span className="text-xs text-muted-foreground">({order.entregadorWhatsapp})</span>
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        // Remover entregador
+                                        setOrders(prev => prev.map(o => o.id === order.id ? {
+                                          ...o,
+                                          entregadorId: undefined,
+                                          entregadorNome: undefined,
+                                          entregadorWhatsapp: undefined,
+                                        } : o))
+                                      }}
+                                      className="text-xs text-muted-foreground hover:text-red-400"
+                                    >
+                                      Trocar
+                                    </button>
+                                  </div>
+                                  
+                                  {/* Botao enviar dados ao entregador */}
                                   <button 
-                                    onClick={() => updateOrderStatus(order.id, "delivering")} 
+                                    onClick={() => sendOrderToEntregador(order, order.entregadorWhatsapp!)}
+                                    className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"
+                                  >
+                                    <MessageCircle className="w-4 h-4" /> Enviar Dados ao Entregador
+                                  </button>
+                                  
+                                  {/* Botao marcar como saiu para entrega */}
+                                  <button 
+                                    onClick={() => marcarSaiuParaEntrega(order.id)}
                                     className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2"
                                   >
-                                    <Truck className="w-4 h-4" /> Saiu p/ Entrega
+                                    <Truck className="w-4 h-4" /> Marcar Saiu p/ Entrega
                                   </button>
-                                )
-                              })()}
+                                </div>
+                              )}
                             </>
                           ) : (
                             <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2">
