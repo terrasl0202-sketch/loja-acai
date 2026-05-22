@@ -24,6 +24,7 @@ export interface StoreHours {
   openTime: string
   closeTime: string
   closedMessage: string
+  abandonedOrderMinutes?: number
 }
 
 export interface PaymentConfig {
@@ -137,6 +138,7 @@ export const defaultConfig: SiteConfig = {
     openTime: "08:00",
     closeTime: "22:00",
     closedMessage: "Estamos fechados no momento. Volte em breve!",
+    abandonedOrderMinutes: 15,
   },
   payment: {
     minValueForAsaas: 15,

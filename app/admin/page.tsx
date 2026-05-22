@@ -659,15 +659,18 @@ export default function AdminPage() {
   // 6. CANCELADOS
   const ordersCancelled = activeOrders.filter(o => o.status === "cancelled")
   
-  // Pedidos abandonados: pendentes ha mais de 15 minutos, nao cancelados, nao finalizados
+  // Tempo configurado para abandono (padrao 15 minutos)
+  const abandonedMinutes = config.storeHours?.abandonedOrderMinutes || 15
+  
+  // Pedidos abandonados: pendentes ha mais de X minutos, nao cancelados, nao finalizados
   const ordersAbandoned = activeOrders.filter(o => {
     if (o.status === "cancelled" || o.status === "completed") return false
     if (isOrderConfirmed(o)) return false
-    // Verificar se esta parado ha mais de 15 minutos
+    // Verificar se esta parado ha mais de X minutos
     const createdAt = new Date(o.createdAt).getTime()
     const now = Date.now()
     const minutesPassed = (now - createdAt) / (1000 * 60)
-    return minutesPassed >= 15
+    return minutesPassed >= abandonedMinutes
   })
   
   // Funcao para calcular tempo parado
@@ -1529,6 +1532,26 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         rows={3}
                         className="w-full mt-1 px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                       />
+                    </div>
+
+                    <div className="pt-4 border-t border-border">
+                      <label className="text-sm text-muted-foreground">Tempo para considerar pedido abandonado</label>
+                      <select
+                        value={config.storeHours?.abandonedOrderMinutes || 15}
+                        onChange={(e) => setConfig(prev => ({
+                          ...prev,
+                          storeHours: { ...prev.storeHours, abandonedOrderMinutes: Number(e.target.value) }
+                        }))}
+                        className="w-full mt-1 px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value={5}>5 minutos</option>
+                        <option value={10}>10 minutos</option>
+                        <option value={15}>15 minutos</option>
+                        <option value={30}>30 minutos</option>
+                        <option value={60}>1 hora</option>
+                        <option value={120}>2 horas</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground mt-1">Pedidos pendentes apos esse tempo aparecerao como abandonados</p>
                     </div>
                   </div>
                 </div>
@@ -2591,7 +2614,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
 
                   <div className="bg-card/50 p-4 rounded-xl border border-orange-500/30">
                     <p className="text-sm text-muted-foreground">
-                      Pedidos iniciados pelo cliente mas nao finalizados/pagos ha mais de 15 minutos.
+                      Pedidos iniciados pelo cliente mas nao finalizados/pagos ha mais de {abandonedMinutes} minutos.
                     </p>
                   </div>
 
