@@ -494,24 +494,35 @@ export default function AdminPage() {
     return true
   })
   
+  // Funcao auxiliar para verificar se pedido esta confirmado
+  const isOrderConfirmed = (o: Order) => 
+    o.paymentStatus === "confirmed" || 
+    o.manuallyConfirmed || 
+    o.confirmedAutomatically || 
+    o.paidAt ||
+    o.status === "completed"
+
   const reportStats = {
     totalOrders: activeOrders.length,
     totalRevenue: activeOrders.reduce((sum, o) => sum + o.total, 0),
     
-    // Por forma de pagamento
-    pixAutomatic: activeOrders.filter(o => o.isPixAutomatic || o.paymentMethod === "PIX Asaas"),
-    pixManual: activeOrders.filter(o => o.paymentMethod === "PIX Manual" || o.paymentMethod === "PIX"),
-    dinheiro: activeOrders.filter(o => o.paymentMethod === "Dinheiro"),
-    cartao: activeOrders.filter(o => o.paymentMethod === "Cartao" || o.paymentMethod === "Cartão"),
+    // Pedidos confirmados (para totais gerais)
+    confirmedOrders: activeOrders.filter(isOrderConfirmed),
+    
+    // Por forma de pagamento - SOMENTE CONFIRMADOS
+    pixAutomatic: activeOrders.filter(o => (o.isPixAutomatic || o.paymentMethod === "PIX Asaas") && isOrderConfirmed(o)),
+    pixManual: activeOrders.filter(o => (o.paymentMethod === "PIX Manual" || (o.paymentMethod === "PIX" && !o.isPixAutomatic)) && isOrderConfirmed(o)),
+    dinheiro: activeOrders.filter(o => o.paymentMethod === "Dinheiro" && isOrderConfirmed(o)),
+    cartao: activeOrders.filter(o => (o.paymentMethod === "Cartao" || o.paymentMethod === "Cartão") && isOrderConfirmed(o)),
     
     // Faturamento confirmado
     confirmedRevenue: activeOrders
-      .filter(o => o.paymentStatus === "confirmed" || o.manuallyConfirmed)
+      .filter(isOrderConfirmed)
       .reduce((sum, o) => sum + o.total, 0),
     
     // Faturamento pendente
     pendingRevenue: activeOrders
-      .filter(o => o.paymentStatus === "pending" && !o.manuallyConfirmed)
+      .filter(o => !isOrderConfirmed(o) && o.status !== "cancelled")
       .reduce((sum, o) => sum + o.total, 0),
   }
 
@@ -1988,20 +1999,20 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
 
                     <div className="bg-card p-4 rounded-xl border border-border">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-green-500/20 rounded-lg">
-                          <DollarSign className="w-5 h-5 text-green-400" />
+                        <div className="p-2 bg-emerald-500/20 rounded-lg">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                         </div>
-                        <span className="text-muted-foreground text-sm">Faturamento Total</span>
+                        <span className="text-muted-foreground text-sm">Pedidos Confirmados</span>
                       </div>
-                      <p className="text-2xl font-bold text-foreground">{formatCurrency(reportStats.totalRevenue)}</p>
+                      <p className="text-2xl font-bold text-emerald-400">{reportStats.confirmedOrders.length}</p>
                     </div>
 
                     <div className="bg-card p-4 rounded-xl border border-border">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-emerald-500/20 rounded-lg">
-                          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                        <div className="p-2 bg-green-500/20 rounded-lg">
+                          <DollarSign className="w-5 h-5 text-green-400" />
                         </div>
-                        <span className="text-muted-foreground text-sm">Confirmado</span>
+                        <span className="text-muted-foreground text-sm">Faturamento Confirmado</span>
                       </div>
                       <p className="text-2xl font-bold text-green-400">{formatCurrency(reportStats.confirmedRevenue)}</p>
                     </div>
@@ -2017,9 +2028,13 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                     </div>
                   </div>
 
-                  {/* Por forma de pagamento */}
+                  {/* Por forma de pagamento - SOMENTE CONFIRMADOS */}
                   <div className="bg-card p-6 rounded-xl border border-border">
-                    <h3 className="font-semibold text-foreground mb-4">Por Forma de Pagamento</h3>
+                    <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-primary" />
+                      Faturamento por Forma de Pagamento
+                      <span className="text-xs text-muted-foreground font-normal">(somente confirmados)</span>
+                    </h3>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                         <div className="flex items-center gap-3">
@@ -2028,7 +2043,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-foreground">{formatCurrency(reportStats.pixAutomatic.reduce((s, o) => s + o.total, 0))}</p>
-                          <p className="text-xs text-muted-foreground">{reportStats.pixAutomatic.length} pedidos</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.pixAutomatic.length} pedidos confirmados</p>
                         </div>
                       </div>
                       
@@ -2039,7 +2054,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-foreground">{formatCurrency(reportStats.pixManual.reduce((s, o) => s + o.total, 0))}</p>
-                          <p className="text-xs text-muted-foreground">{reportStats.pixManual.length} pedidos</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.pixManual.length} pedidos confirmados</p>
                         </div>
                       </div>
                       
@@ -2050,7 +2065,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-foreground">{formatCurrency(reportStats.dinheiro.reduce((s, o) => s + o.total, 0))}</p>
-                          <p className="text-xs text-muted-foreground">{reportStats.dinheiro.length} pedidos</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.dinheiro.length} pedidos confirmados</p>
                         </div>
                       </div>
                       
@@ -2061,7 +2076,19 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-foreground">{formatCurrency(reportStats.cartao.reduce((s, o) => s + o.total, 0))}</p>
-                          <p className="text-xs text-muted-foreground">{reportStats.cartao.length} pedidos</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.cartao.length} pedidos confirmados</p>
+                        </div>
+                      </div>
+
+                      {/* Total geral confirmado */}
+                      <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg border border-primary/20 mt-4">
+                        <div className="flex items-center gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-primary" />
+                          <span className="text-foreground font-semibold">Total Confirmado</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-primary text-lg">{formatCurrency(reportStats.confirmedRevenue)}</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.confirmedOrders.length} pedidos</p>
                         </div>
                       </div>
                     </div>
