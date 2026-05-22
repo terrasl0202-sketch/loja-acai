@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
-import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle } from "lucide-react"
+import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { type SiteConfig, type Coupon, defaultConfig } from "@/lib/config-types"
 
@@ -88,6 +88,7 @@ export default function Home() {
   const [manualPixCode, setManualPixCode] = useState<string>("")
   const [copiedManualKey, setCopiedManualKey] = useState(false)
   const [copiedManualCode, setCopiedManualCode] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [pixTimeLeft, setPixTimeLeft] = useState<number>(0)
   const [pixExpired, setPixExpired] = useState(false)
   
@@ -106,6 +107,12 @@ export default function Home() {
   
   // Pedido bloqueado = PIX ativo OU em cooldown
   const isOrderBlocked = isOrderLocked || isInCooldown
+
+  // Mostrar toast
+  const showToast = (message: string) => {
+    setToastMessage(message)
+    setTimeout(() => setToastMessage(null), 4000)
+  }
   
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const addToCartAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -695,13 +702,13 @@ export default function Home() {
       setCopiedFn(true)
       setTimeout(() => setCopiedFn(false), 2000)
     } catch {
-      alert("Texto copiado!")
+      showToast("Texto copiado!")
     }
   }
 
   const getLocation = () => {
     if (!navigator.geolocation) {
-      alert("Geolocalizacao nao suportada pelo navegador")
+      showToast("Geolocalizacao nao suportada pelo navegador")
       return
     }
 
@@ -712,7 +719,7 @@ export default function Home() {
         setFormData((prev) => ({ ...prev, localizacao: mapsUrl }))
       },
       () => {
-        alert("Nao foi possivel obter sua localizacao")
+        showToast("Nao foi possivel obter sua localizacao")
       }
     )
   }
@@ -720,16 +727,16 @@ export default function Home() {
   const openCheckout = () => {
     // Verificar se loja esta aberta
     if (!siteConfig.storeHours.isOpen) {
-      alert(siteConfig.storeHours.closedMessage || "Estamos fechados no momento. Volte em breve!")
+      showToast("A loja esta fechada no momento")
       return
     }
     if (getTotalItems() === 0) {
-      alert("Adicione pelo menos um item ao carrinho!")
+      showToast("Adicione pelo menos um item ao carrinho!")
       return
     }
     const subtotal = getSubtotal()
     if (MINIMUM_ORDER > 0 && subtotal < MINIMUM_ORDER) {
-      alert(`Pedido minimo de R$ ${MINIMUM_ORDER.toFixed(2)}`)
+      showToast(`Pedido minimo de R$ ${MINIMUM_ORDER.toFixed(2)}`)
       return
     }
     setShowCheckout(true)
@@ -744,7 +751,7 @@ export default function Home() {
   const createPixCharge = async () => {
     // Verificar se ja existe PIX ativo
     if (isOrderBlocked) {
-      alert("Ja existe um PIX ativo para este pedido. Aguarde o pagamento ou cancele para comecar um novo pedido.")
+      showToast("Ja existe um PIX ativo. Aguarde o pagamento ou cancele para comecar um novo pedido.")
       return
     }
     
@@ -752,30 +759,30 @@ export default function Home() {
     if (pixCooldownEnd && Date.now() < pixCooldownEnd) {
       const minutes = Math.floor(pixCooldownLeft / 60)
       const seconds = pixCooldownLeft % 60
-      alert(`Aguarde ${minutes}:${seconds.toString().padStart(2, '0')} para gerar um novo PIX automatico. Use o PIX manual como alternativa.`)
+      showToast(`Aguarde ${minutes}:${seconds.toString().padStart(2, '0')} para gerar um novo PIX automatico.`)
       return
     }
     
     if (!formData.nome) {
-      alert("Por favor, preencha seu nome!")
+      showToast("Por favor, preencha seu nome!")
       return
     }
 
     // Validar telefone obrigatorio
     const cleanPhone = formData.telefone.replace(/\D/g, "")
     if (cleanPhone.length < 10 || cleanPhone.length > 11) {
-      alert("Por favor, preencha um telefone valido!")
+      showToast("Por favor, preencha um telefone valido!")
       return
     }
 
     if (deliveryType === "entrega" && (!formData.endereco || !formData.numero || !formData.referencia)) {
-      alert("Por favor, preencha todos os campos de entrega!")
+      showToast("Por favor, preencha todos os campos de entrega!")
       return
     }
 
     // Validar bairro obrigatorio para entrega
     if (deliveryType === "entrega" && !formData.bairro) {
-      alert("Por favor, selecione seu bairro para calcular a entrega!")
+      showToast("Por favor, selecione seu bairro para calcular a entrega!")
       return
     }
 
@@ -1077,18 +1084,18 @@ Observacao: ${formData.observacao || "Nenhuma"}`
   // Pagamento manual (dinheiro/cartao)
   const handleManualPayment = async () => {
     if (!formData.nome) {
-      alert("Por favor, preencha seu nome!")
+      showToast("Por favor, preencha seu nome!")
       return
     }
 
     if (deliveryType === "entrega" && (!formData.endereco || !formData.numero || !formData.referencia)) {
-      alert("Por favor, preencha todos os campos de entrega!")
+      showToast("Por favor, preencha todos os campos de entrega!")
       return
     }
 
     // Validar bairro obrigatorio para entrega
     if (deliveryType === "entrega" && !formData.bairro) {
-      alert("Por favor, selecione seu bairro para calcular a entrega!")
+      showToast("Por favor, selecione seu bairro para calcular a entrega!")
       return
     }
 
@@ -1187,12 +1194,30 @@ ${formData.observacao || "Nenhuma"}`
               </div>
 </section>
 
-      {/* Aviso Loja Fechada */}
+      {/* Aviso Loja Fechada com Horario */}
       {!siteConfig.storeHours.isOpen && (
-        <div className="mx-4 mt-4 p-4 bg-red-500/20 border border-red-500/50 rounded-xl">
-          <p className="text-center text-red-400 font-medium">
-            {siteConfig.storeHours.closedMessage || "Estamos fechados no momento. Volte em breve!"}
-          </p>
+        <div className="mx-4 mt-4 p-5 bg-gradient-to-br from-red-500/20 to-orange-500/10 border border-red-500/40 rounded-2xl">
+          <div className="text-center space-y-3">
+            <div className="flex justify-center">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
+                <Clock className="w-6 h-6 text-red-400" />
+              </div>
+            </div>
+            <h3 className="text-lg font-bold text-red-400">
+              Estamos fechados no momento
+            </h3>
+            {siteConfig.storeHours.closedMessage && (
+              <p className="text-sm text-muted-foreground">
+                {siteConfig.storeHours.closedMessage}
+              </p>
+            )}
+            <div className="pt-2 border-t border-red-500/20">
+              <p className="text-xs text-muted-foreground mb-1">Horario de funcionamento:</p>
+              <p className="text-sm font-medium text-foreground">
+                {siteConfig.storeHours.openTime || "18:00"} as {siteConfig.storeHours.closeTime || "23:30"}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1850,7 +1875,7 @@ ${formData.observacao || "Nenhuma"}`
                                       <button
                                         onClick={() => {
                                           navigator.clipboard.writeText(generateManualPixCode(orderSnapshot?.total || getTotal()))
-                                          alert("Codigo PIX copiado!")
+                                          showToast("Codigo PIX copiado!")
                                         }}
                                         className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary/20 rounded-lg hover:bg-primary/30 transition-colors"
                                       >
@@ -2329,6 +2354,13 @@ ${formData.observacao || "Nenhuma"}`
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast de Notificacao */}
+      {toastMessage && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-card text-foreground px-4 py-3 rounded-xl shadow-lg border border-border flex items-center gap-2 animate-in slide-in-from-top-2 fade-in duration-300">
+          <span className="text-sm font-medium">{toastMessage}</span>
         </div>
       )}
     </main>
