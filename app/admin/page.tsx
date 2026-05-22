@@ -47,7 +47,7 @@ import {
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, defaultConfig } from "@/lib/config-types"
 
-type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "reports"
+type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "reports"
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -658,7 +658,38 @@ export default function AdminPage() {
 
   // 6. CANCELADOS
   const ordersCancelled = activeOrders.filter(o => o.status === "cancelled")
-
+  
+  // Pedidos abandonados: pendentes ha mais de 15 minutos, nao cancelados, nao finalizados
+  const ordersAbandoned = activeOrders.filter(o => {
+    if (o.status === "cancelled" || o.status === "completed") return false
+    if (isOrderConfirmed(o)) return false
+    // Verificar se esta parado ha mais de 15 minutos
+    const createdAt = new Date(o.createdAt).getTime()
+    const now = Date.now()
+    const minutesPassed = (now - createdAt) / (1000 * 60)
+    return minutesPassed >= 15
+  })
+  
+  // Funcao para calcular tempo parado
+  const getTimeSinceCreation = (createdAt: string) => {
+    const created = new Date(createdAt).getTime()
+    const now = Date.now()
+    const minutes = Math.floor((now - created) / (1000 * 60))
+    if (minutes < 60) return `${minutes} min`
+    const hours = Math.floor(minutes / 60)
+    const remainingMinutes = minutes % 60
+    if (hours < 24) return `${hours}h ${remainingMinutes}min`
+    const days = Math.floor(hours / 24)
+    return `${days}d ${hours % 24}h`
+  }
+  
+  // Funcao para cobrar no WhatsApp
+  const chargeOnWhatsApp = (order: Order) => {
+    const phone = order.customerPhone.replace(/\D/g, "")
+    const message = encodeURIComponent(`Ola! Vimos que seu pedido na P.K Gostosuras ficou pendente. Deseja finalizar agora?`)
+    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${message}`, "_blank")
+  }
+  
   // Funcao para executar busca e navegar para aba correta
   const executeSearch = () => {
     setSearchQuery(searchInput)
@@ -1092,6 +1123,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                   { id: "orders-delivering" as TabType, icon: Truck, label: "Saiu p/ Entrega", badge: ordersDelivering.length, color: "text-purple-400" },
                   { id: "orders-completed" as TabType, icon: PackageCheck, label: "Finalizados", badge: ordersCompleted.length, color: "text-emerald-400" },
                   { id: "orders-cancelled" as TabType, icon: Ban, label: "Cancelados", badge: ordersCancelled.length, color: "text-red-400" },
+                  { id: "orders-abandoned" as TabType, icon: AlertCircle, label: "Abandonados", badge: ordersAbandoned.length, color: "text-orange-400" },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -2541,6 +2573,88 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                       <div className="text-center py-8 text-muted-foreground">
                         <Ban className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p>Nenhum pedido cancelado</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Aba Pedidos Abandonados */}
+              {activeTab === "orders-abandoned" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground">Abandonados ({ordersAbandoned.length})</h2>
+                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                      <Loader2 className="w-4 h-4" /> Atualizar
+                    </button>
+                  </div>
+
+                  <div className="bg-card/50 p-4 rounded-xl border border-orange-500/30">
+                    <p className="text-sm text-muted-foreground">
+                      Pedidos iniciados pelo cliente mas nao finalizados/pagos ha mais de 15 minutos.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {ordersAbandoned.map(order => (
+                      <div key={order.id} className="bg-card p-4 rounded-xl border border-orange-500/30">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <p className="text-lg font-bold text-foreground">{order.id}</p>
+                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="px-2 py-1 text-xs rounded-full bg-orange-500/20 text-orange-400">
+                              Parado ha {getTimeSinceCreation(order.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Cliente</p>
+                            <p className="text-sm text-foreground font-medium">{order.customerName}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Telefone</p>
+                            <p className="text-sm text-foreground">{order.customerPhone}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="mb-3">
+                          <p className="text-xs text-muted-foreground">Itens</p>
+                          <p className="text-sm text-foreground">{order.items}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-lg font-bold text-primary">R$ {order.total.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Pagamento</p>
+                            <p className="text-sm text-foreground">{order.paymentMethod}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                          <button onClick={() => chargeOnWhatsApp(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
+                            <Phone className="w-4 h-4" /> Cobrar no WhatsApp
+                          </button>
+                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
+                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
+                          </button>
+                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
+                            <Ban className="w-4 h-4" /> Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {ordersAbandoned.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Nenhum pedido abandonado</p>
                       </div>
                     )}
                   </div>
