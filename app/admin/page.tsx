@@ -2184,9 +2184,13 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
 
                             <button
                               onClick={() => {
-                                const phone = entregador.whatsapp.replace(/\D/g, "")
+                                let phone = entregador.whatsapp.replace(/\D/g, "")
                                 if (phone) {
-                                  window.open(`https://api.whatsapp.com/send?phone=${phone}`, "_blank")
+                                  // Se tem 10 ou 11 digitos (DDD + numero), adiciona 55
+                                  if (phone.length === 10 || phone.length === 11) {
+                                    phone = "55" + phone
+                                  }
+                                  window.open(`https://wa.me/${phone}`, "_blank")
                                 }
                               }}
                               disabled={!entregador.whatsapp}
