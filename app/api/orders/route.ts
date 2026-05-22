@@ -1,4 +1,4 @@
-import { put, list, get } from "@vercel/blob"
+import { put, list, get, del } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
 import { type Order } from "@/lib/config-types"
 
@@ -14,6 +14,25 @@ const noCacheHeaders = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
   "Pragma": "no-cache",
   "Expires": "0",
+}
+
+// Funcao para limpar blobs antigos (manter apenas os 2 mais recentes)
+async function cleanupOldBlobs() {
+  try {
+    const { blobs } = await list({ prefix: ORDERS_PREFIX })
+    if (blobs.length > 2) {
+      const sorted = blobs.sort(
+        (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+      )
+      // Deletar todos exceto os 2 mais recentes
+      const toDelete = sorted.slice(2)
+      for (const blob of toDelete) {
+        await del(blob.url)
+      }
+    }
+  } catch (error) {
+    console.error("[Cleanup] Erro ao limpar blobs antigos:", error)
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -129,6 +148,9 @@ export async function POST(request: NextRequest) {
       contentType: "application/json",
     })
 
+    // Limpar blobs antigos
+    await cleanupOldBlobs()
+
     return NextResponse.json({ success: true, order: newOrder })
   } catch (error) {
     console.error("[Orders POST] Erro:", error)
@@ -202,6 +224,9 @@ export async function PATCH(request: NextRequest) {
       access: "private",
       contentType: "application/json",
     })
+
+    // Limpar blobs antigos
+    await cleanupOldBlobs()
 
     return NextResponse.json({ success: true, order: orders[orderIndex] })
   } catch (error) {

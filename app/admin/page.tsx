@@ -352,7 +352,10 @@ export default function AdminPage() {
       })
       const data = await res.json()
       if (data.success) {
+        // Atualizar localmente E recarregar do servidor para garantir sincronizacao
         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o))
+        // Recarregar do servidor apos 500ms para garantir consistencia
+        setTimeout(() => loadOrders(), 500)
       }
     } catch (error) {
       console.error("Erro ao atualizar pedido:", error)
@@ -517,9 +520,11 @@ export default function AdminPage() {
       })
       const data = await res.json()
       if (data.success) {
-        setOrders(prev => prev.map(o => 
-          o.id === orderId ? { ...o, paymentStatus, manuallyConfirmed, confirmedAt: manuallyConfirmed ? new Date().toISOString() : o.confirmedAt } : o
+        setOrders(prev => prev.map(o =>
+          o.id === orderId ? { ...o, paymentStatus, manuallyConfirmed, status: manuallyConfirmed ? "confirmed" : o.status, confirmedAt: manuallyConfirmed ? new Date().toISOString() : o.confirmedAt } : o
         ))
+        // Recarregar do servidor apos 500ms para garantir consistencia
+        setTimeout(() => loadOrders(), 500)
       }
     } catch (error) {
       console.error("Erro ao atualizar pagamento:", error)
