@@ -1125,9 +1125,17 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
     onFallback(text)
   }
 
+  // URL base publica oficial - SEMPRE usar esta funcao para links publicos
+  const getPublicBaseUrl = () => "https://www.pkgostosuras.shop"
+
   // Gerar link de acompanhamento do pedido (usando dominio publico oficial)
   const getOrderTrackingLink = (orderId: string) => {
-    return `https://www.pkgostosuras.shop/pedido/${orderId}`
+    return `${getPublicBaseUrl()}/pedido/${orderId}`
+  }
+
+  // Gerar link do painel do entregador (usando dominio publico oficial)
+  const getEntregadorPanelLink = (token: string) => {
+    return `${getPublicBaseUrl()}/entregador/${token}`
   }
 
   // Copiar link de acompanhamento
@@ -2482,9 +2490,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                               <div className="flex gap-2 mt-2">
                                 <button
                                   onClick={() => {
-                                    const isProduction = typeof window !== "undefined" && window.location.hostname === "www.pkgostosuras.shop"
-                                    const baseUrl = isProduction ? "https://www.pkgostosuras.shop" : (typeof window !== "undefined" ? window.location.origin : "")
-                                    const link = `${baseUrl}/entregador/${entregador.token}`
+                                    const link = getEntregadorPanelLink(entregador.token!)
                                     copyToClipboardRobust(
                                       link,
                                       () => showToast("Link copiado!"),
@@ -2498,9 +2504,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                                 </button>
                                 <button
                                   onClick={() => {
-                                    const isProduction = typeof window !== "undefined" && window.location.hostname === "www.pkgostosuras.shop"
-                                    const baseUrl = isProduction ? "https://www.pkgostosuras.shop" : (typeof window !== "undefined" ? window.location.origin : "")
-                                    const link = `${baseUrl}/entregador/${entregador.token}`
+                                    const link = getEntregadorPanelLink(entregador.token!)
                                     const phone = normalizePhoneForWhatsApp(entregador.whatsapp)
                                     const message = `Ola ${entregador.nome}!\n\nAcesse seu painel de entregas:\n${link}\n\nSeu PIN: ${entregador.pin}`
                                     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank")
