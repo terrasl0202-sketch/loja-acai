@@ -118,6 +118,11 @@ export interface Order {
   manuallyConfirmed?: boolean
   confirmedAutomatically?: boolean
   archived?: boolean
+  // Campos para entregador
+  entregadorId?: string
+  entregadorNome?: string
+  entregadorWhatsapp?: string
+  saiuParaEntregaEm?: string
 }
 
 export interface SiteConfig {

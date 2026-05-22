@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { password, orderId, status, paymentStatus, manuallyConfirmed, archived } = body
+    const { password, orderId, status, paymentStatus, manuallyConfirmed, archived, entregadorId, entregadorNome, entregadorWhatsapp } = body
 
     if (password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -221,6 +221,10 @@ export async function PATCH(request: NextRequest) {
     // Atualizar campos conforme fornecido
     if (status !== undefined) {
       orders[orderIndex].status = status
+      // Se mudou para "delivering", salvar horario de saida
+      if (status === "delivering") {
+        orders[orderIndex].saiuParaEntregaEm = new Date().toISOString()
+      }
     }
     if (paymentStatus !== undefined) {
       orders[orderIndex].paymentStatus = paymentStatus
@@ -239,6 +243,16 @@ export async function PATCH(request: NextRequest) {
     }
     if (archived !== undefined) {
       orders[orderIndex].archived = archived
+    }
+    // Campos do entregador
+    if (entregadorId !== undefined) {
+      orders[orderIndex].entregadorId = entregadorId
+    }
+    if (entregadorNome !== undefined) {
+      orders[orderIndex].entregadorNome = entregadorNome
+    }
+    if (entregadorWhatsapp !== undefined) {
+      orders[orderIndex].entregadorWhatsapp = entregadorWhatsapp
     }
 
     // Salvar

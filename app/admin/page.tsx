@@ -426,6 +426,82 @@ export default function AdminPage() {
     }
   }
 
+  // Atualizar pedido com entregador e mudar para "delivering"
+  const assignEntregadorAndDeliver = async (orderId: string, entregador: Entregador) => {
+    try {
+      const res = await fetch("/api/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          password: sessionPassword, 
+          orderId, 
+          status: "delivering",
+          entregadorId: entregador.id,
+          entregadorNome: entregador.nome,
+          entregadorWhatsapp: entregador.whatsapp,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { 
+          ...o, 
+          status: "delivering",
+          entregadorId: entregador.id,
+          entregadorNome: entregador.nome,
+          entregadorWhatsapp: entregador.whatsapp,
+          saiuParaEntregaEm: new Date().toISOString(),
+        } : o))
+        showToast(`Pedido enviado para ${entregador.nome}`)
+        setTimeout(() => loadOrders(), 500)
+      }
+    } catch (error) {
+      console.error("Erro ao atribuir entregador:", error)
+    }
+  }
+
+  // Gerar mensagem WhatsApp para entregador
+  const generateEntregadorMessage = (order: Order): string => {
+    const lines = [
+      `*NOVO PEDIDO - ${order.id}*`,
+      ``,
+      `*Cliente:* ${order.customerName}`,
+      `*Telefone:* ${order.customerPhone}`,
+      ``,
+    ]
+
+    if (order.address) {
+      lines.push(`*Endereco:*`)
+      lines.push(order.address)
+      if (order.neighborhood) lines.push(`Bairro: ${order.neighborhood}`)
+      if (order.reference) lines.push(`Referencia: ${order.reference}`)
+      lines.push(``)
+    }
+
+    lines.push(`*Itens:*`)
+    lines.push(order.items)
+    lines.push(``)
+    
+    lines.push(`*Total:* R$ ${order.total.toFixed(2)}`)
+    lines.push(`*Pagamento:* ${order.paymentMethod}`)
+    
+    if (order.observation) {
+      lines.push(``)
+      lines.push(`*Observacoes:* ${order.observation}`)
+    }
+
+    return lines.join("\n")
+  }
+
+  // Abrir WhatsApp do entregador com mensagem do pedido
+  const sendOrderToEntregador = (order: Order, entregadorWhatsapp: string) => {
+    let phone = entregadorWhatsapp.replace(/\D/g, "")
+    if (phone.length === 10 || phone.length === 11) {
+      phone = "55" + phone
+    }
+    const message = generateEntregadorMessage(order)
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank")
+  }
+
   // Filtro por data
   const filterByDate = (order: Order): boolean => {
     if (dateFilter === "all") return true
@@ -2654,9 +2730,38 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
 
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
                           {order.deliveryType === "entrega" ? (
-                            <button onClick={() => updateOrderStatus(order.id, "delivering")} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2">
-                              <Truck className="w-4 h-4" /> Saiu p/ Entrega
-                            </button>
+                            <>
+                              {/* Seletor de Entregador */}
+                              {(() => {
+                                const entregadoresDisponiveis = (config.entregadores || []).filter(
+                                  e => e.status === "ativo" && e.disponibilidade === "disponivel"
+                                )
+                                return entregadoresDisponiveis.length > 0 ? (
+                                  <select
+                                    onChange={(e) => {
+                                      const entregador = entregadoresDisponiveis.find(ent => ent.id === e.target.value)
+                                      if (entregador) {
+                                        assignEntregadorAndDeliver(order.id, entregador)
+                                      }
+                                    }}
+                                    defaultValue=""
+                                    className="px-3 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                  >
+                                    <option value="" disabled>Enviar c/ Entregador</option>
+                                    {entregadoresDisponiveis.map(ent => (
+                                      <option key={ent.id} value={ent.id}>{ent.nome}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <button 
+                                    onClick={() => updateOrderStatus(order.id, "delivering")} 
+                                    className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2"
+                                  >
+                                    <Truck className="w-4 h-4" /> Saiu p/ Entrega
+                                  </button>
+                                )
+                              })()}
+                            </>
                           ) : (
                             <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2">
                               <PackageCheck className="w-4 h-4" /> Finalizar (Retirada)
@@ -2722,6 +2827,38 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <div className="mb-3 p-3 bg-purple-500/10 rounded-lg">
                             <p className="text-xs text-muted-foreground">Endereco de Entrega</p>
                             <p className="text-sm text-foreground font-medium">{order.address}</p>
+                          </div>
+                        )}
+
+                        {/* Informacoes do Entregador */}
+                        {order.entregadorNome && (
+                          <div className="mb-3 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                            <p className="text-xs text-muted-foreground mb-1">Entregador</p>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm text-foreground font-medium flex items-center gap-2">
+                                  <Users2 className="w-4 h-4 text-blue-400" />
+                                  {order.entregadorNome}
+                                </p>
+                                {order.entregadorWhatsapp && (
+                                  <p className="text-xs text-muted-foreground">{order.entregadorWhatsapp}</p>
+                                )}
+                                {order.saiuParaEntregaEm && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Saiu as {new Date(order.saiuParaEntregaEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                                  </p>
+                                )}
+                              </div>
+                              {order.entregadorWhatsapp && (
+                                <button
+                                  onClick={() => sendOrderToEntregador(order, order.entregadorWhatsapp!)}
+                                  className="px-3 py-2 text-xs font-medium rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-1"
+                                >
+                                  <MessageCircle className="w-3 h-3" />
+                                  Enviar Pedido
+                                </button>
+                              )}
+                            </div>
                           </div>
                         )}
 
