@@ -64,6 +64,7 @@ export default function AdminPage() {
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [lastOrderCount, setLastOrderCount] = useState(0)
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
+  const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
@@ -410,13 +411,15 @@ export default function AdminPage() {
   // Calcular estatisticas de relatorios
   const activeOrders = orders.filter(o => {
     if (o.archived) return false
-    // Aplicar filtro de busca
+    // Aplicar filtro de busca (so quando searchQuery tem valor - apos clicar em Buscar)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
       const matchId = o.id.toLowerCase().includes(query)
       const matchName = o.customerName.toLowerCase().includes(query)
       const matchPhone = o.customerPhone.replace(/\D/g, "").includes(query.replace(/\D/g, ""))
-      return matchId || matchName || matchPhone
+      const matchAddress = o.address ? o.address.toLowerCase().includes(query) : false
+      const matchPayment = o.paymentMethod ? o.paymentMethod.toLowerCase().includes(query) : false
+      return matchId || matchName || matchPhone || matchAddress || matchPayment
     }
     return true
   })
@@ -700,33 +703,6 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
             </div>
           </div>
 
-          {/* Campo de Busca Global */}
-          <div className="flex-1 max-w-md mx-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Buscar pedido por ID, nome ou telefone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-10 py-2 text-sm bg-secondary border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-            {searchQuery && (
-              <p className="text-xs text-muted-foreground mt-1 text-center">
-                {activeOrders.length} pedido(s) encontrado(s)
-              </p>
-            )}
-          </div>
-
           <div className="flex items-center gap-3">
             {/* Botao de som */}
             <button
@@ -817,6 +793,48 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               {/* Secao de Pedidos */}
               <div className="pt-4 mt-4 border-t border-border">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide px-4 mb-2">Pedidos</p>
+
+                {/* Campo de Busca de Pedidos */}
+                <div className="px-4 mb-3 space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Pesquisar pedido..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setSearchQuery(searchInput)
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSearchQuery(searchInput)}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all"
+                    >
+                      <Search className="w-3 h-3" />
+                      Buscar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSearchInput("")
+                        setSearchQuery("")
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                  {searchQuery && (
+                    <p className="text-xs text-center text-muted-foreground">
+                      {activeOrders.length > 0 
+                        ? `${activeOrders.length} pedido(s) encontrado(s)`
+                        : "Nenhum pedido encontrado"
+                      }
+                    </p>
+                  )}
+                </div>
 
                 {[
                   { id: "orders-pending" as TabType, icon: ClockIcon, label: "Aguardando Pagamento", badge: ordersPendingPayment.length, color: "text-yellow-400" },
