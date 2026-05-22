@@ -25,6 +25,7 @@ export interface StoreHours {
   closeTime: string
   closedMessage: string
   abandonedOrderMinutes?: number
+  autoArchiveDays?: number // 0 = nunca, 7, 15, 30 = dias
 }
 
 export interface PaymentConfig {
@@ -139,6 +140,7 @@ export const defaultConfig: SiteConfig = {
     closeTime: "22:00",
     closedMessage: "Estamos fechados no momento. Volte em breve!",
     abandonedOrderMinutes: 15,
+    autoArchiveDays: 0, // 0 = nunca arquivar automaticamente
   },
   payment: {
     minValueForAsaas: 15,

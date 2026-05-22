@@ -42,12 +42,14 @@ import {
   PackageCheck,
   Ban,
   Search,
-  X
+  X,
+  RotateCcw,
+  FolderArchive
 } from "lucide-react"
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, defaultConfig } from "@/lib/config-types"
 
-type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "reports"
+type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -73,6 +75,8 @@ export default function AdminPage() {
   const [manualCopyText, setManualCopyText] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [deleteProductId, setDeleteProductId] = useState<number | null>(null)
+  const [archivedSearchInput, setArchivedSearchInput] = useState("")
+  const [archivedSearchQuery, setArchivedSearchQuery] = useState("")
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
   useEffect(() => {
@@ -659,6 +663,28 @@ export default function AdminPage() {
   // 6. CANCELADOS
   const ordersCancelled = activeOrders.filter(o => o.status === "cancelled")
   
+  // 7. ARQUIVADOS - filtrar com busca especifica
+  const ordersArchived = orders.filter(o => {
+    if (!o.archived) return false
+    
+    // Aplicar filtro de busca especifico para arquivados
+    if (archivedSearchQuery.trim()) {
+      const query = normalizeText(archivedSearchQuery)
+      const normalizedId = normalizeText(o.id)
+      const normalizedName = normalizeText(o.customerName)
+      const normalizedPhone = o.customerPhone.replace(/\D/g, "")
+      const normalizedPayment = o.paymentMethod ? normalizeText(o.paymentMethod) : ""
+      
+      const matchId = normalizedId.includes(query)
+      const matchName = normalizedName.includes(query)
+      const matchPhone = normalizedPhone.includes(query.replace(/\D/g, ""))
+      const matchPayment = normalizedPayment.includes(query)
+      
+      return matchId || matchName || matchPhone || matchPayment
+    }
+    return true
+  })
+  
   // Tempo configurado para abandono (padrao 15 minutos)
   const abandonedMinutes = config.storeHours?.abandonedOrderMinutes || 15
   
@@ -784,6 +810,69 @@ export default function AdminPage() {
       console.error("Erro ao arquivar pedidos:", error)
     }
   }
+
+  // Arquivar pedido individual
+  const archiveOrder = async (orderId: string) => {
+    try {
+      const res = await fetch("/api/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sessionPassword, orderId, archived: true }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, archived: true } : o))
+        showToast("Pedido arquivado")
+      }
+    } catch (error) {
+      console.error("Erro ao arquivar pedido:", error)
+    }
+  }
+
+  // Restaurar pedido arquivado
+  const restoreOrder = async (orderId: string) => {
+    try {
+      const res = await fetch("/api/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sessionPassword, orderId, archived: false }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, archived: false } : o))
+        showToast("Pedido restaurado")
+      }
+    } catch (error) {
+      console.error("Erro ao restaurar pedido:", error)
+    }
+  }
+
+  // Executar arquivamento automatico baseado na configuracao
+  const runAutoArchive = () => {
+    const autoArchiveDays = config.storeHours?.autoArchiveDays || 0
+    if (autoArchiveDays === 0) return // Nunca arquivar automaticamente
+    
+    const now = Date.now()
+    const daysInMs = autoArchiveDays * 24 * 60 * 60 * 1000
+    
+    orders.forEach(order => {
+      if (order.archived) return
+      // So arquivar finalizados ou cancelados
+      if (order.status !== "completed" && order.status !== "cancelled") return
+      
+      const orderDate = new Date(order.createdAt).getTime()
+      if (now - orderDate >= daysInMs) {
+        archiveOrder(order.id)
+      }
+    })
+  }
+
+  // Executar arquivamento automatico quando config ou orders mudam
+  useEffect(() => {
+    if (isAuthenticated && orders.length > 0 && config.storeHours?.autoArchiveDays) {
+      runAutoArchive()
+    }
+  }, [config.storeHours?.autoArchiveDays, orders.length])
 
   // Limpar pedidos duplicados/bugados
   const cleanupDuplicates = async () => {
@@ -1127,6 +1216,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                   { id: "orders-completed" as TabType, icon: PackageCheck, label: "Finalizados", badge: ordersCompleted.length, color: "text-emerald-400" },
                   { id: "orders-cancelled" as TabType, icon: Ban, label: "Cancelados", badge: ordersCancelled.length, color: "text-red-400" },
                   { id: "orders-abandoned" as TabType, icon: AlertCircle, label: "Abandonados", badge: ordersAbandoned.length, color: "text-orange-400" },
+                  { id: "orders-archived" as TabType, icon: FolderArchive, label: "Arquivados", badge: ordersArchived.length, color: "text-slate-400" },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -1552,6 +1642,24 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         <option value={120}>2 horas</option>
                       </select>
                       <p className="text-xs text-muted-foreground mt-1">Pedidos pendentes apos esse tempo aparecerao como abandonados</p>
+                    </div>
+
+                    <div className="pt-4 border-t border-border">
+                      <label className="text-sm text-muted-foreground">Arquivamento automatico de pedidos</label>
+                      <select
+                        value={config.storeHours?.autoArchiveDays || 0}
+                        onChange={(e) => setConfig(prev => ({
+                          ...prev,
+                          storeHours: { ...prev.storeHours, autoArchiveDays: Number(e.target.value) }
+                        }))}
+                        className="w-full mt-1 px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value={0}>Nunca arquivar automaticamente</option>
+                        <option value={7}>Apos 7 dias</option>
+                        <option value={15}>Apos 15 dias</option>
+                        <option value={30}>Apos 30 dias</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground mt-1">Pedidos finalizados ou cancelados serao arquivados automaticamente apos o periodo selecionado. Pedidos arquivados continuam aparecendo nos relatorios.</p>
                     </div>
                   </div>
                 </div>
@@ -2539,6 +2647,9 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
                             {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar Dados"}
                           </button>
+                          <button onClick={() => archiveOrder(order.id)} className="px-4 py-2 text-sm font-medium rounded-lg bg-slate-500/20 text-slate-400 hover:bg-slate-500/30 transition-all flex items-center gap-2">
+                            <Archive className="w-4 h-4" /> Arquivar
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -2588,6 +2699,12 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         <div className="mb-3">
                           <p className="text-xs text-muted-foreground">Itens</p>
                           <p className="text-sm text-foreground">{order.items}</p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                          <button onClick={() => archiveOrder(order.id)} className="px-4 py-2 text-sm font-medium rounded-lg bg-slate-500/20 text-slate-400 hover:bg-slate-500/30 transition-all flex items-center gap-2">
+                            <Archive className="w-4 h-4" /> Arquivar
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -2678,6 +2795,129 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                       <div className="text-center py-8 text-muted-foreground">
                         <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p>Nenhum pedido abandonado</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Aba Pedidos Arquivados */}
+              {activeTab === "orders-archived" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground">Pedidos Arquivados ({ordersArchived.length})</h2>
+                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                      <Loader2 className="w-4 h-4" /> Atualizar
+                    </button>
+                  </div>
+
+                  {/* Busca de pedidos arquivados */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Buscar por numero, cliente, telefone ou pagamento..."
+                      value={archivedSearchInput}
+                      onChange={(e) => setArchivedSearchInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          setArchivedSearchQuery(archivedSearchInput)
+                        }
+                      }}
+                      className="flex-1 px-4 py-2 bg-secondary border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <button
+                      onClick={() => setArchivedSearchQuery(archivedSearchInput)}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-all"
+                    >
+                      <Search className="w-4 h-4" />
+                      Buscar
+                    </button>
+                    {archivedSearchQuery && (
+                      <button
+                        onClick={() => {
+                          setArchivedSearchInput("")
+                          setArchivedSearchQuery("")
+                        }}
+                        className="px-4 py-2 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-all"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+
+                  {archivedSearchQuery && (
+                    <p className="text-sm text-muted-foreground">
+                      {ordersArchived.length} pedido(s) encontrado(s) para &quot;{archivedSearchQuery}&quot;
+                    </p>
+                  )}
+
+                  <div className="space-y-3">
+                    {ordersArchived.map((order) => (
+                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="font-bold text-foreground">{order.id}</p>
+                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(order.status)}`}>
+                              {getStatusLabel(order.status)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Cliente</p>
+                            <p className="text-sm text-foreground">{order.customerName}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Pagamento</p>
+                            <p className="text-sm text-foreground">{order.paymentMethod}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Telefone</p>
+                            <p className="text-sm text-foreground">{order.customerPhone}</p>
+                          </div>
+                        </div>
+
+                        <div className="mb-3">
+                          <p className="text-xs text-muted-foreground">Itens</p>
+                          <p className="text-sm text-foreground">{order.items}</p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                          <button 
+                            onClick={() => restoreOrder(order.id)} 
+                            className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-2"
+                          >
+                            <RotateCcw className="w-4 h-4" /> Restaurar
+                          </button>
+                          <button 
+                            onClick={() => copyOrderData(order)} 
+                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}
+                          >
+                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} 
+                            {copiedOrderId === order.id ? "Copiado!" : "Copiar Dados"}
+                          </button>
+                          <button 
+                            onClick={() => openCustomerWhatsApp(order.customerPhone)} 
+                            className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"
+                          >
+                            <Phone className="w-4 h-4" /> WhatsApp
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {ordersArchived.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <FolderArchive className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>{archivedSearchQuery ? "Nenhum pedido arquivado encontrado" : "Nenhum pedido arquivado"}</p>
                       </div>
                     )}
                   </div>
