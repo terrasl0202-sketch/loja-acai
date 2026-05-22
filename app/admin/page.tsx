@@ -66,11 +66,12 @@ export default function AdminPage() {
   const [lastOrderIds, setLastOrderIds] = useState<Set<string>>(new Set())
   const [lastPaidIds, setLastPaidIds] = useState<Set<string>>(new Set())
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null)
   const [manualCopyText, setManualCopyText] = useState<string | null>(null)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [deleteProductId, setDeleteProductId] = useState<number | null>(null)
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
   useEffect(() => {
@@ -272,11 +273,11 @@ export default function AdminPage() {
         await loadConfig()
         setTimeout(() => setSaveSuccess(false), 5000)
       } else {
-        alert("Erro ao salvar: " + (data.error || "Erro desconhecido"))
+        showToast("Erro ao salvar: " + (data.error || "Erro desconhecido"))
       }
     } catch (error) {
       console.error("Erro ao salvar:", error)
-      alert("Erro ao salvar configuracoes")
+      showToast("Erro ao salvar configuracoes")
     } finally {
       setSaving(false)
     }
@@ -313,11 +314,17 @@ export default function AdminPage() {
   }
 
   const removeProduct = (id: number) => {
-    if (confirm("Tem certeza que deseja excluir este produto?")) {
+    setDeleteProductId(id)
+  }
+
+  const confirmDeleteProduct = () => {
+    if (deleteProductId !== null) {
       setConfig(prev => ({
         ...prev,
-        products: prev.products.filter(p => p.id !== id),
+        products: prev.products.filter(p => p.id !== deleteProductId),
       }))
+      showToast("Produto excluido")
+      setDeleteProductId(null)
     }
   }
 
@@ -531,21 +538,31 @@ export default function AdminPage() {
     const productSales: Record<string, { name: string, quantity: number, revenue: number }> = {}
     
     activeOrders
-      .filter(o => o.paymentStatus === "confirmed" || o.manuallyConfirmed)
+      .filter(o => isOrderConfirmed(o))
       .forEach(order => {
         if (order.itemsDetailed && Array.isArray(order.itemsDetailed)) {
-          order.itemsDetailed.forEach(item => {
-            const key = item.productName
+          order.itemsDetailed.forEach((item: { name?: string; productName?: string; quantity?: number; price?: number; subtotal?: number }) => {
+            // Tentar obter nome do produto de diferentes campos
+            const productName = item.name || item.productName || "Produto sem nome"
+            const qty = item.quantity || 1
+            const itemPrice = item.price || 0
+            const itemRevenue = item.subtotal || (itemPrice * qty) || 0
+            
+            // Ignorar itens sem nome valido
+            if (!productName || productName === "Produto sem nome" || typeof productName === "number") return
+            
+            const key = productName
             if (!productSales[key]) {
-              productSales[key] = { name: item.productName, quantity: 0, revenue: 0 }
+              productSales[key] = { name: productName, quantity: 0, revenue: 0 }
             }
-            productSales[key].quantity += item.quantity
-            productSales[key].revenue += item.subtotal
+            productSales[key].quantity += qty
+            productSales[key].revenue += itemRevenue
           })
         }
       })
     
     return Object.values(productSales)
+      .filter(p => p.name && typeof p.name === "string" && p.quantity > 0)
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 10)
   }
@@ -710,11 +727,12 @@ export default function AdminPage() {
       })
       const data = await res.json()
       if (data.success) {
-        alert(`Limpeza concluida!\n${data.removedCount} duplicatas removidas.`)
+        showToast(`Limpeza concluida: ${data.removedCount} duplicata(s) removida(s)`)
         loadOrders() // Recarregar lista
       }
     } catch (error) {
       console.error("Erro ao limpar duplicatas:", error)
+      showToast("Erro ao limpar duplicatas")
     }
   }
 
@@ -2544,6 +2562,32 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               >
                 Fechar
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Confirmacao para Excluir Produto */}
+        {deleteProductId !== null && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-bold text-foreground">Excluir Produto</h3>
+                <p className="text-sm text-muted-foreground mt-2">Tem certeza que deseja excluir este produto?</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteProductId(null)}
+                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmDeleteProduct}
+                  className="flex-1 py-3 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-colors"
+                >
+                  Excluir
+                </button>
+              </div>
             </div>
           </div>
         )}
