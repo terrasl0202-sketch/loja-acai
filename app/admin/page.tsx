@@ -765,9 +765,13 @@ export default function AdminPage() {
   
   // Funcao para cobrar no WhatsApp
   const chargeOnWhatsApp = (order: Order) => {
-    const phone = order.customerPhone.replace(/\D/g, "")
+    let phone = order.customerPhone.replace(/\D/g, "")
+    // Se tem 10 ou 11 digitos (DDD + numero), adiciona 55
+    if (phone.length === 10 || phone.length === 11) {
+      phone = "55" + phone
+    }
     const message = encodeURIComponent(`Ola! Vimos que seu pedido na P.K Gostosuras ficou pendente. Deseja finalizar agora?`)
-    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${message}`, "_blank")
+    window.open(`https://wa.me/${phone}?text=${message}`, "_blank")
   }
   
   // Funcao para executar busca e navegar para aba correta
@@ -937,10 +941,14 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
 
   // Abrir WhatsApp do cliente
   const openCustomerWhatsApp = (phone: string, message?: string) => {
-    const cleanPhone = phone.replace(/\D/g, "")
+    let cleanPhone = phone.replace(/\D/g, "")
+    // Se tem 10 ou 11 digitos (DDD + numero), adiciona 55
+    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+      cleanPhone = "55" + cleanPhone
+    }
     const defaultMessage = message || "Ola, seu pedido esta em preparacao!"
     const encodedMessage = encodeURIComponent(defaultMessage)
-    window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMessage}`, "_blank")
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, "_blank")
   }
 
   // Formatar moeda
@@ -2747,7 +2755,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                                     defaultValue=""
                                     className="px-3 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 focus:outline-none focus:ring-2 focus:ring-purple-500"
                                   >
-                                    <option value="" disabled>Enviar c/ Entregador</option>
+                                    <option value="" disabled>Enviar P/ Entregador</option>
                                     {entregadoresDisponiveis.map(ent => (
                                       <option key={ent.id} value={ent.id}>{ent.nome}</option>
                                     ))}
