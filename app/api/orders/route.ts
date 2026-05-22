@@ -60,7 +60,30 @@ export async function GET(request: NextRequest) {
 
     if (result && result.stream) {
       const text = await new Response(result.stream).text()
-      const orders = JSON.parse(text) as Order[]
+      let orders = JSON.parse(text) as Order[]
+      
+      // Deduplicar pedidos por ID (manter a versao mais recente de cada)
+      const orderMap = new Map<string, Order>()
+      for (const order of orders) {
+        const existing = orderMap.get(order.id)
+        if (!existing) {
+          orderMap.set(order.id, order)
+        } else {
+          // Manter a versao com status mais avancado ou mais recente
+          const existingDate = new Date(existing.createdAt).getTime()
+          const orderDate = new Date(order.createdAt).getTime()
+          // Priorizar: cancelled > completed > delivering > preparing > confirmed > pending
+          const statusPriority: Record<string, number> = { cancelled: 6, completed: 5, delivering: 4, preparing: 3, confirmed: 2, pending: 1 }
+          const existingPriority = statusPriority[existing.status] || 0
+          const orderPriority = statusPriority[order.status] || 0
+          
+          if (orderPriority > existingPriority || (orderPriority === existingPriority && orderDate > existingDate)) {
+            orderMap.set(order.id, order)
+          }
+        }
+      }
+      orders = Array.from(orderMap.values())
+      
       return NextResponse.json({ success: true, orders }, { headers: noCacheHeaders })
     }
 
@@ -277,6 +300,65 @@ export async function DELETE(request: NextRequest) {
       })
 
       return NextResponse.json({ success: true, message: "All orders archived" })
+    }
+
+    if (action === "cleanup_duplicates") {
+      // Deduplicar e limpar pedidos bugados
+      let orders: Order[] = []
+      const { blobs } = await list({ prefix: ORDERS_PREFIX })
+      
+      if (blobs.length > 0) {
+        const latestBlob = blobs.sort(
+          (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+        )[0]
+        const result = await get(latestBlob.pathname, { access: "private" })
+        if (result && result.stream) {
+          const text = await new Response(result.stream).text()
+          orders = JSON.parse(text) as Order[]
+        }
+      }
+
+      const originalCount = orders.length
+      
+      // Deduplicar por ID (manter versao com status mais avancado)
+      const orderMap = new Map<string, Order>()
+      for (const order of orders) {
+        const existing = orderMap.get(order.id)
+        if (!existing) {
+          orderMap.set(order.id, order)
+        } else {
+          const statusPriority: Record<string, number> = { cancelled: 6, completed: 5, delivering: 4, preparing: 3, confirmed: 2, pending: 1 }
+          const existingPriority = statusPriority[existing.status] || 0
+          const orderPriority = statusPriority[order.status] || 0
+          
+          if (orderPriority > existingPriority) {
+            orderMap.set(order.id, order)
+          }
+        }
+      }
+      orders = Array.from(orderMap.values())
+      
+      const removedCount = originalCount - orders.length
+
+      // Salvar lista limpa
+      const timestamp = Date.now()
+      const filename = `${ORDERS_PREFIX}${timestamp}.json`
+
+      await put(filename, JSON.stringify(orders, null, 2), {
+        access: "private",
+        contentType: "application/json",
+      })
+
+      // Limpar blobs antigos
+      await cleanupOldBlobs()
+
+      return NextResponse.json({ 
+        success: true, 
+        message: `Limpeza concluida. ${removedCount} duplicatas removidas.`,
+        originalCount,
+        finalCount: orders.length,
+        removedCount
+      })
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })

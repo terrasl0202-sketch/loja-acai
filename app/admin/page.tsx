@@ -549,6 +549,24 @@ export default function AdminPage() {
     }
   }
 
+  // Limpar pedidos duplicados/bugados
+  const cleanupDuplicates = async () => {
+    try {
+      const res = await fetch("/api/orders", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sessionPassword, action: "cleanup_duplicates" }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        alert(`Limpeza concluida!\n${data.removedCount} duplicatas removidas.`)
+        loadOrders() // Recarregar lista
+      }
+    } catch (error) {
+      console.error("Erro ao limpar duplicatas:", error)
+    }
+  }
+
   // Copiar dados do pedido
   const copyOrderData = (order: Order) => {
     const text = `Pedido: ${order.id}
@@ -1708,13 +1726,22 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h2 className="text-xl font-bold text-foreground">Relatorios</h2>
-                    <button
-                      onClick={() => setShowArchiveConfirm(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
-                    >
-                      <Archive className="w-4 h-4" />
-                      Limpar Relatorios
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={cleanupDuplicates}
+                        className="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 text-yellow-400 font-medium rounded-xl transition-all hover:bg-yellow-500/30 text-sm"
+                        title="Remove pedidos duplicados e corrige inconsistencias"
+                      >
+                        Limpar Duplicatas
+                      </button>
+                      <button
+                        onClick={() => setShowArchiveConfirm(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
+                      >
+                        <Archive className="w-4 h-4" />
+                        Limpar Relatorios
+                      </button>
+                    </div>
                   </div>
 
                   {/* Cards de resumo */}
