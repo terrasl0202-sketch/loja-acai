@@ -603,6 +603,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           order: {
+            orderId: orderId || generateOrderId(), // ID publico PK...
             customerName: formData.nome,
             customerPhone: formData.telefone,
             items: orderItems,

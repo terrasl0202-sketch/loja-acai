@@ -83,8 +83,11 @@ export async function POST(request: NextRequest) {
     const isPixAutomatic = order.paymentMethod === "PIX Asaas" || order.isPixAutomatic
 
     // Adicionar novo pedido
+    // Usar o ID publico que vem do frontend (PK...) ou gerar um interno
+    const publicOrderId = order.orderId || order.id || `ORD-${Date.now()}`
+    
     const newOrder: Order = {
-      id: `ORD-${Date.now()}`,
+      id: publicOrderId,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       items: order.items,
