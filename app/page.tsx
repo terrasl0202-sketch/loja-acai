@@ -1060,6 +1060,9 @@ ${deliveryInfo}
 Horario:
 ${paymentTime}
 
+Acompanhe seu pedido:
+https://www.pkgostosuras.shop/pedido/${orderId}
+
 ━━━━━━━━━━━━━━━━━━`
 
     // Registrar pedido
@@ -1098,7 +1101,10 @@ Valor: ${formatCurrency(getTotal())}
 ${deliveryType === "entrega" ? "Entrega:" : "Retirada:"}
 ${deliveryInfo}
 
-Observacao: ${formData.observacao || "Nenhuma"}`
+Observacao: ${formData.observacao || "Nenhuma"}
+
+Acompanhe seu pedido:
+https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
     // Registrar pedido
     await registerOrder("PIX Manual")
@@ -1158,7 +1164,10 @@ Pagamento:
 ${pagamentoTexto}
 
 Observacao:
-${formData.observacao || "Nenhuma"}`
+${formData.observacao || "Nenhuma"}
+
+Acompanhe seu pedido:
+https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
     // Registrar pedido
     await registerOrder(pagamentoTexto)

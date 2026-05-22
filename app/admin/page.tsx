@@ -1059,10 +1059,9 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
     window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, "_blank")
   }
 
-  // Gerar link de acompanhamento do pedido
+  // Gerar link de acompanhamento do pedido (usando dominio publico oficial)
   const getOrderTrackingLink = (orderId: string) => {
-    const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://pkgostosuras.shop"
-    return `${baseUrl}/pedido/${orderId}`
+    return `https://www.pkgostosuras.shop/pedido/${orderId}`
   }
 
   // Copiar link de acompanhamento
