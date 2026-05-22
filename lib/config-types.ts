@@ -81,6 +81,8 @@ export interface Entregador {
   horarioInicio: string
   horarioFim: string
   observacao: string
+  pin?: string
+  token?: string
 }
 
 export interface OrderItem {

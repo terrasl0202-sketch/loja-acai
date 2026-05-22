@@ -2257,6 +2257,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                     <h2 className="text-xl font-bold text-foreground">Entregadores ({(config.entregadores || []).length})</h2>
                     <button
                       onClick={() => {
+                        const newToken = Math.random().toString(36).substring(2, 10) + Date.now().toString(36)
                         const newEntregador: Entregador = {
                           id: `entregador-${Date.now()}`,
                           nome: "",
@@ -2266,6 +2267,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           horarioInicio: "08:00",
                           horarioFim: "22:00",
                           observacao: "",
+                          pin: "",
+                          token: newToken,
                         }
                         setConfig(prev => ({
                           ...prev,
@@ -2384,6 +2387,94 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                               className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                             />
                           </div>
+
+                          {/* Linha 4: PIN de Acesso */}
+                          <div className="grid sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-xs text-muted-foreground">PIN de Acesso (4 digitos)</label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={4}
+                                value={entregador.pin || ""}
+                                onChange={(e) => {
+                                  const pin = e.target.value.replace(/\D/g, "").slice(0, 4)
+                                  setConfig(prev => ({
+                                    ...prev,
+                                    entregadores: (prev.entregadores || []).map(ent =>
+                                      ent.id === entregador.id ? { ...ent, pin } : ent
+                                    ),
+                                  }))
+                                }}
+                                placeholder="Ex: 1234"
+                                className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground">Token (automatico)</label>
+                              <div className="flex gap-2 mt-1">
+                                <input
+                                  type="text"
+                                  value={entregador.token || ""}
+                                  readOnly
+                                  className="flex-1 px-3 py-2 bg-secondary border border-border rounded-lg text-muted-foreground text-sm"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const newToken = Math.random().toString(36).substring(2, 10) + Date.now().toString(36)
+                                    setConfig(prev => ({
+                                      ...prev,
+                                      entregadores: (prev.entregadores || []).map(ent =>
+                                        ent.id === entregador.id ? { ...ent, token: newToken } : ent
+                                      ),
+                                    }))
+                                  }}
+                                  className="px-3 py-2 bg-secondary text-muted-foreground rounded-lg hover:bg-secondary/80 text-xs"
+                                >
+                                  Gerar
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Linha 5: Link do Painel */}
+                          {entregador.token && entregador.pin && (
+                            <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                              <label className="text-xs text-blue-400 font-medium">Link do Painel do Entregador</label>
+                              <div className="flex gap-2 mt-2">
+                                <button
+                                  onClick={() => {
+                                    const link = `https://www.pkgostosuras.shop/entregador/${entregador.token}`
+                                    navigator.clipboard.writeText(link)
+                                    showToast("Link copiado!")
+                                  }}
+                                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 text-sm font-medium"
+                                >
+                                  <Link2 className="w-4 h-4" />
+                                  Copiar Link
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const link = `https://www.pkgostosuras.shop/entregador/${entregador.token}`
+                                    const phone = normalizePhoneForWhatsApp(entregador.whatsapp)
+                                    const message = `Ola ${entregador.nome}!\n\nAcesse seu painel de entregas:\n${link}\n\nSeu PIN: ${entregador.pin}`
+                                    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank")
+                                  }}
+                                  className="flex items-center justify-center gap-2 px-3 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 text-sm font-medium"
+                                >
+                                  <MessageCircle className="w-4 h-4" />
+                                  Enviar
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Aviso se falta PIN ou Token */}
+                          {entregador.token && !entregador.pin && (
+                            <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                              <p className="text-xs text-yellow-400">Defina um PIN de 4 digitos para habilitar o painel do entregador</p>
+                            </div>
+                          )}
 
                           {/* Linha 4: Status, Disponibilidade e Acoes */}
                           <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-border">
