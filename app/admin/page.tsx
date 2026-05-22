@@ -408,17 +408,36 @@ export default function AdminPage() {
     }
   }
 
+  // Funcao para normalizar texto (remover acentos e converter para minusculas)
+  const normalizeText = (text: string): string => {
+    return text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+  }
+
   // Calcular estatisticas de relatorios
   const activeOrders = orders.filter(o => {
     if (o.archived) return false
     // Aplicar filtro de busca (so quando searchQuery tem valor - apos clicar em Buscar)
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      const matchId = o.id.toLowerCase().includes(query)
-      const matchName = o.customerName.toLowerCase().includes(query)
-      const matchPhone = o.customerPhone.replace(/\D/g, "").includes(query.replace(/\D/g, ""))
-      const matchAddress = o.address ? o.address.toLowerCase().includes(query) : false
-      const matchPayment = o.paymentMethod ? o.paymentMethod.toLowerCase().includes(query) : false
+      const query = normalizeText(searchQuery)
+      
+      // Buscar apenas nos campos especificos
+      const normalizedId = normalizeText(o.id)
+      const normalizedName = normalizeText(o.customerName)
+      const normalizedPhone = o.customerPhone.replace(/\D/g, "")
+      const normalizedAddress = o.address ? normalizeText(o.address) : ""
+      const normalizedPayment = o.paymentMethod ? normalizeText(o.paymentMethod) : ""
+      
+      // Verificar correspondencia em cada campo
+      const matchId = normalizedId.includes(query)
+      const matchName = normalizedName.includes(query)
+      const matchPhone = normalizedPhone.includes(query.replace(/\D/g, ""))
+      const matchAddress = normalizedAddress.includes(query)
+      const matchPayment = normalizedPayment.includes(query)
+      
       return matchId || matchName || matchPhone || matchAddress || matchPayment
     }
     return true
@@ -533,16 +552,24 @@ export default function AdminPage() {
     
     // Se houver busca, encontrar em qual aba o primeiro resultado esta
     if (searchInput.trim()) {
-      const query = searchInput.toLowerCase().trim()
+      const query = normalizeText(searchInput)
       
       // Buscar em todas as ordens (sem filtro de busca anterior)
       const matchingOrder = orders.find(o => {
         if (o.archived) return false
-        const matchId = o.id.toLowerCase().includes(query)
-        const matchName = o.customerName.toLowerCase().includes(query)
-        const matchPhone = o.customerPhone.replace(/\D/g, "").includes(query.replace(/\D/g, ""))
-        const matchAddress = o.address ? o.address.toLowerCase().includes(query) : false
-        const matchPayment = o.paymentMethod ? o.paymentMethod.toLowerCase().includes(query) : false
+        
+        const normalizedId = normalizeText(o.id)
+        const normalizedName = normalizeText(o.customerName)
+        const normalizedPhone = o.customerPhone.replace(/\D/g, "")
+        const normalizedAddress = o.address ? normalizeText(o.address) : ""
+        const normalizedPayment = o.paymentMethod ? normalizeText(o.paymentMethod) : ""
+        
+        const matchId = normalizedId.includes(query)
+        const matchName = normalizedName.includes(query)
+        const matchPhone = normalizedPhone.includes(query.replace(/\D/g, ""))
+        const matchAddress = normalizedAddress.includes(query)
+        const matchPayment = normalizedPayment.includes(query)
+        
         return matchId || matchName || matchPhone || matchAddress || matchPayment
       })
       
