@@ -66,6 +66,7 @@ export default function AdminPage() {
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
+  const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null)
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
   useEffect(() => {
@@ -670,7 +671,8 @@ Pagamento: ${order.paymentMethod}
 Status: ${getPaymentStatusLabel(order.paymentStatus)}`
     
     navigator.clipboard.writeText(text)
-    alert("Pedido copiado!")
+    setCopiedOrderId(order.id)
+    setTimeout(() => setCopiedOrderId(null), 2000)
   }
 
   // Abrir WhatsApp do cliente
@@ -2084,8 +2086,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <button onClick={() => updateOrderStatus(order.id, "preparing")} className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-2">
                             <ChefHat className="w-4 h-4" /> Iniciar Preparo
                           </button>
-                          <button onClick={() => copyOrderData(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-all flex items-center gap-2">
-                            <Copy className="w-4 h-4" /> Copiar
+                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
+                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
                           </button>
                           <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
                             <Phone className="w-4 h-4" /> WhatsApp
@@ -2162,8 +2164,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                               <PackageCheck className="w-4 h-4" /> Finalizar (Retirada)
                             </button>
                           )}
-                          <button onClick={() => copyOrderData(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-all flex items-center gap-2">
-                            <Copy className="w-4 h-4" /> Copiar
+                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
+                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
                           </button>
                           <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
                             <Phone className="w-4 h-4" /> WhatsApp
@@ -2229,8 +2231,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2">
                             <PackageCheck className="w-4 h-4" /> Finalizar Entrega
                           </button>
-                          <button onClick={() => copyOrderData(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-all flex items-center gap-2">
-                            <Copy className="w-4 h-4" /> Copiar
+                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
+                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
                           </button>
                           <button onClick={() => openCustomerWhatsApp(order.customerPhone, "Ola, sua entrega esta a caminho!")} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
                             <Phone className="w-4 h-4" /> WhatsApp
@@ -2290,8 +2292,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         </div>
 
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                          <button onClick={() => copyOrderData(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-all flex items-center gap-2">
-                            <Copy className="w-4 h-4" /> Copiar Dados
+                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
+                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar Dados"}
                           </button>
                         </div>
                       </div>
