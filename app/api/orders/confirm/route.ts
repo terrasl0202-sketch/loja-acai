@@ -28,9 +28,12 @@ async function cleanupOldBlobs() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { paymentId, orderId } = body
+    const { paymentId, orderId, asaasPaymentId } = body
+    
+    // Aceita tanto paymentId quanto asaasPaymentId
+    const effectivePaymentId = paymentId || asaasPaymentId
 
-    if (!paymentId && !orderId) {
+    if (!effectivePaymentId && !orderId) {
       return NextResponse.json({ error: "paymentId or orderId required" }, { status: 400 })
     }
 
@@ -51,14 +54,15 @@ export async function POST(request: NextRequest) {
 
     // Encontrar pedido por paymentId ou orderId
     let orderIndex = -1
-    if (paymentId) {
-      orderIndex = orders.findIndex((o) => o.asaasPaymentId === paymentId)
+    if (effectivePaymentId) {
+      orderIndex = orders.findIndex((o) => o.asaasPaymentId === effectivePaymentId)
     }
     if (orderIndex === -1 && orderId) {
       orderIndex = orders.findIndex((o) => o.id === orderId)
     }
 
     if (orderIndex === -1) {
+      console.log("[Confirm Payment] Pedido nao encontrado. paymentId:", effectivePaymentId, "orderId:", orderId, "Total pedidos:", orders.length)
       return NextResponse.json({ error: "Order not found" }, { status: 404 })
     }
 
