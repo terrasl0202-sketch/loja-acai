@@ -1,13 +1,24 @@
-import { put, list } from "@vercel/blob"
+import { put, list, del, get } from "@vercel/blob"
 import { NextResponse } from "next/server"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
-const CONFIG_FILENAME = "site-config.json"
+const CONFIG_PREFIX = "pk-config-"
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
+
+// Evitar cache
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
+// Headers para evitar cache
+const noCacheHeaders = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  "Pragma": "no-cache",
+  "Expires": "0",
+}
 
 export async function GET(request: Request) {
   try {
-    // Verificar senha para acesso admin
+    // Verificar senha para acesso admin (opcional)
     const url = new URL(request.url)
     const isAdmin = url.searchParams.get("admin") === "true"
     const password = url.searchParams.get("password")
@@ -16,9 +27,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Tentar carregar config do Blob usando list para encontrar o arquivo
+    // Tentar carregar config do Blob
     try {
-      const { blobs } = await list({ prefix: CONFIG_FILENAME })
+      const { blobs } = await list({ prefix: CONFIG_PREFIX })
       
       if (blobs.length > 0) {
         // Pegar o blob mais recente
@@ -26,21 +37,23 @@ export async function GET(request: Request) {
           new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
         )[0]
         
-        // Fazer fetch do conteudo usando a URL do blob
-        const response = await fetch(latestBlob.url)
-        if (response.ok) {
-          const config = await response.json() as SiteConfig
-          return NextResponse.json({ success: true, config })
+        // Usar get() para blobs privados
+        const result = await get(latestBlob.pathname, { access: "private" })
+        
+        if (result && result.stream) {
+          const text = await new Response(result.stream).text()
+          const config = JSON.parse(text) as SiteConfig
+          return NextResponse.json({ success: true, config }, { headers: noCacheHeaders })
         }
       }
     } catch (e) {
-      console.error("[Config] Erro ao buscar do Blob:", e)
+      console.error("[Config GET] Erro ao buscar do Blob:", e)
     }
 
-    return NextResponse.json({ success: true, config: defaultConfig })
+    return NextResponse.json({ success: true, config: defaultConfig }, { headers: noCacheHeaders })
   } catch (error) {
-    console.error("[Config] Erro ao carregar:", error)
-    return NextResponse.json({ success: true, config: defaultConfig })
+    console.error("[Config GET] Erro geral:", error)
+    return NextResponse.json({ success: true, config: defaultConfig }, { headers: noCacheHeaders })
   }
 }
 
@@ -51,28 +64,45 @@ export async function POST(request: Request) {
 
     // Verificar senha
     if (password !== ADMIN_PASSWORD) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Senha incorreta" }, { status: 401 })
     }
 
     // Validar config
     if (!config) {
-      return NextResponse.json({ error: "Config is required" }, { status: 400 })
+      return NextResponse.json({ error: "Config vazia" }, { status: 400 })
     }
 
-    // Salvar no Blob (public para poder fazer fetch da URL)
-    const blob = await put(CONFIG_FILENAME, JSON.stringify(config, null, 2), {
-      access: "public",
+    // Salvar nova config com timestamp (private access)
+    const timestamp = Date.now()
+    const filename = `${CONFIG_PREFIX}${timestamp}.json`
+    
+    const blob = await put(filename, JSON.stringify(config, null, 2), {
+      access: "private",
       contentType: "application/json",
-      addRandomSuffix: false,
     })
 
-    console.log("[Config] Salvo com sucesso:", blob.url)
+    // Limpar configs antigas (em background)
+    list({ prefix: CONFIG_PREFIX }).then(async ({ blobs }) => {
+      const oldBlobs = blobs
+        .filter(b => b.url !== blob.url)
+        .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+        .slice(1)
+      
+      for (const oldBlob of oldBlobs) {
+        try {
+          await del(oldBlob.url)
+        } catch {
+          // ignorar erro de delete
+        }
+      }
+    }).catch(() => {})
 
     return NextResponse.json({ success: true, config })
   } catch (error) {
-    console.error("[Config] Erro ao salvar:", error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error("[Config POST] ERRO:", errorMessage)
     return NextResponse.json(
-      { error: "Failed to save config" },
+      { error: errorMessage },
       { status: 500 }
     )
   }
