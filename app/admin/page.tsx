@@ -67,6 +67,7 @@ export default function AdminPage() {
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null)
+  const [manualCopyText, setManualCopyText] = useState<string | null>(null)
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
   useEffect(() => {
@@ -657,8 +658,8 @@ export default function AdminPage() {
     }
   }
 
-  // Copiar dados do pedido
-  const copyOrderData = (order: Order) => {
+  // Copiar dados do pedido com fallback robusto
+  const copyOrderData = async (order: Order) => {
     const text = `Pedido: ${order.id}
 Cliente: ${order.customerName}
 Telefone: ${order.customerPhone}
@@ -670,9 +671,45 @@ Total: R$ ${order.total.toFixed(2)}
 Pagamento: ${order.paymentMethod}
 Status: ${getPaymentStatusLabel(order.paymentStatus)}`
     
-    navigator.clipboard.writeText(text)
-    setCopiedOrderId(order.id)
-    setTimeout(() => setCopiedOrderId(null), 2000)
+    let copied = false
+    
+    // Tentar navigator.clipboard primeiro
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text)
+        copied = true
+      } catch {
+        copied = false
+      }
+    }
+    
+    // Fallback com textarea
+    if (!copied) {
+      try {
+        const textarea = document.createElement("textarea")
+        textarea.value = text
+        textarea.style.position = "fixed"
+        textarea.style.left = "-9999px"
+        textarea.style.top = "-9999px"
+        textarea.style.opacity = "0"
+        document.body.appendChild(textarea)
+        textarea.focus()
+        textarea.select()
+        const result = document.execCommand("copy")
+        document.body.removeChild(textarea)
+        copied = result
+      } catch {
+        copied = false
+      }
+    }
+    
+    if (copied) {
+      setCopiedOrderId(order.id)
+      setTimeout(() => setCopiedOrderId(null), 2000)
+    } else {
+      // Mostrar modal para copia manual
+      setManualCopyText(text)
+    }
   }
 
   // Abrir WhatsApp do cliente
@@ -2391,6 +2428,30 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                   Limpar
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Copia Manual */}
+        {manualCopyText && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-bold text-foreground">Copiar Pedido</h3>
+                <p className="text-sm text-muted-foreground mt-1">Selecione e copie manualmente</p>
+              </div>
+              <textarea
+                readOnly
+                value={manualCopyText}
+                className="w-full h-48 p-3 text-sm bg-secondary border border-border rounded-xl text-foreground resize-none focus:outline-none"
+                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+              />
+              <button
+                onClick={() => setManualCopyText(null)}
+                className="w-full mt-4 py-3 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-colors"
+              >
+                Fechar
+              </button>
             </div>
           </div>
         )}
