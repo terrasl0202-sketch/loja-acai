@@ -72,6 +72,17 @@ export interface Coupon {
   minimumOrder: number
 }
 
+export interface Entregador {
+  id: string
+  nome: string
+  whatsapp: string
+  status: "ativo" | "inativo"
+  disponibilidade: "disponivel" | "indisponivel"
+  horarioInicio: string
+  horarioFim: string
+  observacao: string
+}
+
 export interface OrderItem {
   productId: number
   productName: string
@@ -119,6 +130,7 @@ export interface SiteConfig {
   pixManual: PixManualConfig
   delivery: DeliveryConfig
   coupons: Coupon[]
+  entregadores: Entregador[]
 }
 
 export const defaultConfig: SiteConfig = {
@@ -167,4 +179,5 @@ export const defaultConfig: SiteConfig = {
     neighborhoodFees: [],
   },
   coupons: [],
+  entregadores: [],
 }

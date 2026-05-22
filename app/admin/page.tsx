@@ -28,6 +28,7 @@ import {
   BarChart3,
   DollarSign,
   Users,
+  Users2,
   TrendingUp,
   Bell,
   BellOff,
@@ -45,9 +46,9 @@ import {
   X
 } from "lucide-react"
 import Link from "next/link"
-import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, defaultConfig } from "@/lib/config-types"
+import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, type Entregador, defaultConfig } from "@/lib/config-types"
 
-type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "reports"
+type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "reports"
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -1039,6 +1040,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 { id: "payment" as TabType, icon: CreditCard, label: "Pagamento" },
                 { id: "whatsapp" as TabType, icon: MessageCircle, label: "WhatsApp" },
                 { id: "coupons" as TabType, icon: Tag, label: "Cupons" },
+                { id: "entregadores" as TabType, icon: Users2, label: "Entregadores" },
                 { id: "reports" as TabType, icon: BarChart3, label: "Relatorios" },
               ].map((tab) => (
                 <button
@@ -1998,6 +2000,254 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* Entregadores */}
+              {activeTab === "entregadores" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground">Entregadores ({(config.entregadores || []).length})</h2>
+                    <button
+                      onClick={() => {
+                        const newEntregador: Entregador = {
+                          id: `entregador-${Date.now()}`,
+                          nome: "",
+                          whatsapp: "",
+                          status: "ativo",
+                          disponibilidade: "disponivel",
+                          horarioInicio: "08:00",
+                          horarioFim: "22:00",
+                          observacao: "",
+                        }
+                        setConfig(prev => ({
+                          ...prev,
+                          entregadores: [...(prev.entregadores || []), newEntregador],
+                        }))
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-xl transition-all hover:brightness-110"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Adicionar
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {(config.entregadores || []).map((entregador) => (
+                      <div
+                        key={entregador.id}
+                        className={`p-4 rounded-xl border ${
+                          entregador.status === "ativo" 
+                            ? entregador.disponibilidade === "disponivel"
+                              ? "border-green-500/30 bg-green-500/5"
+                              : "border-yellow-500/30 bg-yellow-500/5"
+                            : "border-border/50 bg-secondary/10 opacity-60"
+                        }`}
+                      >
+                        <div className="grid gap-4">
+                          {/* Linha 1: Nome e WhatsApp */}
+                          <div className="grid sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-xs text-muted-foreground">Nome do Entregador *</label>
+                              <input
+                                type="text"
+                                value={entregador.nome}
+                                onChange={(e) => {
+                                  setConfig(prev => ({
+                                    ...prev,
+                                    entregadores: (prev.entregadores || []).map(ent =>
+                                      ent.id === entregador.id ? { ...ent, nome: e.target.value } : ent
+                                    ),
+                                  }))
+                                }}
+                                placeholder="Ex: Joao Silva"
+                                className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground">WhatsApp/Telefone *</label>
+                              <input
+                                type="text"
+                                value={entregador.whatsapp}
+                                onChange={(e) => {
+                                  setConfig(prev => ({
+                                    ...prev,
+                                    entregadores: (prev.entregadores || []).map(ent =>
+                                      ent.id === entregador.id ? { ...ent, whatsapp: e.target.value } : ent
+                                    ),
+                                  }))
+                                }}
+                                placeholder="Ex: 11999999999"
+                                className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Linha 2: Horarios */}
+                          <div className="grid sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-xs text-muted-foreground">Horario Inicial</label>
+                              <input
+                                type="time"
+                                value={entregador.horarioInicio}
+                                onChange={(e) => {
+                                  setConfig(prev => ({
+                                    ...prev,
+                                    entregadores: (prev.entregadores || []).map(ent =>
+                                      ent.id === entregador.id ? { ...ent, horarioInicio: e.target.value } : ent
+                                    ),
+                                  }))
+                                }}
+                                className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground">Horario Final</label>
+                              <input
+                                type="time"
+                                value={entregador.horarioFim}
+                                onChange={(e) => {
+                                  setConfig(prev => ({
+                                    ...prev,
+                                    entregadores: (prev.entregadores || []).map(ent =>
+                                      ent.id === entregador.id ? { ...ent, horarioFim: e.target.value } : ent
+                                    ),
+                                  }))
+                                }}
+                                className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Linha 3: Observacao */}
+                          <div>
+                            <label className="text-xs text-muted-foreground">Observacao Interna</label>
+                            <input
+                              type="text"
+                              value={entregador.observacao}
+                              onChange={(e) => {
+                                setConfig(prev => ({
+                                  ...prev,
+                                  entregadores: (prev.entregadores || []).map(ent =>
+                                    ent.id === entregador.id ? { ...ent, observacao: e.target.value } : ent
+                                  ),
+                                }))
+                              }}
+                              placeholder="Ex: Possui moto propria"
+                              className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+
+                          {/* Linha 4: Status, Disponibilidade e Acoes */}
+                          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-border">
+                            <button
+                              onClick={() => {
+                                setConfig(prev => ({
+                                  ...prev,
+                                  entregadores: (prev.entregadores || []).map(ent =>
+                                    ent.id === entregador.id 
+                                      ? { ...ent, status: ent.status === "ativo" ? "inativo" : "ativo" } 
+                                      : ent
+                                  ),
+                                }))
+                              }}
+                              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                entregador.status === "ativo"
+                                  ? "bg-green-600/20 text-green-500"
+                                  : "bg-secondary text-muted-foreground"
+                              }`}
+                            >
+                              {entregador.status === "ativo" ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                              {entregador.status === "ativo" ? "Ativo" : "Inativo"}
+                            </button>
+                            
+                            <button
+                              onClick={() => {
+                                setConfig(prev => ({
+                                  ...prev,
+                                  entregadores: (prev.entregadores || []).map(ent =>
+                                    ent.id === entregador.id 
+                                      ? { ...ent, disponibilidade: ent.disponibilidade === "disponivel" ? "indisponivel" : "disponivel" } 
+                                      : ent
+                                  ),
+                                }))
+                              }}
+                              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                entregador.disponibilidade === "disponivel"
+                                  ? "bg-blue-600/20 text-blue-400"
+                                  : "bg-orange-500/20 text-orange-400"
+                              }`}
+                            >
+                              {entregador.disponibilidade === "disponivel" ? <CheckCircle2 className="w-4 h-4" /> : <ClockIcon className="w-4 h-4" />}
+                              {entregador.disponibilidade === "disponivel" ? "Disponivel" : "Indisponivel"}
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                const phone = entregador.whatsapp.replace(/\D/g, "")
+                                if (phone) {
+                                  window.open(`https://api.whatsapp.com/send?phone=${phone}`, "_blank")
+                                }
+                              }}
+                              disabled={!entregador.whatsapp}
+                              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Phone className="w-4 h-4" />
+                              WhatsApp
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setConfig(prev => ({
+                                  ...prev,
+                                  entregadores: (prev.entregadores || []).filter(ent => ent.id !== entregador.id),
+                                }))
+                              }}
+                              className="flex items-center gap-2 px-4 py-2 bg-destructive/20 text-destructive rounded-lg hover:bg-destructive/30 transition-colors text-sm font-medium ml-auto"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Excluir
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {(config.entregadores || []).length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Users2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Nenhum entregador cadastrado</p>
+                        <p className="text-sm">Clique em Adicionar para cadastrar um entregador</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Resumo */}
+                  {(config.entregadores || []).length > 0 && (
+                    <div className="mt-6 p-4 bg-secondary/30 rounded-xl">
+                      <h3 className="text-sm font-medium text-foreground mb-2">Resumo</h3>
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <p className="text-2xl font-bold text-foreground">
+                            {(config.entregadores || []).filter(e => e.status === "ativo").length}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Ativos</p>
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-green-400">
+                            {(config.entregadores || []).filter(e => e.status === "ativo" && e.disponibilidade === "disponivel").length}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Disponiveis</p>
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-orange-400">
+                            {(config.entregadores || []).filter(e => e.status === "ativo" && e.disponibilidade === "indisponivel").length}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Indisponiveis</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
