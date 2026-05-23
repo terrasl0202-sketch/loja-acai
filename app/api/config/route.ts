@@ -17,6 +17,8 @@ const noCacheHeaders = {
 }
 
 export async function GET(request: Request) {
+  const startTime = Date.now()
+  
   try {
     // Verificar senha para acesso admin (opcional)
     const url = new URL(request.url)
@@ -28,51 +30,90 @@ export async function GET(request: Request) {
     }
 
     // Tentar carregar config do Blob
-    try {
-      const { blobs } = await list({ prefix: CONFIG_PREFIX })
-      console.log("[Config GET] Blobs encontrados:", blobs.length)
-      
-      if (blobs.length > 0) {
-        // Pegar o blob mais recente
-        const latestBlob = blobs.sort((a, b) => 
-          new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-        )[0]
-        
-        console.log("[Config GET] Blob mais recente:", latestBlob.pathname, "uploadedAt:", latestBlob.uploadedAt)
-        
-        // Usar head() para pegar downloadUrl (funciona com blobs privados)
-        const blobInfo = await head(latestBlob.url)
-        const downloadUrl = blobInfo.downloadUrl
-        
-        // Fazer fetch na downloadUrl
-        const response = await fetch(downloadUrl)
-        console.log("[Config GET] Fetch status:", response.status)
-        
-        if (response.ok) {
-          const text = await response.text()
-          const config = JSON.parse(text) as SiteConfig
-          
-          console.log("[Config GET] Config carregada - produtos:", config.products?.length, "bairros:", config.delivery?.neighborhoodFees?.length)
-          
-          // REMOVIDO: Nao sobrescrever produtos reais com defaults
-          // Retornar config real diretamente
-          return NextResponse.json({ success: true, config }, { headers: noCacheHeaders })
-        } else {
-          console.log("[Config GET] Fetch falhou:", response.status, response.statusText)
-        }
-      } else {
-        console.log("[Config GET] Nenhum blob encontrado, usando defaultConfig")
-      }
-    } catch (e) {
-      console.error("[Config GET] Erro ao buscar do Blob:", e)
+    console.log("[Config GET] Iniciando busca no Blob...")
+    
+    const { blobs } = await list({ prefix: CONFIG_PREFIX })
+    console.log("[Config GET] list() retornou", blobs.length, "blobs")
+    
+    if (blobs.length === 0) {
+      console.log("[Config GET] Nenhum blob encontrado - retornando defaultConfig")
+      return NextResponse.json({ 
+        success: true, 
+        config: defaultConfig,
+        source: "default-no-blobs"
+      }, { headers: noCacheHeaders })
     }
-
-    // Apenas usar defaultConfig se realmente nao houver dados
-    console.log("[Config GET] Retornando defaultConfig (fallback)")
-    return NextResponse.json({ success: true, config: defaultConfig }, { headers: noCacheHeaders })
+    
+    // Pegar o blob mais recente
+    const sortedBlobs = blobs.sort((a, b) => 
+      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+    )
+    const latestBlob = sortedBlobs[0]
+    
+    console.log("[Config GET] Blob mais recente:", latestBlob.pathname)
+    console.log("[Config GET] uploadedAt:", latestBlob.uploadedAt)
+    console.log("[Config GET] URL:", latestBlob.url)
+    
+    // Usar head() para pegar downloadUrl
+    const blobInfo = await head(latestBlob.url)
+    console.log("[Config GET] head() retornou downloadUrl:", blobInfo.downloadUrl ? "SIM" : "NAO")
+    
+    if (!blobInfo.downloadUrl) {
+      console.error("[Config GET] ERRO: downloadUrl nao disponivel")
+      return NextResponse.json({ 
+        success: true, 
+        config: defaultConfig,
+        source: "default-no-downloadUrl"
+      }, { headers: noCacheHeaders })
+    }
+    
+    // Fazer fetch na downloadUrl
+    const response = await fetch(blobInfo.downloadUrl)
+    console.log("[Config GET] fetch() status:", response.status)
+    
+    if (!response.ok) {
+      console.error("[Config GET] ERRO: fetch falhou com status", response.status)
+      return NextResponse.json({ 
+        success: true, 
+        config: defaultConfig,
+        source: "default-fetch-failed"
+      }, { headers: noCacheHeaders })
+    }
+    
+    const text = await response.text()
+    console.log("[Config GET] Conteudo recebido, tamanho:", text.length, "bytes")
+    
+    if (!text || text.trim() === "") {
+      console.error("[Config GET] ERRO: conteudo vazio")
+      return NextResponse.json({ 
+        success: true, 
+        config: defaultConfig,
+        source: "default-empty-content"
+      }, { headers: noCacheHeaders })
+    }
+    
+    const config = JSON.parse(text) as SiteConfig
+    
+    const elapsed = Date.now() - startTime
+    console.log("[Config GET] SUCESSO em", elapsed, "ms")
+    console.log("[Config GET] produtos:", config.products?.length || 0)
+    console.log("[Config GET] bairros:", config.delivery?.neighborhoodFees?.length || 0)
+    
+    return NextResponse.json({ 
+      success: true, 
+      config,
+      source: "blob"
+    }, { headers: noCacheHeaders })
+    
   } catch (error) {
-    console.error("[Config GET] Erro geral:", error)
-    return NextResponse.json({ success: true, config: defaultConfig }, { headers: noCacheHeaders })
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error("[Config GET] ERRO GERAL:", errorMessage)
+    return NextResponse.json({ 
+      success: true, 
+      config: defaultConfig,
+      source: "default-error",
+      error: errorMessage
+    }, { headers: noCacheHeaders })
   }
 }
 
