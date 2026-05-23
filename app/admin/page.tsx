@@ -85,6 +85,11 @@ export default function AdminPage() {
   const [manualEntregadorLink, setManualEntregadorLink] = useState<string | null>(null)
   const [archivedSearchInput, setArchivedSearchInput] = useState("")
   const [archivedSearchQuery, setArchivedSearchQuery] = useState("")
+  const [confirmEntregador, setConfirmEntregador] = useState<{orderId: string, entregador: Entregador} | null>(null)
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+  const [showDeleteMultiple, setShowDeleteMultiple] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
 
   useEffect(() => {
@@ -491,6 +496,78 @@ export default function AdminPage() {
   } catch (error) {
   console.error("Erro ao remover entregador:", error)
   }
+  }
+  
+  // Excluir pedido individual
+  const deleteSingleOrder = async (orderId: string) => {
+    setDeleteLoading(true)
+    try {
+      const res = await fetch("/api/orders", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sessionPassword, orderIds: [orderId] }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.filter(o => o.id !== orderId))
+        showToast("Pedido excluido")
+        setShowDeleteConfirm(null)
+      } else {
+        showToast(data.error || "Erro ao excluir")
+      }
+    } catch (error) {
+      console.error("Erro ao excluir pedido:", error)
+      showToast("Erro ao excluir pedido")
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+  
+  // Excluir multiplos pedidos
+  const deleteMultipleOrders = async () => {
+    if (selectedOrders.size === 0) return
+    setDeleteLoading(true)
+    try {
+      const res = await fetch("/api/orders", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sessionPassword, orderIds: Array.from(selectedOrders) }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.filter(o => !selectedOrders.has(o.id)))
+        showToast(`${selectedOrders.size} pedido(s) excluido(s)`)
+        setSelectedOrders(new Set())
+        setShowDeleteMultiple(false)
+      } else {
+        showToast(data.error || "Erro ao excluir")
+      }
+    } catch (error) {
+      console.error("Erro ao excluir pedidos:", error)
+      showToast("Erro ao excluir pedidos")
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+  
+  // Toggle selecao de pedido
+  const toggleOrderSelection = (orderId: string) => {
+    setSelectedOrders(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId)
+      } else {
+        newSet.add(orderId)
+      }
+      return newSet
+    })
+  }
+  
+  // Confirmar atribuicao de entregador
+  const confirmAssignEntregador = async () => {
+    if (!confirmEntregador) return
+    await assignEntregador(confirmEntregador.orderId, confirmEntregador.entregador)
+    setConfirmEntregador(null)
   }
 
   // Marcar pedido como saiu para entrega
@@ -3193,7 +3270,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                                       onChange={(e) => {
                                         const entregador = entregadoresDisponiveis.find(ent => ent.id === e.target.value)
                                         if (entregador) {
-                                          assignEntregador(order.id, entregador)
+                                          setConfirmEntregador({ orderId: order.id, entregador })
                                         }
                                       }}
                                       defaultValue=""
@@ -3487,43 +3564,108 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               {/* 5. Finalizados */}
               {activeTab === "orders-completed" && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <h2 className="text-xl font-bold text-foreground">Finalizados ({ordersCompleted.length})</h2>
-                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                      <Loader2 className="w-4 h-4" /> Atualizar
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {selectedOrders.size > 0 && (
+                        <button
+                          onClick={() => setShowDeleteMultiple(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
+                        >
+                          <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
+                        </button>
+                      )}
+                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                        <Loader2 className="w-4 h-4" /> Atualizar
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-3">
                     {ordersCompleted.map((order) => (
                       <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <p className="font-bold text-foreground">{order.id}</p>
-                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                        <div className="flex items-start gap-3 mb-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedOrders.has(order.id)}
+                            onChange={() => toggleOrderSelection(order.id)}
+                            className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="font-bold text-foreground">{order.id}</p>
+                                <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                              </div>
+                              <span className="px-3 py-1 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400">Finalizado</span>
+                            </div>
                           </div>
-                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400">Finalizado</span>
                         </div>
 
-                        <div className="grid sm:grid-cols-2 gap-4 mb-3">
+                        <div className="grid sm:grid-cols-2 gap-3 mb-3">
                           <div>
                             <p className="text-xs text-muted-foreground">Cliente</p>
-                            <p className="text-sm text-foreground">{order.customerName}</p>
+                            <p className="text-sm font-medium text-foreground">{order.customerName}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
+                            <p className="text-xs text-muted-foreground">Telefone</p>
+                            <p className="text-sm text-foreground flex items-center gap-1">
+                              <Phone className="w-3 h-3" /> {order.customerPhone}
+                            </p>
                           </div>
                         </div>
+
+                        {order.address && (
+                          <div className="mb-3">
+                            <p className="text-xs text-muted-foreground">Endereco</p>
+                            <p className="text-sm text-foreground flex items-center gap-1">
+                              <MapPin className="w-3 h-3" /> {order.address}
+                              {order.neighborhood && ` - ${order.neighborhood}`}
+                            </p>
+                            {order.reference && (
+                              <p className="text-xs text-yellow-400">Ref: {order.reference}</p>
+                            )}
+                          </div>
+                        )}
 
                         <div className="mb-3">
                           <p className="text-xs text-muted-foreground">Itens</p>
-                          <p className="text-sm text-foreground">{order.items}</p>
+                          <p className="text-sm text-foreground whitespace-pre-wrap">{order.items}</p>
+                        </div>
+
+                        {order.observation && (
+                          <div className="mb-3 p-2 bg-yellow-500/10 rounded-lg">
+                            <p className="text-xs text-yellow-400">Observacao</p>
+                            <p className="text-sm text-foreground">{order.observation}</p>
+                          </div>
+                        )}
+
+                        <div className="grid sm:grid-cols-3 gap-3 mb-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-lg font-bold text-primary">R$ {order.total.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Pagamento</p>
+                            <p className="text-sm text-foreground">{order.paymentMethod}</p>
+                          </div>
+                          {order.entregadorNome && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Entregador</p>
+                              <p className="text-sm text-foreground">{order.entregadorNome}</p>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
                           <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
-                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar Dados"}
+                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm(order.id)}
+                            className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" /> Excluir
                           </button>
                         </div>
                       </div>
@@ -3542,22 +3684,42 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               {/* 6. Cancelados */}
               {activeTab === "orders-cancelled" && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <h2 className="text-xl font-bold text-foreground">Cancelados ({ordersCancelled.length})</h2>
-                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                      <Loader2 className="w-4 h-4" /> Atualizar
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {selectedOrders.size > 0 && (
+                        <button
+                          onClick={() => setShowDeleteMultiple(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
+                        >
+                          <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
+                        </button>
+                      )}
+                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                        <Loader2 className="w-4 h-4" /> Atualizar
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-3">
                     {ordersCancelled.map((order) => (
                       <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30 opacity-70">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <p className="font-bold text-foreground">{order.id}</p>
-                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                        <div className="flex items-start gap-3 mb-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedOrders.has(order.id)}
+                            onChange={() => toggleOrderSelection(order.id)}
+                            className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="font-bold text-foreground">{order.id}</p>
+                                <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                              </div>
+                              <span className="px-3 py-1 text-xs font-medium rounded-full bg-red-500/20 text-red-400">Cancelado</span>
+                            </div>
                           </div>
-                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-red-500/20 text-red-400">Cancelado</span>
                         </div>
 
                         <div className="grid sm:grid-cols-2 gap-4 mb-3">
@@ -3575,6 +3737,15 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <p className="text-xs text-muted-foreground">Itens</p>
                           <p className="text-sm text-foreground">{order.items}</p>
                         </div>
+
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                          <button
+                            onClick={() => setShowDeleteConfirm(order.id)}
+                            className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" /> Excluir
+                          </button>
+                        </div>
                       </div>
                     ))}
 
@@ -3591,11 +3762,21 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               {/* Aba Pedidos Abandonados */}
               {activeTab === "orders-abandoned" && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <h2 className="text-xl font-bold text-foreground">Abandonados ({ordersAbandoned.length})</h2>
-                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                      <Loader2 className="w-4 h-4" /> Atualizar
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {selectedOrders.size > 0 && (
+                        <button
+                          onClick={() => setShowDeleteMultiple(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
+                        >
+                          <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
+                        </button>
+                      )}
+                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                        <Loader2 className="w-4 h-4" /> Atualizar
+                      </button>
+                    </div>
                   </div>
 
                   <div className="bg-card/50 p-4 rounded-xl border border-orange-500/30">
@@ -3607,15 +3788,25 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                   <div className="space-y-4">
                     {ordersAbandoned.map(order => (
                       <div key={order.id} className="bg-card p-4 rounded-xl border border-orange-500/30">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <p className="text-lg font-bold text-foreground">{order.id}</p>
-                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
-                          </div>
-                          <div className="text-right">
-                            <span className="px-2 py-1 text-xs rounded-full bg-orange-500/20 text-orange-400">
-                              Parado ha {getTimeSinceCreation(order.createdAt)}
-                            </span>
+                        <div className="flex items-start gap-3 mb-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedOrders.has(order.id)}
+                            onChange={() => toggleOrderSelection(order.id)}
+                            className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
+                          />
+                          <div className="flex-1">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-lg font-bold text-foreground">{order.id}</p>
+                                <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="px-2 py-1 text-xs rounded-full bg-orange-500/20 text-orange-400">
+                                  Parado ha {getTimeSinceCreation(order.createdAt)}
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                         
@@ -3655,6 +3846,12 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           </button>
                           <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
                             <Ban className="w-4 h-4" /> Cancelar
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm(order.id)}
+                            className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" /> Excluir
                           </button>
                         </div>
                       </div>
@@ -3721,19 +3918,29 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                   <div className="space-y-4">
                     {ordersArchived.map((order) => (
                       <div key={order.id} className="bg-card rounded-xl p-4 border border-border">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <span className="font-bold text-foreground">{order.id}</span>
-                            <p className="text-sm text-muted-foreground">{order.customerName}</p>
-                            <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
+                        <div className="flex items-start gap-3 mb-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedOrders.has(order.id)}
+                            onChange={() => toggleOrderSelection(order.id)}
+                            className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <span className="font-bold text-foreground">{order.id}</span>
+                                <p className="text-sm text-muted-foreground">{order.customerName}</p>
+                                <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
+                              </div>
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                order.status === "completed" ? "bg-emerald-500/20 text-emerald-400" :
+                                order.status === "cancelled" ? "bg-red-500/20 text-red-400" :
+                                "bg-slate-500/20 text-slate-400"
+                              }`}>
+                                {order.status === "completed" ? "Finalizado" : order.status === "cancelled" ? "Cancelado" : order.status}
+                              </span>
+                            </div>
                           </div>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            order.status === "completed" ? "bg-emerald-500/20 text-emerald-400" :
-                            order.status === "cancelled" ? "bg-red-500/20 text-red-400" :
-                            "bg-slate-500/20 text-slate-400"
-                          }`}>
-                            {order.status === "completed" ? "Finalizado" : order.status === "cancelled" ? "Cancelado" : order.status}
-                          </span>
                         </div>
                         
                         <div className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap">{order.items}</div>
@@ -3762,6 +3969,12 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           >
                             {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
                           </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm(order.id)}
+                            className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" /> Excluir
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -3784,6 +3997,116 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
           <div className="fixed top-4 right-4 z-50 bg-primary text-primary-foreground px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-in slide-in-from-top-2 fade-in duration-300">
             <Bell className="w-4 h-4" />
             <span className="text-sm font-medium">{toastMessage}</span>
+          </div>
+        )}
+
+        {/* Modal de confirmacao de entregador */}
+        {confirmEntregador && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Truck className="w-8 h-8 text-purple-400" />
+                </div>
+                <h3 className="text-xl font-bold text-foreground">Confirmar Entregador</h3>
+              </div>
+              <div className="space-y-3 mb-6">
+                <div className="p-3 bg-secondary/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Entregador</p>
+                  <p className="text-foreground font-medium">{confirmEntregador.entregador.nome}</p>
+                </div>
+                <div className="p-3 bg-secondary/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Telefone</p>
+                  <p className="text-foreground">{confirmEntregador.entregador.whatsapp}</p>
+                </div>
+                <div className="p-3 bg-secondary/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Pedido</p>
+                  <p className="text-foreground font-medium">{confirmEntregador.orderId}</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmEntregador(null)}
+                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmAssignEntregador}
+                  className="flex-1 py-3 bg-purple-600 text-white font-medium rounded-xl hover:bg-purple-700 transition-all"
+                >
+                  Confirmar Entrega
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de confirmacao de exclusao individual */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 className="w-8 h-8 text-red-400" />
+                </div>
+                <h3 className="text-xl font-bold text-foreground">Excluir Pedido</h3>
+                <p className="text-muted-foreground mt-2">
+                  Tem certeza que deseja excluir o pedido <span className="font-bold text-foreground">{showDeleteConfirm}</span>?
+                </p>
+                <p className="text-sm text-red-400 mt-2">Esta acao nao pode ser desfeita.</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(null)}
+                  disabled={deleteLoading}
+                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-all disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => deleteSingleOrder(showDeleteConfirm)}
+                  disabled={deleteLoading}
+                  className="flex-1 py-3 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {deleteLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Excluir"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de confirmacao de exclusao multipla */}
+        {showDeleteMultiple && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 className="w-8 h-8 text-red-400" />
+                </div>
+                <h3 className="text-xl font-bold text-foreground">Excluir Pedidos</h3>
+                <p className="text-muted-foreground mt-2">
+                  Tem certeza que deseja excluir <span className="font-bold text-foreground">{selectedOrders.size}</span> pedido(s)?
+                </p>
+                <p className="text-sm text-red-400 mt-2">Esta acao nao pode ser desfeita.</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteMultiple(false)}
+                  disabled={deleteLoading}
+                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-all disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={deleteMultipleOrders}
+                  disabled={deleteLoading}
+                  className="flex-1 py-3 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {deleteLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : `Excluir ${selectedOrders.size}`}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

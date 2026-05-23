@@ -445,14 +445,14 @@ export default function PainelEntregador({ params }: { params: Promise<{ token: 
                   <button
                     onClick={() => finalizarEntrega(pedido.id)}
                     disabled={actionLoading === `${pedido.id}-finalizar`}
-                    className="w-full py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-lg uppercase tracking-wide"
                   >
                     {actionLoading === `${pedido.id}-finalizar` ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <Loader2 className="w-6 h-6 animate-spin" />
                     ) : (
                       <>
-                        <CheckCircle2 className="w-5 h-5" />
-                        Finalizar Entrega
+                        <CheckCircle2 className="w-6 h-6" />
+                        ENTREGUE
                       </>
                     )}
                   </button>

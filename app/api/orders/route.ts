@@ -320,14 +320,54 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// DELETE para arquivar/limpar relatorios
+// DELETE para arquivar/limpar relatorios ou excluir pedidos
 export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json()
-    const { password, action } = body
+    const { password, action, orderIds } = body
 
     if (password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Excluir pedidos especificos
+    if (orderIds && Array.isArray(orderIds) && orderIds.length > 0) {
+      let orders: Order[] = []
+      const { blobs } = await list({ prefix: ORDERS_PREFIX })
+      
+      if (blobs.length > 0) {
+        const latestBlob = blobs.sort(
+          (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+        )[0]
+        const result = await get(latestBlob.pathname, { access: "private" })
+        if (result && result.stream) {
+          const text = await new Response(result.stream).text()
+          orders = JSON.parse(text) as Order[]
+        }
+      }
+
+      const originalCount = orders.length
+      const idsToDelete = new Set(orderIds)
+      orders = orders.filter(o => !idsToDelete.has(o.id))
+      const deletedCount = originalCount - orders.length
+
+      // Salvar
+      const timestamp = Date.now()
+      const filename = `${ORDERS_PREFIX}${timestamp}.json`
+
+      await put(filename, JSON.stringify(orders, null, 2), {
+        access: "private",
+        contentType: "application/json",
+      })
+
+      // Limpar blobs antigos
+      await cleanupOldBlobs()
+
+      return NextResponse.json({ 
+        success: true, 
+        message: `${deletedCount} pedido(s) excluido(s)`,
+        deletedCount
+      })
     }
 
     if (action === "archive_all") {
