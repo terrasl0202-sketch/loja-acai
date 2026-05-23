@@ -149,6 +149,8 @@ export default function Home() {
     deliveryType: string
   }>>([])
   const [loadingOrders, setLoadingOrders] = useState(false)
+  const [showRepeatConfirm, setShowRepeatConfirm] = useState(false)
+  const [orderToRepeat, setOrderToRepeat] = useState<typeof customerOrders[0] | null>(null)
   const [pixTimeLeft, setPixTimeLeft] = useState<number>(0)
   const [pixExpired, setPixExpired] = useState(false)
   
@@ -178,14 +180,29 @@ export default function Home() {
   // Chave do localStorage para sessao do cliente
   const CUSTOMER_SESSION_KEY = "pk-customer-session"
   
+  // Funcao para preencher dados do cliente no formulario
+  const fillFormWithCustomerData = (customerData: Customer) => {
+    setFormData(prev => ({
+      ...prev,
+      nome: customerData.name || prev.nome,
+      telefone: customerData.phone || prev.telefone,
+      endereco: customerData.savedAddress?.endereco || prev.endereco,
+      numero: customerData.savedAddress?.numero || prev.numero,
+      bairro: customerData.savedAddress?.bairro || prev.bairro,
+      referencia: customerData.savedAddress?.referencia || prev.referencia,
+    }))
+  }
+  
   // Carregar sessao do cliente ao iniciar
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedSession = localStorage.getItem(CUSTOMER_SESSION_KEY)
       if (savedSession) {
         try {
-          const parsed = JSON.parse(savedSession)
+          const parsed = JSON.parse(savedSession) as Customer
           setCustomer(parsed)
+          // Preencher dados automaticamente
+          fillFormWithCustomerData(parsed)
         } catch {
           localStorage.removeItem(CUSTOMER_SESSION_KEY)
         }
@@ -238,28 +255,10 @@ export default function Home() {
       
       if (data.success) {
         saveCustomerSession(data.customer)
+        fillFormWithCustomerData(data.customer)
         setShowLoginModal(false)
         resetLoginForm()
         showToast(`Bem-vindo(a), ${data.customer.name}!`)
-        
-        // Preencher formulario com dados salvos
-        if (data.customer.savedAddress) {
-          setFormData(prev => ({
-            ...prev,
-            nome: data.customer.name,
-            telefone: data.customer.phone,
-            endereco: data.customer.savedAddress?.endereco || "",
-            numero: data.customer.savedAddress?.numero || "",
-            bairro: data.customer.savedAddress?.bairro || "",
-            referencia: data.customer.savedAddress?.referencia || "",
-          }))
-        } else {
-          setFormData(prev => ({
-            ...prev,
-            nome: data.customer.name,
-            telefone: data.customer.phone,
-          }))
-        }
       } else {
         setLoginError(data.error || "Erro ao fazer login")
       }
@@ -297,16 +296,10 @@ export default function Home() {
       
       if (data.success) {
         saveCustomerSession(data.customer)
+        fillFormWithCustomerData(data.customer)
         setShowLoginModal(false)
         resetLoginForm()
         showToast("Conta criada com sucesso!")
-        
-        // Preencher nome e telefone no formulario
-        setFormData(prev => ({
-          ...prev,
-          nome: data.customer.name,
-          telefone: data.customer.phone,
-        }))
       } else {
         setLoginError(data.error || "Erro ao criar conta")
       }
@@ -393,21 +386,40 @@ export default function Home() {
     }
   }
   
-  // Repetir pedido (adicionar itens ao carrinho)
-  const repeatOrder = (order: typeof customerOrders[0]) => {
-    if (!order.itemsDetailed) {
+  // Abrir confirmacao para repetir pedido
+  const openRepeatConfirm = (order: typeof customerOrders[0]) => {
+    if (!order.itemsDetailed || order.itemsDetailed.length === 0) {
       showToast("Nao foi possivel repetir este pedido")
       return
     }
+    setOrderToRepeat(order)
+    setShowRepeatConfirm(true)
+  }
+  
+  // Confirmar e repetir pedido
+  const confirmRepeatOrder = () => {
+    if (!orderToRepeat?.itemsDetailed) return
     
     const newQuantities: Record<number, number> = {}
-    order.itemsDetailed.forEach(item => {
+    orderToRepeat.itemsDetailed.forEach(item => {
       newQuantities[item.productId] = item.quantity
     })
     
     setQuantities(newQuantities)
+    setShowRepeatConfirm(false)
     setShowMyOrdersModal(false)
-    showToast("Itens adicionados ao carrinho!")
+    setOrderToRepeat(null)
+    
+    // Scroll para o checkout
+    setTimeout(() => {
+      setShowCart(true)
+      showToast("Itens adicionados ao carrinho!")
+    }, 100)
+  }
+  
+  // Funcao antiga mantida para compatibilidade
+  const repeatOrder = (order: typeof customerOrders[0]) => {
+    openRepeatConfirm(order)
   }
   
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -3134,6 +3146,54 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   <p className="text-sm text-muted-foreground">Voce ainda nao fez nenhum pedido</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmar Repetir Pedido */}
+      {showRepeatConfirm && orderToRepeat && (
+        <div className="fixed inset-0 z-[120] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
+            <div className="p-4 border-b border-border">
+              <h3 className="text-lg font-bold text-foreground">Deseja repetir este pedido?</h3>
+            </div>
+            
+            <div className="p-4 space-y-3 max-h-60 overflow-y-auto">
+              {orderToRepeat.itemsDetailed?.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between text-sm">
+                  <span className="text-foreground">
+                    {item.quantity}x {item.productName}
+                  </span>
+                  <span className="text-muted-foreground">
+                    R$ {(item.price * item.quantity).toFixed(2).replace(".", ",")}
+                  </span>
+                </div>
+              ))}
+              <div className="pt-2 border-t border-border flex items-center justify-between">
+                <span className="font-medium text-foreground">Total</span>
+                <span className="font-bold text-primary text-lg">
+                  R$ {orderToRepeat.total.toFixed(2).replace(".", ",")}
+                </span>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-border flex gap-2">
+              <button
+                onClick={() => {
+                  setShowRepeatConfirm(false)
+                  setOrderToRepeat(null)
+                }}
+                className="flex-1 py-3 text-sm bg-secondary text-foreground rounded-xl hover:bg-secondary/80 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmRepeatOrder}
+                className="flex-1 py-3 text-sm bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors font-medium"
+              >
+                Sim, pedir novamente
+              </button>
             </div>
           </div>
         </div>
