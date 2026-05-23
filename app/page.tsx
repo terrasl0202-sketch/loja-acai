@@ -2389,7 +2389,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     {(useSavedData !== null || !customer || (!customer.savedAddress && customerOrders.length === 0)) && (
                       <>
                         <div className="space-y-2">
-                          <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                          <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
                             <User className="w-3 h-3" />
                             Nome *
                           </label>
@@ -2399,12 +2399,12 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             onChange={(e) => !isOrderBlocked && setFormData({ ...formData, nome: e.target.value })}
                             disabled={isOrderBlocked}
                             placeholder="Seu nome completo"
-                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
+                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                          <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
                             <Phone className="w-3 h-3" />
                             Telefone/WhatsApp *
                           </label>
@@ -2420,14 +2420,14 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               setFormData({ ...formData, telefone: formatted })
                             }}
                             placeholder="(11) 99999-9999"
-                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
                           />
                         </div>
 
                         {deliveryType === "entrega" && (
                           <>
                             <div className="space-y-2">
-                              <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                              <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
                                 <MapPin className="w-3 h-3" />
                                 Endereco *
                               </label>
@@ -2437,13 +2437,13 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                 onChange={(e) => !isOrderBlocked && setFormData({ ...formData, endereco: e.target.value })}
                                 disabled={isOrderBlocked}
                                 placeholder="Rua"
-                                className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
+                                className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
                               />
                             </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                            <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
                               <HomeIcon className="w-3 h-3" />
                               Numero *
                             </label>
@@ -2453,14 +2453,14 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               onChange={(e) => !isOrderBlocked && setFormData({ ...formData, numero: e.target.value })}
                               disabled={isOrderBlocked}
                               placeholder="Numero"
-                              className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
+                              className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
                             />
                           </div>
                         </div>
 
                         {/* Bairro Dropdown Premium */}
                         <div className="space-y-2">
-                          <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                          <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
                             <MapPin className="w-3 h-3" />
                             Bairro *
                           </label>
@@ -2502,7 +2502,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                         </div>
 
                         <div className="space-y-2">
-                          <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                          <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
                             <MapPinned className="w-3 h-3" />
                             Referencia *
                           </label>
@@ -2512,7 +2512,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             onChange={(e) => !isOrderBlocked && setFormData({ ...formData, referencia: e.target.value })}
                             disabled={isOrderBlocked}
                             placeholder="Ponto de referencia"
-                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
+                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
                           />
                         </div>
 
@@ -2534,7 +2534,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     )}
 
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
                         <MessageSquare className="w-3 h-3" />
                         Observacoes (opcional)
                       </label>
@@ -2543,7 +2543,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                         onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
                         placeholder="Ex: Sem banana, mais granola..."
                         rows={2}
-                        className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none resize-none"
+                        className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none resize-none"
                       />
                     </div>
                       </>
@@ -2573,16 +2573,13 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           }}
                           className={`relative py-5 px-3 rounded-2xl text-center font-bold transition-all duration-300 flex flex-col items-center gap-2 overflow-hidden group ${
                             formData.pagamento === "pix"
-                              ? "bg-gradient-to-br from-primary via-primary to-primary/80 text-primary-foreground shadow-xl shadow-primary/40 glow-primary-intense scale-[1.02]"
-                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/30 hover:border-primary/30"
+                              ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20 border-2 border-primary/50 scale-[1.02]"
+                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/40 hover:border-primary/40"
                           }`}
                         >
-                          {formData.pagamento === "pix" && (
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
-                          )}
                           <span className="text-2xl relative">💠</span>
-                          <span className="text-sm relative">Pix</span>
-                          <span className={`text-[10px] relative ${formData.pagamento === "pix" ? 'text-primary-foreground/80' : 'text-muted-foreground/60'}`}>
+                          <span className="text-sm relative font-bold">Pix</span>
+                          <span className={`text-[10px] relative font-medium ${formData.pagamento === "pix" ? 'text-primary-foreground/90' : 'text-foreground/50'}`}>
                             Pagamento automatico
                           </span>
                         </button>
@@ -2598,13 +2595,13 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           }}
                           className={`relative py-5 px-3 rounded-2xl text-center font-bold transition-all duration-300 flex flex-col items-center gap-2 ${
                             formData.pagamento === "dinheiro"
-                              ? "bg-gradient-to-br from-primary via-primary to-primary/80 text-primary-foreground shadow-xl shadow-primary/40 glow-primary scale-[1.02]"
-                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/30 hover:border-primary/30"
+                              ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20 border-2 border-primary/50 scale-[1.02]"
+                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/40 hover:border-primary/40"
                           }`}
                         >
                           <span className="text-2xl">💵</span>
-                          <span className="text-sm">Dinheiro</span>
-                          <span className={`text-[10px] ${formData.pagamento === "dinheiro" ? 'text-primary-foreground/80' : 'text-muted-foreground/60'}`}>
+                          <span className="text-sm font-bold">Dinheiro</span>
+                          <span className={`text-[10px] font-medium ${formData.pagamento === "dinheiro" ? 'text-primary-foreground/90' : 'text-foreground/50'}`}>
                             Pagamento na entrega
                           </span>
                         </button>
@@ -2620,13 +2617,13 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           }}
                           className={`relative py-5 px-3 rounded-2xl text-center font-bold transition-all duration-300 flex flex-col items-center gap-2 ${
                             formData.pagamento === "cartao"
-                              ? "bg-gradient-to-br from-primary via-primary to-primary/80 text-primary-foreground shadow-xl shadow-primary/40 glow-primary scale-[1.02]"
-                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/30 hover:border-primary/30"
+                              ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20 border-2 border-primary/50 scale-[1.02]"
+                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/40 hover:border-primary/40"
                           }`}
                         >
                           <span className="text-2xl">💳</span>
-                          <span className="text-sm">Cartao</span>
-                          <span className={`text-[10px] ${formData.pagamento === "cartao" ? 'text-primary-foreground/80' : 'text-muted-foreground/60'}`}>
+                          <span className="text-sm font-bold">Cartao</span>
+                          <span className={`text-[10px] font-medium ${formData.pagamento === "cartao" ? 'text-primary-foreground/90' : 'text-foreground/50'}`}>
                             Pagamento na entrega
                           </span>
                         </button>
@@ -3097,7 +3094,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                 </p>
                                 <button
                                   onClick={createPixCharge}
-                                  className="premium-btn w-full py-4 bg-gradient-to-r from-primary via-primary to-primary/90 text-primary-foreground font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-2xl hover:shadow-primary/40 active:scale-[0.98] glow-primary-intense relative overflow-hidden group"
+                                  className="premium-btn w-full py-4 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-xl hover:shadow-primary/25 active:scale-[0.98] shadow-lg shadow-primary/15 relative overflow-hidden group"
                                 >
                                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                                   <span className="text-xl relative">💠</span>

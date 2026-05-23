@@ -203,11 +203,11 @@
   transform: translateX(100%);
 }
 
-/* Glow Effect */
+/* Glow Effect - Reduzido para elegancia */
 .glow-primary {
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.3), 0 0 40px rgba(168, 85, 247, 0.1);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.15), 0 0 24px rgba(168, 85, 247, 0.05);
 }
 
 .glow-primary-intense {
-  box-shadow: 0 0 25px rgba(168, 85, 247, 0.4), 0 0 50px rgba(168, 85, 247, 0.2);
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.2), 0 0 30px rgba(168, 85, 247, 0.1);
 }
