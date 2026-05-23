@@ -1020,6 +1020,9 @@ export default function Home() {
     }
   }, [])
 
+  // Estado para toast de adicao
+  const [addToast, setAddToast] = useState<{ show: boolean; productName: string }>({ show: false, productName: "" })
+  
   const updateQuantity = (id: number, delta: number) => {
     const newQty = Math.max(0, (quantities[id] || 0) + delta)
     setQuantities((prev) => ({
@@ -1028,6 +1031,12 @@ export default function Home() {
     }))
     if (delta > 0) {
       playAddSound()
+      // Mostrar toast de adicao
+      const product = products.find(p => p.id === id)
+      if (product) {
+        setAddToast({ show: true, productName: product.name })
+        setTimeout(() => setAddToast({ show: false, productName: "" }), 2000)
+      }
     }
   }
 
@@ -1772,31 +1781,40 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative h-40 sm:h-44 overflow-hidden">
+      {/* Hero - Cinematografico Premium */}
+      <section className="relative h-44 sm:h-52 overflow-hidden">
         <Image
           src="/acai-bowl.jpg"
           alt="Acai delicioso"
           fill
-          className="object-cover scale-105"
+          className="object-cover scale-110"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-background" />
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent" />
-        <div className="absolute bottom-4 left-4 right-4">
-          <h2 className="text-xl sm:text-2xl font-black text-white drop-shadow-[0_2px_15px_rgba(0,0,0,0.6)]">
+        {/* Premium Frost Overlay */}
+        <div className="absolute inset-0 frost-overlay" />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/8 via-transparent to-primary/5" />
+        
+        {/* Decorative elements */}
+        <div className="absolute top-4 right-4 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-48 h-24 bg-primary/5 rounded-full blur-2xl" />
+        
+        <div className="absolute bottom-5 left-4 right-4">
+          <h2 className="text-2xl sm:text-3xl font-black text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)] tracking-tight">
             Acai artesanal entregue geladinho
           </h2>
-          <div className="flex items-center gap-3 mt-2">
-            <span className="flex items-center gap-1 text-[10px] text-white/90 font-medium bg-white/10 backdrop-blur-sm px-2 py-1 rounded-full">
-              <Zap className="w-3 h-3 text-yellow-400" />
+          <p className="text-white/60 text-xs mt-1 font-medium">Feito na hora com muito carinho</p>
+          
+          {/* Trust Badges Premium */}
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <span className="trust-badge text-white/90">
+              <Zap className="w-3 h-3 text-amber-400" />
               Entrega rapida
             </span>
-            <span className="flex items-center gap-1 text-[10px] text-white/90 font-medium bg-white/10 backdrop-blur-sm px-2 py-1 rounded-full">
+            <span className="trust-badge text-white/90">
               <Snowflake className="w-3 h-3 text-cyan-400" />
               Geladinho
             </span>
-            <span className="flex items-center gap-1 text-[10px] text-white/90 font-medium bg-white/10 backdrop-blur-sm px-2 py-1 rounded-full">
+            <span className="trust-badge text-white/90">
               <Award className="w-3 h-3 text-primary" />
               Premium
             </span>
@@ -1832,32 +1850,29 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       )}
 
       {/* Products */}
-      <section className="mt-5 space-y-4 px-3">
-          <h3 className="text-lg font-black text-foreground flex items-center gap-2 mb-1">
-            <span className="w-1.5 h-6 bg-gradient-to-b from-primary to-primary/50 rounded-full"></span>
+      <section className="mt-6 space-y-3 px-3">
+          <h3 className="text-lg font-black text-foreground flex items-center gap-2 mb-2">
+            <span className="w-1 h-5 bg-gradient-to-b from-primary to-primary/40 rounded-full"></span>
             Cardapio
-            <Sparkles className="w-4 h-4 text-primary/60" />
+            <Sparkles className="w-4 h-4 text-primary/50" />
           </h3>
           
-          {/* Produtos - Renderizar imediatamente com defaultConfig */}
+          {/* Produtos - Cards Premium */}
           {products.map((product, index) => (
             <div
               key={product.id}
-              className="group relative bg-gradient-to-br from-card via-card to-card/90 rounded-2xl p-4 border border-primary/5 shadow-xl shadow-black/5 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/10 hover:border-primary/15 hover:-translate-y-0.5 active:scale-[0.995] active:translate-y-0 backdrop-blur-sm"
+              className="product-card p-4"
             >
-              {/* Glow effect on hover */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-              
               {/* Badge Premium - canto superior esquerdo */}
               {index === 0 && (
-                <span className="absolute -top-2 left-3 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 text-white text-[8px] font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-amber-500/30 uppercase tracking-wider z-10 flex items-center gap-1">
+                <span className="absolute -top-0.5 left-3 premium-badge bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-amber-500/30 flex items-center gap-1 z-10">
                   <Star className="w-2.5 h-2.5 fill-white" />
                   Mais vendido
                 </span>
               )}
               {product.price < 20 && index !== 0 && (
-                <span className="absolute -top-2 left-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 text-white text-[8px] font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/30 uppercase tracking-wider z-10">
-                  Melhor custo
+                <span className="absolute -top-0.5 left-3 premium-badge bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-emerald-500/30 z-10">
+                  Otimo preco
                 </span>
               )}
               
@@ -1866,14 +1881,14 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   <div className="flex items-start justify-between">
                     <div>
                       <h4 className="font-bold text-foreground text-base">{product.name}</h4>
-                      <p className="text-[10px] text-muted-foreground/70 font-medium">Serve 1 pessoa</p>
+                      <p className="text-[10px] text-muted-foreground/60 font-medium mt-0.5">Serve 1 pessoa</p>
                     </div>
                     <button
                       onClick={() => toggleFavorite(product.id)}
                       className={`p-1.5 rounded-xl transition-all duration-300 ${
                         customer?.favorites.includes(product.id)
-                          ? "text-red-500 bg-red-500/15 shadow-inner"
-                          : "text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
+                          ? "text-red-500 bg-red-500/15"
+                          : "text-muted-foreground/50 hover:text-red-400 hover:bg-red-500/10"
                       }`}
                       aria-label={customer?.favorites.includes(product.id) ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                     >
@@ -1882,28 +1897,28 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                       />
                     </button>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                  <p className="text-sm text-muted-foreground/80 mt-2 leading-relaxed">
                     {product.description}
                   </p>
-                  <p className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/80 mt-3">
+                  <p className="text-xl font-black text-primary mt-3">
                     {formatCurrency(product.price)}
                   </p>
                 </div>
                 
-                <div className="flex items-center gap-1 bg-secondary/60 backdrop-blur-md rounded-2xl p-1 shadow-inner">
+                <div className="flex items-center gap-1.5 bg-secondary/40 backdrop-blur-sm rounded-2xl p-1.5">
                   <button
                     onClick={() => updateQuantity(product.id, -1)}
-                    className="w-10 h-10 flex items-center justify-center bg-card/80 rounded-xl text-foreground transition-all duration-200 hover:bg-primary/10 active:scale-90 active:bg-primary active:text-primary-foreground shadow-sm"
+                    className="qty-btn w-10 h-10 bg-card/90 text-foreground hover:bg-primary/15 active:bg-primary active:text-primary-foreground"
                     aria-label={`Diminuir quantidade de ${product.name}`}
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="w-8 text-center font-black text-foreground tabular-nums text-lg">
+                  <span className="w-9 text-center font-black text-foreground tabular-nums text-lg">
                     {quantities[product.id] || 0}
                   </span>
                   <button
                     onClick={() => updateQuantity(product.id, 1)}
-                    className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-primary via-primary to-primary/80 rounded-xl text-primary-foreground transition-all duration-200 hover:brightness-110 hover:scale-105 hover:shadow-lg hover:shadow-primary/40 active:scale-95 shadow-md shadow-primary/30"
+                    className="qty-btn w-10 h-10 bg-primary text-primary-foreground hover:brightness-110 hover:scale-105 shadow-md shadow-primary/20"
                     aria-label={`Aumentar quantidade de ${product.name}`}
                   >
                     <Plus className="w-4 h-4" />
@@ -1959,7 +1974,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         </footer>
 
       {/* Fixed Bottom Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background/98 to-background/90 backdrop-blur-2xl border-t border-primary/10 p-3 shadow-[0_-10px_40px_rgba(0,0,0,0.15)]">
+      <div className="fixed bottom-0 left-0 right-0 glass border-t border-white/5 p-3 shadow-[0_-8px_30px_rgba(0,0,0,0.2)]">
         <div className="max-w-lg mx-auto">
             {!isStoreOpen ? (
             <div className="w-full py-3 bg-gradient-to-r from-red-500/10 to-red-500/5 text-red-400 font-bold text-base rounded-xl flex items-center justify-center gap-2 border border-red-500/20">
@@ -1970,25 +1985,22 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
             <button
               onClick={openCheckout}
               disabled={getTotalItems() === 0}
-              className="relative w-full py-3.5 bg-gradient-to-r from-primary via-primary to-primary/90 text-primary-foreground font-bold text-sm rounded-2xl flex items-center justify-between px-4 transition-all duration-300 hover:brightness-110 hover:shadow-2xl hover:shadow-primary/50 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-primary/40 overflow-hidden group"
+              className="premium-btn w-full py-3.5 bg-primary text-primary-foreground font-bold text-sm rounded-2xl flex items-center justify-between px-4 transition-all duration-300 hover:brightness-110 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
             >
-              {/* Shimmer effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
-              
               {getTotalItems() > 0 ? (
                 <>
-                  <span className="relative bg-white/25 backdrop-blur-sm px-3 py-1 rounded-xl text-xs font-black tabular-nums shadow-inner">
+                  <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-xl text-xs font-bold tabular-nums">
                     {getTotalItems()} {getTotalItems() === 1 ? "item" : "itens"}
                   </span>
-                  <span className="relative font-black tracking-wide text-base">Finalizar Pedido</span>
-                  <span className="relative bg-white/25 backdrop-blur-sm px-3 py-1 rounded-xl text-xs font-black tabular-nums shadow-inner">
+                  <span className="font-bold tracking-wide text-base">Finalizar Pedido</span>
+                  <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-xl text-xs font-bold tabular-nums">
                     {formatCurrency(getTotal())}
                   </span>
                 </>
               ) : (
                 <>
                   <span></span>
-                  <span className="relative flex items-center gap-2 font-bold">
+                  <span className="flex items-center gap-2 font-bold">
                     <ShoppingCart className="w-4 h-4" />
                     Finalizar Pedido
                   </span>
@@ -2002,14 +2014,14 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
       {/* Checkout Modal */}
       {showCheckout && (
-        <div className="fixed inset-0 z-[100] bg-background/98 backdrop-blur-xl overflow-y-auto">
+        <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-slide-up">
           <div className="min-h-screen pb-8">
             {/* Modal Header Premium */}
-            <header className="sticky top-0 z-10 bg-gradient-to-b from-card/98 via-card/95 to-card/90 backdrop-blur-2xl border-b border-primary/15 shadow-lg shadow-primary/5">
+            <header className="sticky top-0 z-10 glass border-b border-white/5">
               <div className="max-w-lg mx-auto px-4 py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
                       <ShoppingCart className="w-5 h-5 text-primary" />
                     </div>
                     <div>
@@ -2021,13 +2033,13 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   </div>
                   <button 
                     onClick={handleCloseCheckout}
-                    className="p-2.5 bg-secondary/80 hover:bg-secondary rounded-xl text-foreground/70 hover:text-foreground transition-all duration-300 active:scale-95 hover:shadow-lg hover:shadow-primary/10"
+                    className="p-2.5 bg-secondary/60 hover:bg-secondary rounded-xl text-foreground/70 hover:text-foreground transition-all duration-200 active:scale-95"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
-              <div className="h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+              <div className="h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
             </header>
 
             <div className="max-w-lg mx-auto px-4 pt-5 space-y-5">
@@ -3614,8 +3626,18 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
       {/* Toast de Notificacao */}
       {toastMessage && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-card text-foreground px-4 py-3 rounded-xl shadow-lg border border-border flex items-center gap-2 animate-in slide-in-from-top-2 fade-in duration-300">
-          <span className="text-sm font-medium">{toastMessage}</span>
+        <div className="toast animate-toast-in">
+          <span className="text-sm font-medium text-foreground">{toastMessage}</span>
+        </div>
+      )}
+      
+      {/* Toast de Adicao ao Carrinho */}
+      {addToast.show && (
+        <div className="toast animate-toast-in flex items-center gap-2">
+          <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center">
+            <Check className="w-3.5 h-3.5 text-primary" />
+          </div>
+          <span className="text-sm font-medium text-foreground">+1 adicionado</span>
         </div>
       )}
     </main>
