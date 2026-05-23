@@ -312,8 +312,9 @@ export default function AdminPage() {
       const res = await fetch(`/api/config?admin=true&password=${encodeURIComponent(sessionPassword)}`)
       const data = await res.json()
       if (data.success && data.config) {
-        // Merge with defaults for new fields
-        setConfig({ ...defaultConfig, ...data.config })
+        // Usar dados reais do servidor - NAO misturar com defaults
+        // Os defaults so sao usados se a API retornar defaultConfig (blob vazio)
+        setConfig(data.config)
       }
     } catch (error) {
       console.error("Erro ao carregar config:", error)

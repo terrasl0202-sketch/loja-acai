@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     // Tentar carregar config do Blob
     try {
       const { blobs } = await list({ prefix: CONFIG_PREFIX })
+      console.log("[Config GET] Blobs encontrados:", blobs.length)
       
       if (blobs.length > 0) {
         // Pegar o blob mais recente
@@ -37,29 +38,37 @@ export async function GET(request: Request) {
           new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
         )[0]
         
+        console.log("[Config GET] Blob mais recente:", latestBlob.pathname, "uploadedAt:", latestBlob.uploadedAt)
+        
         // Usar head() para pegar downloadUrl (funciona com blobs privados)
         const blobInfo = await head(latestBlob.url)
         const downloadUrl = blobInfo.downloadUrl
         
         // Fazer fetch na downloadUrl
         const response = await fetch(downloadUrl)
+        console.log("[Config GET] Fetch status:", response.status)
         
         if (response.ok) {
           const text = await response.text()
           const config = JSON.parse(text) as SiteConfig
           
-          // Se produtos estiver vazio, usar produtos padrao
-          if (!config.products || config.products.length === 0) {
-            config.products = defaultConfig.products
-          }
+          console.log("[Config GET] Config carregada - produtos:", config.products?.length, "bairros:", config.delivery?.neighborhoodFees?.length)
           
+          // REMOVIDO: Nao sobrescrever produtos reais com defaults
+          // Retornar config real diretamente
           return NextResponse.json({ success: true, config }, { headers: noCacheHeaders })
+        } else {
+          console.log("[Config GET] Fetch falhou:", response.status, response.statusText)
         }
+      } else {
+        console.log("[Config GET] Nenhum blob encontrado, usando defaultConfig")
       }
     } catch (e) {
       console.error("[Config GET] Erro ao buscar do Blob:", e)
     }
 
+    // Apenas usar defaultConfig se realmente nao houver dados
+    console.log("[Config GET] Retornando defaultConfig (fallback)")
     return NextResponse.json({ success: true, config: defaultConfig }, { headers: noCacheHeaders })
   } catch (error) {
     console.error("[Config GET] Erro geral:", error)
@@ -82,6 +91,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Config vazia" }, { status: 400 })
     }
 
+    console.log("[Config POST] Salvando config - produtos:", config.products?.length, "bairros:", config.delivery?.neighborhoodFees?.length)
+
     // Salvar nova config com timestamp (private access)
     const timestamp = Date.now()
     const filename = `${CONFIG_PREFIX}${timestamp}.json`
@@ -91,12 +102,14 @@ export async function POST(request: Request) {
       contentType: "application/json",
     })
 
-    // Limpar configs antigas (em background)
-    list({ prefix: CONFIG_PREFIX }).then(async ({ blobs }) => {
-      const oldBlobs = blobs
-        .filter(b => b.url !== blob.url)
-        .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
-        .slice(1)
+    console.log("[Config POST] Blob salvo:", blob.pathname, "URL:", blob.url)
+
+    // Limpar configs antigas (manter apenas o mais recente)
+    try {
+      const { blobs } = await list({ prefix: CONFIG_PREFIX })
+      const oldBlobs = blobs.filter(b => b.url !== blob.url)
+      
+      console.log("[Config POST] Limpando", oldBlobs.length, "blobs antigos")
       
       for (const oldBlob of oldBlobs) {
         try {
@@ -105,7 +118,9 @@ export async function POST(request: Request) {
           // ignorar erro de delete
         }
       }
-    }).catch(() => {})
+    } catch (e) {
+      console.error("[Config POST] Erro ao limpar blobs antigos:", e)
+    }
 
     return NextResponse.json({ success: true, config })
   } catch (error) {
