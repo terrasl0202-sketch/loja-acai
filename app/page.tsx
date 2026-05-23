@@ -232,28 +232,79 @@ export default function Home() {
   // Usar dados salvos do cliente
   const handleUseSavedData = () => {
     if (customer) {
-      setFormData(prev => ({
-        ...prev,
-        nome: customer.name || prev.nome,
-        telefone: customer.phone || prev.telefone,
-        endereco: customer.savedAddress?.endereco || prev.endereco,
-        numero: customer.savedAddress?.numero || prev.numero,
-        bairro: customer.savedAddress?.bairro || prev.bairro,
-        referencia: customer.savedAddress?.referencia || prev.referencia,
-      }))
+      // Primeiro tentar usar savedAddress do cliente
+      if (customer.savedAddress && customer.savedAddress.endereco) {
+        setFormData(prev => ({
+          ...prev,
+          nome: customer.name || prev.nome,
+          telefone: customer.phone || prev.telefone,
+          endereco: customer.savedAddress?.endereco || prev.endereco,
+          numero: customer.savedAddress?.numero || prev.numero,
+          bairro: customer.savedAddress?.bairro || prev.bairro,
+          referencia: customer.savedAddress?.referencia || prev.referencia,
+        }))
+      } 
+      // Se nao tem savedAddress, tentar usar dados do ultimo pedido
+      else if (customerOrders.length > 0) {
+        const lastOrder = customerOrders[0] // O mais recente
+        // Extrair dados do endereco (formato: "Rua X, 123")
+        const addressParts = (lastOrder.address || "").split(" - ")
+        const enderecoNumero = addressParts[0] || ""
+        const [endereco, numero] = enderecoNumero.includes(",") 
+          ? enderecoNumero.split(",").map(s => s.trim())
+          : [enderecoNumero, ""]
+        
+        setFormData(prev => ({
+          ...prev,
+          nome: customer.name || prev.nome,
+          telefone: customer.phone || prev.telefone,
+          endereco: endereco || prev.endereco,
+          numero: numero || prev.numero,
+          bairro: lastOrder.neighborhood || prev.bairro,
+          referencia: addressParts.length > 1 ? addressParts.slice(1).join(" - ") : prev.referencia,
+        }))
+        
+        // Definir tipo de entrega do ultimo pedido
+        if (lastOrder.deliveryType === "entrega") {
+          setDeliveryType("entrega")
+        } else if (lastOrder.deliveryType === "retirada") {
+          setDeliveryType("retirada")
+        }
+      }
+      // Se nao tem nada, pelo menos preencher nome e telefone
+      else {
+        setFormData(prev => ({
+          ...prev,
+          nome: customer.name || prev.nome,
+          telefone: customer.phone || prev.telefone,
+        }))
+      }
+      
       setUseSavedData(true)
     }
   }
   
-  // Usar novo endereco (limpar campos de endereco)
+  // Usar novo endereco (limpar campos de endereco, manter nome e telefone)
   const handleUseNewAddress = () => {
-    setFormData(prev => ({
-      ...prev,
-      endereco: "",
-      numero: "",
-      bairro: "",
-      referencia: "",
-    }))
+    if (customer) {
+      setFormData(prev => ({
+        ...prev,
+        nome: customer.name || prev.nome,
+        telefone: customer.phone || prev.telefone,
+        endereco: "",
+        numero: "",
+        bairro: "",
+        referencia: "",
+      }))
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        endereco: "",
+        numero: "",
+        bairro: "",
+        referencia: "",
+      }))
+    }
     setUseSavedData(false)
   }
   
@@ -2149,10 +2200,10 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`}>
                     <h3 className="font-semibold text-foreground">Seus Dados</h3>
                     
-                    {/* Opcao de usar dados salvos - so aparece se logado e tem endereco salvo e ainda nao escolheu */}
-                    {customer && customer.savedAddress && useSavedData === null && !isOrderBlocked && (
+                    {/* Opcao de usar dados salvos - aparece se logado E (tem endereco salvo OU tem pedidos anteriores) */}
+                    {customer && (customer.savedAddress || customerOrders.length > 0) && useSavedData === null && !isOrderBlocked && (
                       <div className="bg-secondary/50 rounded-xl p-4 space-y-3">
-                        <p className="text-sm text-foreground font-medium">Voce tem dados salvos. Como deseja prosseguir?</p>
+                        <p className="text-sm text-foreground font-medium">Como deseja prosseguir?</p>
                         <div className="flex flex-col gap-2">
                           <button
                             type="button"
@@ -2186,8 +2237,8 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                       </div>
                     )}
                     
-                    {/* Campos so aparecem apos escolher OU se nao tem dados salvos */}
-                    {(useSavedData !== null || !customer?.savedAddress) && (
+                    {/* Campos so aparecem apos escolher OU se nao esta logado OU se nao tem dados salvos/pedidos */}
+                    {(useSavedData !== null || !customer || (!customer.savedAddress && customerOrders.length === 0)) && (
                       <>
                         <div>
                           <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
