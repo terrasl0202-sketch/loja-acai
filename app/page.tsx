@@ -470,24 +470,11 @@ export default function Home() {
     // Limpar carrinho atual e definir novos itens
     setQuantities(newQuantities)
     
-    // Preencher dados de entrega do pedido anterior se for entrega
-    if (orderToRepeat.deliveryType === "entrega" && orderToRepeat.address) {
-      // Extrair dados do endereco (formato: "Rua X, 123 - Bairro - Ref")
-      const addressParts = orderToRepeat.address.split(" - ")
-      const enderecoNumero = addressParts[0] || ""
-      const [endereco, numero] = enderecoNumero.includes(",") 
-        ? enderecoNumero.split(",").map(s => s.trim())
-        : [enderecoNumero, ""]
-      
-      setFormData(prev => ({
-        ...prev,
-        endereco: endereco || prev.endereco,
-        numero: numero || prev.numero,
-        bairro: orderToRepeat.neighborhood || prev.bairro,
-        referencia: addressParts.length > 2 ? addressParts.slice(2).join(" - ") : prev.referencia,
-      }))
-      
-      // Definir tipo de entrega
+    // Resetar escolha de dados salvos para mostrar opcoes novamente
+    setUseSavedData(null)
+    
+    // Definir tipo de entrega do pedido anterior
+    if (orderToRepeat.deliveryType === "entrega") {
       setDeliveryType("entrega")
     } else if (orderToRepeat.deliveryType === "retirada") {
       setDeliveryType("retirada")
@@ -1461,7 +1448,7 @@ export default function Home() {
 
 const message = `━━━━━━━━━━━━━━━━━━
 PEDIDO PAGO
-━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━���━━━━━━━
 
 Pedido No: ${orderId}
 
@@ -2164,22 +2151,22 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     
                     {/* Opcao de usar dados salvos - so aparece se logado e tem endereco salvo e ainda nao escolheu */}
                     {customer && customer.savedAddress && useSavedData === null && !isOrderBlocked && (
-                      <div className="bg-secondary/50 rounded-xl p-3 space-y-2">
-                        <p className="text-sm text-muted-foreground">Voce tem dados salvos. Deseja usa-los?</p>
-                        <div className="flex gap-2">
+                      <div className="bg-secondary/50 rounded-xl p-4 space-y-3">
+                        <p className="text-sm text-foreground font-medium">Voce tem dados salvos. Como deseja prosseguir?</p>
+                        <div className="flex flex-col gap-2">
                           <button
                             type="button"
                             onClick={handleUseSavedData}
-                            className="flex-1 py-2 px-3 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                            className="w-full py-3 px-4 text-sm bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors font-medium"
                           >
-                            Usar meus dados
+                            Usar dados salvos
                           </button>
                           <button
                             type="button"
                             onClick={handleUseNewAddress}
-                            className="flex-1 py-2 px-3 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                            className="w-full py-3 px-4 text-sm bg-secondary text-foreground rounded-xl hover:bg-secondary/80 transition-colors border border-border"
                           >
-                            Novo endereco
+                            Inserir novo endereco
                           </button>
                         </div>
                       </div>
@@ -2199,58 +2186,61 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                       </div>
                     )}
                     
-                    <div>
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                        <User className="w-4 h-4" />
-                        Nome *
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.nome}
-                        onChange={(e) => !isOrderBlocked && setFormData({ ...formData, nome: e.target.value })}
-                        disabled={isOrderBlocked}
-                        placeholder="Seu nome completo"
-                        className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                        <Phone className="w-4 h-4" />
-                        Telefone/WhatsApp *
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.telefone}
-                        disabled={isOrderBlocked}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, "").slice(0, 11)
-                          const formatted = value
-                            .replace(/(\d{2})(\d)/, "($1) $2")
-                            .replace(/(\d{5})(\d)/, "$1-$2")
-                          setFormData({ ...formData, telefone: formatted })
-                        }}
-                        placeholder="(11) 99999-9999"
-                        className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                      />
-                    </div>
-
-                    {deliveryType === "entrega" && (
+                    {/* Campos so aparecem apos escolher OU se nao tem dados salvos */}
+                    {(useSavedData !== null || !customer?.savedAddress) && (
                       <>
                         <div>
                           <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                            <MapPin className="w-4 h-4" />
-                            Endereco *
+                            <User className="w-4 h-4" />
+                            Nome *
                           </label>
                           <input
                             type="text"
-                            value={formData.endereco}
-                            onChange={(e) => !isOrderBlocked && setFormData({ ...formData, endereco: e.target.value })}
+                            value={formData.nome}
+                            onChange={(e) => !isOrderBlocked && setFormData({ ...formData, nome: e.target.value })}
                             disabled={isOrderBlocked}
-                            placeholder="Rua"
+                            placeholder="Seu nome completo"
                             className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
                           />
                         </div>
+
+                        <div>
+                          <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                            <Phone className="w-4 h-4" />
+                            Telefone/WhatsApp *
+                          </label>
+                          <input
+                            type="tel"
+                            value={formData.telefone}
+                            disabled={isOrderBlocked}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, "").slice(0, 11)
+                              const formatted = value
+                                .replace(/(\d{2})(\d)/, "($1) $2")
+                                .replace(/(\d{5})(\d)/, "$1-$2")
+                              setFormData({ ...formData, telefone: formatted })
+                            }}
+                            placeholder="(11) 99999-9999"
+                            className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                          />
+                        </div>
+
+                        {deliveryType === "entrega" && (
+                          <>
+                            <div>
+                              <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                                <MapPin className="w-4 h-4" />
+                                Endereco *
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.endereco}
+                                onChange={(e) => !isOrderBlocked && setFormData({ ...formData, endereco: e.target.value })}
+                                disabled={isOrderBlocked}
+                                placeholder="Rua"
+                                className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
+                              />
+                            </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
@@ -2353,6 +2343,8 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                         className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
                       />
                     </div>
+                      </>
+                    )}
                   </section>
 
                   {/* Payment Method */}
