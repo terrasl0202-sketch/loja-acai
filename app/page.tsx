@@ -1773,7 +1773,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       </header>
 
       {/* Hero */}
-      <section className="relative h-48 overflow-hidden">
+      <section className="relative h-36 sm:h-40 overflow-hidden">
         <Image
           src="/acai-bowl.jpg"
           alt="Açaí delicioso"
@@ -1781,16 +1781,16 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
           className="object-cover"
           priority
         />
-<div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background" />
-              <div className="absolute bottom-4 left-4 right-4">
-                <h2 className="text-2xl font-extrabold text-foreground drop-shadow-lg">
-                  {siteConfig.banner.mainText}
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {siteConfig.banner.secondaryText}
-                </p>
-              </div>
-</section>
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background" />
+        <div className="absolute bottom-3 left-4 right-4">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-foreground drop-shadow-lg">
+            {siteConfig.banner.mainText}
+          </h2>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            {siteConfig.banner.secondaryText}
+          </p>
+        </div>
+      </section>
 
       {/* Aviso Loja Fechada com Horario */}
       {!isStoreOpen && (
@@ -1820,15 +1820,27 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       )}
 
       {/* Products */}
-      <section className="mt-6 space-y-4">
-          <h3 className="text-lg font-semibold text-foreground">Cardapio</h3>
+      <section className="mt-4 space-y-3 px-1">
+          <h3 className="text-lg font-semibold text-foreground px-3">Cardapio</h3>
           
           {/* Produtos - Renderizar imediatamente com defaultConfig */}
-          {products.map((product) => (
+          {products.map((product, index) => (
             <div
               key={product.id}
-              className="bg-card rounded-2xl p-4 border border-border shadow-lg shadow-primary/5 transition-all hover:shadow-primary/10"
+              className="relative bg-card rounded-2xl p-4 border border-border shadow-md shadow-primary/10 transition-all duration-200 hover:shadow-lg hover:shadow-primary/20 hover:border-primary/30 active:scale-[0.99]"
             >
+              {/* Badge */}
+              {index === 0 && (
+                <span className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
+                  Mais vendido
+                </span>
+              )}
+              {product.price < 20 && index !== 0 && (
+                <span className="absolute -top-2 -right-2 bg-gradient-to-r from-emerald-500 to-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
+                  Melhor custo
+                </span>
+              )}
+              
               <div className="flex justify-between items-start gap-4">
                 <div className="flex-1">
                   <div className="flex items-start justify-between">
@@ -1858,7 +1870,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                 <div className="flex items-center gap-2 bg-secondary rounded-full p-1">
                   <button
                     onClick={() => updateQuantity(product.id, -1)}
-                    className="w-9 h-9 flex items-center justify-center bg-card rounded-full text-foreground transition-all hover:bg-primary hover:text-primary-foreground active:scale-90"
+                    className="w-9 h-9 flex items-center justify-center bg-card rounded-full text-foreground transition-all duration-150 hover:bg-primary hover:text-primary-foreground active:scale-90"
                     aria-label={`Diminuir quantidade de ${product.name}`}
                   >
                     <Minus className="w-4 h-4" />
@@ -1868,7 +1880,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   </span>
                   <button
                     onClick={() => updateQuantity(product.id, 1)}
-                    className="w-9 h-9 flex items-center justify-center bg-primary rounded-full text-primary-foreground transition-all hover:brightness-110 active:scale-90"
+                    className="w-9 h-9 flex items-center justify-center bg-primary rounded-full text-primary-foreground transition-all duration-150 hover:brightness-110 active:scale-90 shadow-md shadow-primary/30"
                     aria-label={`Aumentar quantidade de ${product.name}`}
                   >
                     <Plus className="w-4 h-4" />
@@ -1935,14 +1947,23 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
             <button
               onClick={openCheckout}
               disabled={getTotalItems() === 0}
-              className="w-full py-4 bg-primary text-primary-foreground font-bold text-lg rounded-2xl flex items-center justify-center gap-3 transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/30"
+              className="w-full py-4 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground font-bold text-base rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/40 hover:shadow-xl hover:shadow-primary/50"
             >
-              <Send className="w-5 h-5" />
-              Enviar Pedido no WhatsApp
-              {getTotalItems() > 0 && (
-                <span className="bg-accent text-accent-foreground px-3 py-1 rounded-full text-sm">
-                  {formatCurrency(getTotal())}
-                </span>
+              {getTotalItems() > 0 ? (
+                <>
+                  <span className="bg-white/20 px-2.5 py-0.5 rounded-full text-sm font-semibold">
+                    {getTotalItems()} {getTotalItems() === 1 ? "item" : "itens"}
+                  </span>
+                  <span className="mx-1">•</span>
+                  <span>Finalizar Pedido</span>
+                  <span className="mx-1">•</span>
+                  <span className="font-bold">{formatCurrency(getTotal())}</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="w-5 h-5" />
+                  <span>Finalizar Pedido</span>
+                </>
               )}
             </button>
           )}
