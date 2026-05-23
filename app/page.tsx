@@ -1963,8 +1963,8 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
           </section>
         )}
 
-        {/* Spacer for fixed button */}
-        <div className="h-4" />
+        {/* Spacer for fixed button - altura suficiente para nao sobrepor */}
+        <div className="h-24" />
 
         {/* Footer */}
         <footer className="text-center py-6 border-t border-border mt-8">
@@ -1974,7 +1974,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         </footer>
 
       {/* Fixed Bottom Button */}
-      <div className="fixed bottom-0 left-0 right-0 glass border-t border-white/5 p-3 shadow-[0_-8px_30px_rgba(0,0,0,0.2)]">
+      <div className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-white/5 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(0,0,0,0.2)]">
         <div className="max-w-lg mx-auto">
             {!isStoreOpen ? (
             <div className="w-full py-3 bg-gradient-to-r from-red-500/10 to-red-500/5 text-red-400 font-bold text-base rounded-xl flex items-center justify-center gap-2 border border-red-500/20">

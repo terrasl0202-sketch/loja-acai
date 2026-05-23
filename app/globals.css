@@ -267,6 +267,7 @@
 /* Product Card - Ultra Premium */
 .product-card {
   @apply relative overflow-hidden rounded-2xl transition-all duration-300;
+  z-index: 1;
   background: linear-gradient(145deg, 
     rgba(23, 23, 36, 0.95) 0%, 
     rgba(23, 23, 36, 0.85) 50%,
