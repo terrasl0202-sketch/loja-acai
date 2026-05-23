@@ -1781,13 +1781,13 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
           className="object-cover"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background" />
-        <div className="absolute bottom-3 left-4 right-4">
-          <h2 className="text-xl sm:text-2xl font-extrabold text-foreground drop-shadow-lg">
-            {siteConfig.banner.mainText}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-background/60 to-background" />
+        <div className="absolute bottom-4 left-4 right-4">
+          <h2 className="text-xl sm:text-2xl font-black text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
+            Acai artesanal entregue geladinho
           </h2>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            {siteConfig.banner.secondaryText}
+          <p className="text-xs sm:text-sm text-white/80 mt-1 font-medium tracking-wide">
+            Entrega rapida • Qualidade premium
           </p>
         </div>
       </section>
@@ -1820,67 +1820,70 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       )}
 
       {/* Products */}
-      <section className="mt-4 space-y-3 px-1">
-          <h3 className="text-lg font-semibold text-foreground px-3">Cardapio</h3>
+      <section className="mt-4 space-y-3 px-3">
+          <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <span className="w-1 h-5 bg-primary rounded-full"></span>
+            Cardapio
+          </h3>
           
           {/* Produtos - Renderizar imediatamente com defaultConfig */}
           {products.map((product, index) => (
             <div
               key={product.id}
-              className="relative bg-card rounded-2xl p-4 border border-border shadow-md shadow-primary/10 transition-all duration-200 hover:shadow-lg hover:shadow-primary/20 hover:border-primary/30 active:scale-[0.99]"
+              className="group relative bg-card rounded-2xl p-4 border border-border/50 shadow-lg shadow-primary/5 transition-all duration-300 hover:shadow-xl hover:shadow-primary/15 hover:border-primary/20 active:scale-[0.995]"
             >
-              {/* Badge */}
+              {/* Badge Premium */}
               {index === 0 && (
-                <span className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
+                <span className="absolute top-3 right-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-lg shadow-lg shadow-amber-500/30 uppercase tracking-wide">
                   Mais vendido
                 </span>
               )}
               {product.price < 20 && index !== 0 && (
-                <span className="absolute -top-2 -right-2 bg-gradient-to-r from-emerald-500 to-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
+                <span className="absolute top-3 right-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-lg shadow-lg shadow-emerald-500/30 uppercase tracking-wide">
                   Melhor custo
                 </span>
               )}
               
               <div className="flex justify-between items-start gap-4">
-                <div className="flex-1">
+                <div className="flex-1 pr-2">
                   <div className="flex items-start justify-between">
-                    <h4 className="font-semibold text-foreground">{product.name}</h4>
+                    <h4 className="font-bold text-foreground text-base">{product.name}</h4>
                     <button
                       onClick={() => toggleFavorite(product.id)}
-                      className={`p-1 rounded-full transition-all ${
+                      className={`p-1.5 rounded-full transition-all duration-200 ${
                         customer?.favorites.includes(product.id)
-                          ? "text-red-500"
-                          : "text-muted-foreground hover:text-red-400"
+                          ? "text-red-500 bg-red-500/10"
+                          : "text-muted-foreground hover:text-red-400 hover:bg-red-500/5"
                       }`}
                       aria-label={customer?.favorites.includes(product.id) ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                     >
                       <Heart 
-                        className={`w-4 h-4 ${customer?.favorites.includes(product.id) ? "fill-red-500" : ""}`} 
+                        className={`w-4 h-4 transition-transform duration-200 ${customer?.favorites.includes(product.id) ? "fill-red-500 scale-110" : ""}`} 
                       />
                     </button>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
                     {product.description}
                   </p>
-                  <p className="text-lg font-bold text-primary mt-2">
+                  <p className="text-xl font-black text-primary mt-3">
                     {formatCurrency(product.price)}
                   </p>
                 </div>
                 
-                <div className="flex items-center gap-2 bg-secondary rounded-full p-1">
+                <div className="flex items-center gap-1.5 bg-secondary/80 rounded-full p-1 backdrop-blur-sm">
                   <button
                     onClick={() => updateQuantity(product.id, -1)}
-                    className="w-9 h-9 flex items-center justify-center bg-card rounded-full text-foreground transition-all duration-150 hover:bg-primary hover:text-primary-foreground active:scale-90"
+                    className="w-10 h-10 flex items-center justify-center bg-card rounded-full text-foreground transition-all duration-200 hover:bg-primary/10 active:scale-90 active:bg-primary active:text-primary-foreground"
                     aria-label={`Diminuir quantidade de ${product.name}`}
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="w-6 text-center font-semibold text-foreground">
+                  <span className="w-7 text-center font-bold text-foreground tabular-nums">
                     {quantities[product.id] || 0}
                   </span>
                   <button
                     onClick={() => updateQuantity(product.id, 1)}
-                    className="w-9 h-9 flex items-center justify-center bg-primary rounded-full text-primary-foreground transition-all duration-150 hover:brightness-110 active:scale-90 shadow-md shadow-primary/30"
+                    className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-primary to-primary/80 rounded-full text-primary-foreground transition-all duration-200 hover:brightness-110 hover:scale-105 active:scale-95 shadow-lg shadow-primary/40"
                     aria-label={`Aumentar quantidade de ${product.name}`}
                   >
                     <Plus className="w-4 h-4" />
@@ -1936,33 +1939,37 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         </footer>
 
       {/* Fixed Bottom Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border p-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-xl border-t border-border/50 p-3">
         <div className="max-w-lg mx-auto">
             {!isStoreOpen ? (
-            <div className="w-full py-4 bg-red-500/20 text-red-400 font-bold text-lg rounded-2xl flex items-center justify-center gap-3 border border-red-500/50">
-              <X className="w-5 h-5" />
+            <div className="w-full py-3 bg-red-500/10 text-red-400 font-bold text-base rounded-xl flex items-center justify-center gap-2 border border-red-500/30">
+              <X className="w-4 h-4" />
               Loja Fechada
             </div>
           ) : (
             <button
               onClick={openCheckout}
               disabled={getTotalItems() === 0}
-              className="w-full py-4 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground font-bold text-base rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/40 hover:shadow-xl hover:shadow-primary/50"
+              className="w-full py-3.5 bg-gradient-to-r from-primary via-primary to-primary/90 text-primary-foreground font-bold text-sm rounded-xl flex items-center justify-between px-4 transition-all duration-300 hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40"
             >
               {getTotalItems() > 0 ? (
                 <>
-                  <span className="bg-white/20 px-2.5 py-0.5 rounded-full text-sm font-semibold">
+                  <span className="bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-bold tabular-nums">
                     {getTotalItems()} {getTotalItems() === 1 ? "item" : "itens"}
                   </span>
-                  <span className="mx-1">•</span>
-                  <span>Finalizar Pedido</span>
-                  <span className="mx-1">•</span>
-                  <span className="font-bold">{formatCurrency(getTotal())}</span>
+                  <span className="font-bold tracking-wide">Finalizar Pedido</span>
+                  <span className="bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-bold tabular-nums">
+                    {formatCurrency(getTotal())}
+                  </span>
                 </>
               ) : (
                 <>
-                  <ShoppingCart className="w-5 h-5" />
-                  <span>Finalizar Pedido</span>
+                  <span></span>
+                  <span className="flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4" />
+                    Finalizar Pedido
+                  </span>
+                  <span></span>
                 </>
               )}
             </button>
