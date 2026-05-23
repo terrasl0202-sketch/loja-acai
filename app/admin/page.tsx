@@ -72,9 +72,9 @@ export default function AdminPage() {
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [soundActivated, setSoundActivated] = useState(false)
   const [strongNotification, setStrongNotification] = useState(true)
-  const [lastOrderIds, setLastOrderIds] = useState<Set<string>>(new Set())
-  const [lastPaidIds, setLastPaidIds] = useState<Set<string>>(new Set())
-  const [seenOrderIds, setSeenOrderIds] = useState<Set<string>>(new Set())
+  const [initialLoadDone, setInitialLoadDone] = useState(false)
+  const [adminOpenedAt, setAdminOpenedAt] = useState<string | null>(null)
+  const [knownOrderIds, setKnownOrderIds] = useState<Set<string>>(new Set())
   const [newOrdersCount, setNewOrdersCount] = useState(0)
   const [pulsingOrders, setPulsingOrders] = useState<Set<string>>(new Set())
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
@@ -135,54 +135,61 @@ export default function AdminPage() {
 
   // Notificacao sonora PROFISSIONAL quando chegar novo pedido
   const playNotificationSound = () => {
-    if (!soundEnabled || !soundActivated) return
+    if (!soundEnabled || !soundActivated) {
+      return
+    }
     
     // Vibracao no celular (se suportado)
     if (strongNotification && navigator.vibrate) {
-      navigator.vibrate([200, 100, 200, 100, 400, 100, 200, 100, 200]) // Padrao de vibracao longo
+      navigator.vibrate([200, 100, 200, 100, 400, 100, 200, 100, 200])
     }
     
-    try {
-      const audio = new Audio("/notification.mp3")
-      audio.volume = strongNotification ? 1.0 : 0.6
-      audio.play().catch(() => {
-        // Fallback: usar beep longo e forte com Web Audio API
-        playBeepSequence()
-      })
-    } catch {
-      playBeepSequence()
-    }
+    // Usar Web Audio API diretamente (mais confiavel em mobile)
+    playBeepSequence()
   }
   
   // Sequencia de beeps longos para notificacao forte
   const playBeepSequence = () => {
     try {
       const ctx = new AudioContext()
-      const duration = strongNotification ? 3000 : 1000 // 3 segundos no modo forte
       const volume = strongNotification ? 0.8 : 0.4
       
-      // Criar sequencia de tons crescentes
+      // Criar sequencia de tons
       const frequencies = strongNotification 
-        ? [523, 659, 784, 880, 784, 659, 784, 880, 1047] // Sequencia musical alertante
+        ? [523, 659, 784, 880, 784, 659, 784, 880, 1047]
         : [700, 900]
       
       frequencies.forEach((freq, index) => {
         setTimeout(() => {
-          const oscillator = ctx.createOscillator()
-          const gainNode = ctx.createGain()
-          oscillator.connect(gainNode)
-          gainNode.connect(ctx.destination)
-          oscillator.frequency.value = freq
-          oscillator.type = "sine"
-          gainNode.gain.setValueAtTime(volume, ctx.currentTime)
-          gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3)
-          oscillator.start()
-          oscillator.stop(ctx.currentTime + 0.35)
+          try {
+            const oscillator = ctx.createOscillator()
+            const gainNode = ctx.createGain()
+            oscillator.connect(gainNode)
+            gainNode.connect(ctx.destination)
+            oscillator.frequency.value = freq
+            oscillator.type = "sine"
+            gainNode.gain.setValueAtTime(volume, ctx.currentTime)
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3)
+            oscillator.start()
+            oscillator.stop(ctx.currentTime + 0.35)
+          } catch {
+            // Ignorar erro de tom individual
+          }
         }, index * 350)
       })
     } catch {
-      console.log("Audio nao suportado")
+      // Audio nao suportado
     }
+  }
+  
+  // Tocar som de teste
+  const playTestSound = () => {
+    if (!soundActivated) {
+      showToast("Ative o som primeiro!")
+      return
+    }
+    playBeepSequence()
+    showToast("Som de teste tocado!")
   }
 
   // Mostrar toast de notificacao
@@ -195,7 +202,7 @@ export default function AdminPage() {
   const activateSound = () => {
     setSoundActivated(true)
     setSoundEnabled(true)
-    // Tocar som de teste para confirmar ativacao
+    // Tocar som de teste para confirmar ativacao e desbloquear AudioContext
     try {
       const ctx = new AudioContext()
       const oscillator = ctx.createOscillator()
@@ -204,13 +211,27 @@ export default function AdminPage() {
       gainNode.connect(ctx.destination)
       oscillator.frequency.value = 600
       oscillator.type = "sine"
-      gainNode.gain.value = 0.2
+      gainNode.gain.value = 0.3
       oscillator.start()
-      setTimeout(() => oscillator.stop(), 150)
+      setTimeout(() => {
+        oscillator.stop()
+        // Tocar segundo beep para confirmar
+        setTimeout(() => {
+          const osc2 = ctx.createOscillator()
+          const gain2 = ctx.createGain()
+          osc2.connect(gain2)
+          gain2.connect(ctx.destination)
+          osc2.frequency.value = 800
+          osc2.type = "sine"
+          gain2.gain.value = 0.3
+          osc2.start()
+          setTimeout(() => osc2.stop(), 150)
+        }, 200)
+      }, 150)
     } catch {
       // Ignorar erro
     }
-    showToast("Som ativado!")
+    showToast("Som ativado! Voce ouvira alertas de novos pedidos.")
   }
 
   const loadOrdersWithNotification = async () => {
@@ -218,61 +239,53 @@ export default function AdminPage() {
       const res = await fetch(`/api/orders?password=${encodeURIComponent(sessionPassword)}`, { cache: "no-store" })
       const data = await res.json()
       if (data.success && data.orders) {
-        const newOrders = data.orders as Order[]
+        const fetchedOrders = data.orders as Order[]
         
-        // Verificar novos pedidos (IDs que nao existiam antes)
-        const currentIds = new Set(newOrders.map(o => o.id))
-        const newPedidos = newOrders.filter(o => !lastOrderIds.has(o.id))
-        
-        // Verificar pedidos com Pix confirmado que nao estavam pagos antes
-        const currentPaidIds = new Set(
-          newOrders
-            .filter(o => o.paymentStatus === "confirmed" || o.confirmedAutomatically || o.paidAt)
-            .map(o => o.id)
-        )
-        const newPaid = newOrders.filter(o => 
-          (o.paymentStatus === "confirmed" || o.confirmedAutomatically || o.paidAt) && 
-          !lastPaidIds.has(o.id)
-        )
-        
-        // So notificar se ja temos dados anteriores (nao e primeira carga)
-        if (lastOrderIds.size > 0) {
-          // Filtrar novos pedidos que ainda nao foram vistos
-          const unseenNewPedidos = newPedidos.filter(o => !seenOrderIds.has(o.id))
-          const unseenNewPaid = newPaid.filter(o => !seenOrderIds.has(o.id))
-          
-          // Novos pedidos criados (que nao foram vistos)
-          if (unseenNewPedidos.length > 0) {
-            playNotificationSound()
-            showToast(`Novo pedido recebido! (${unseenNewPedidos[0].id})`)
-            // Adicionar aos pedidos pulsando
-            setPulsingOrders(prev => {
-              const newSet = new Set(prev)
-              unseenNewPedidos.forEach(o => newSet.add(o.id))
-              return newSet
-            })
-          }
-          // Pix confirmado (que nao foi visto)
-          else if (unseenNewPaid.length > 0 && lastPaidIds.size > 0) {
-            playNotificationSound()
-            showToast(`Pix confirmado! (${unseenNewPaid[0].id})`)
-            setPulsingOrders(prev => {
-              const newSet = new Set(prev)
-              unseenNewPaid.forEach(o => newSet.add(o.id))
-              return newSet
-            })
-          }
+        // Na primeira carga, registrar todos os IDs existentes como "conhecidos"
+        if (!initialLoadDone) {
+          const allIds = new Set(fetchedOrders.map(o => o.id))
+          setKnownOrderIds(allIds)
+          setAdminOpenedAt(new Date().toISOString())
+          setInitialLoadDone(true)
+          setOrders(fetchedOrders)
+          setNewOrdersCount(0)
+          return
         }
         
-        // Atualizar contador de pedidos nao vistos (pendentes e confirmados aguardando preparo)
-        const pendingAndConfirmed = newOrders.filter(o => 
-          (o.status === "pending" || o.status === "confirmed") && !seenOrderIds.has(o.id)
-        )
-        setNewOrdersCount(pendingAndConfirmed.length)
+        // Verificar pedidos REALMENTE novos (IDs que nao existiam antes)
+        const trulyNewOrders = fetchedOrders.filter(o => {
+          // Pedido novo = ID nao conhecido + criado DEPOIS que admin abriu
+          const isNewId = !knownOrderIds.has(o.id)
+          const createdAfterOpen = adminOpenedAt ? new Date(o.createdAt) > new Date(adminOpenedAt) : false
+          // Nao contar cancelados/finalizados/arquivados
+          const isActive = o.status === "pending" || o.status === "confirmed" || o.status === "preparing" || o.status === "delivering"
+          return isNewId && createdAfterOpen && isActive
+        })
         
-        setOrders(newOrders)
-        setLastOrderIds(currentIds)
-        setLastPaidIds(currentPaidIds)
+        // Se tem pedidos realmente novos, notificar
+        if (trulyNewOrders.length > 0) {
+          playNotificationSound()
+          showToast(`${trulyNewOrders.length} novo${trulyNewOrders.length > 1 ? "s" : ""} pedido${trulyNewOrders.length > 1 ? "s" : ""} recebido${trulyNewOrders.length > 1 ? "s" : ""}!`)
+          
+          // Adicionar aos pedidos pulsando
+          setPulsingOrders(prev => {
+            const newSet = new Set(prev)
+            trulyNewOrders.forEach(o => newSet.add(o.id))
+            return newSet
+          })
+          
+          // Atualizar contador
+          setNewOrdersCount(prev => prev + trulyNewOrders.length)
+          
+          // Adicionar aos conhecidos
+          setKnownOrderIds(prev => {
+            const newSet = new Set(prev)
+            trulyNewOrders.forEach(o => newSet.add(o.id))
+            return newSet
+          })
+        }
+        
+        setOrders(fetchedOrders)
       }
     } catch (error) {
       console.error("Erro ao carregar pedidos:", error)
@@ -281,10 +294,6 @@ export default function AdminPage() {
   
   // Marcar pedidos como vistos
   const markOrdersAsSeen = () => {
-    const pendingAndConfirmed = orders.filter(o => o.status === "pending" || o.status === "confirmed")
-    const newSeenIds = new Set(seenOrderIds)
-    pendingAndConfirmed.forEach(o => newSeenIds.add(o.id))
-    setSeenOrderIds(newSeenIds)
     setNewOrdersCount(0)
     setPulsingOrders(new Set())
     showToast("Pedidos marcados como vistos")
@@ -318,7 +327,16 @@ export default function AdminPage() {
       const res = await fetch(`/api/orders?password=${encodeURIComponent(sessionPassword)}&includeHistory=true`)
       const data = await res.json()
       if (data.success && data.orders) {
-        setOrders(data.orders)
+        const fetchedOrders = data.orders as Order[]
+        setOrders(fetchedOrders)
+        
+        // Na primeira carga, registrar todos IDs como conhecidos
+        if (!initialLoadDone) {
+          const allIds = new Set(fetchedOrders.map(o => o.id))
+          setKnownOrderIds(allIds)
+          setAdminOpenedAt(new Date().toISOString())
+          setInitialLoadDone(true)
+        }
       }
       if (data.financialHistory) {
         setFinancialHistory(data.financialHistory)
@@ -1597,46 +1615,60 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
             
             {/* Botao Atualizar */}
             <button
-              onClick={loadOrders}
+              onClick={() => loadOrdersWithNotification()}
               className="p-2 rounded-xl bg-secondary text-foreground hover:bg-secondary/80 transition-all"
               title="Atualizar pedidos"
             >
               <RefreshCw className="w-5 h-5" />
             </button>
             
-            {/* Toggle Notificacao Forte */}
-            <button
-              onClick={() => setStrongNotification(!strongNotification)}
-              className={`p-2 rounded-xl transition-all ${
-                strongNotification
-                  ? "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30"
-                  : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-              }`}
-              title={strongNotification ? "Notificacao Forte ATIVADA" : "Notificacao Forte desativada"}
-            >
-              <Volume2 className="w-5 h-5" />
-            </button>
-            
-            {/* Botao de som */}
-            <button
-              onClick={() => {
-                if (!soundActivated) {
-                  activateSound()
-                } else {
-                  setSoundEnabled(!soundEnabled)
-                }
-              }}
-              className={`p-2 rounded-xl transition-all ${
-                soundEnabled && soundActivated
-                  ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                  : !soundActivated
-                    ? "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 animate-pulse"
-                    : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-              }`}
-              title={!soundActivated ? "Clique para ativar som" : soundEnabled ? "Som ativado" : "Som desativado"}
-            >
-              {soundEnabled && soundActivated ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
-            </button>
+            {/* Botao ATIVAR SOM - Aparece destacado se nao ativado */}
+            {!soundActivated ? (
+              <button
+                onClick={activateSound}
+                className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-black font-bold rounded-xl hover:bg-yellow-400 transition-all animate-pulse"
+              >
+                <Volume2 className="w-5 h-5" />
+                <span className="hidden sm:inline">Ativar Som</span>
+              </button>
+            ) : (
+              <>
+                {/* Botao Testar Som */}
+                <button
+                  onClick={playTestSound}
+                  className="px-3 py-1.5 text-sm bg-purple-500/20 text-purple-400 rounded-xl hover:bg-purple-500/30 transition-all"
+                  title="Testar som"
+                >
+                  Testar
+                </button>
+                
+                {/* Toggle Som On/Off */}
+                <button
+                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  className={`p-2 rounded-xl transition-all ${
+                    soundEnabled
+                      ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                  }`}
+                  title={soundEnabled ? "Som ATIVADO - clique para desativar" : "Som desativado - clique para ativar"}
+                >
+                  {soundEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+                </button>
+                
+                {/* Toggle Notificacao Forte */}
+                <button
+                  onClick={() => setStrongNotification(!strongNotification)}
+                  className={`p-2 rounded-xl transition-all ${
+                    strongNotification
+                      ? "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30"
+                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                  }`}
+                  title={strongNotification ? "Modo Forte ATIVADO (som longo)" : "Modo Forte desativado"}
+                >
+                  <Volume2 className="w-5 h-5" />
+                </button>
+              </>
+            )}
             
             <button
               onClick={handleSave}
