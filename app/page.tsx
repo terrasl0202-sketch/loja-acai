@@ -76,8 +76,15 @@ export default function Home() {
     }
   }
 
+  // Estado para controlar hydration - evita mismatch server/client
+  const [isClient, setIsClient] = useState(false)
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
   // Loja esta realmente aberta = status manual E dentro do horario
-  const isStoreOpen = siteConfig.storeHours?.isOpen && isWithinBusinessHours()
+  // Usar isClient para evitar hydration mismatch - no servidor sempre mostra aberto
+  const isStoreOpen = isClient ? (siteConfig.storeHours?.isOpen && isWithinBusinessHours()) : true
 
   const [quantities, setQuantities] = useState<Record<number, number>>({})
   const [formData, setFormData] = useState({
@@ -128,6 +135,7 @@ export default function Home() {
   // Cooldown para novo PIX (anti-spam)
   const [pixCooldownEnd, setPixCooldownEnd] = useState<number | null>(null)
   const [pixCooldownLeft, setPixCooldownLeft] = useState<number>(0)
+  
   const [showChangePaymentModal, setShowChangePaymentModal] = useState(false)
   const [showManualPixDuringCooldown, setShowManualPixDuringCooldown] = useState(false)
   

@@ -55,7 +55,7 @@ export default function PedidoPage() {
   const [order, setOrder] = useState<PublicOrder | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
 
   const fetchOrder = async () => {
     try {
@@ -173,11 +173,13 @@ export default function PedidoPage() {
                 : "bg-primary/20 text-primary"
             }`}>
               {statusLabels[order.status]}
-            </div>
-            <p className="text-muted-foreground text-sm mt-2">
-              Ultima atualizacao: {formatTime(lastUpdate.toISOString())}
-            </p>
-          </div>
+  </div>
+  {lastUpdate && (
+    <p className="text-muted-foreground text-sm mt-2">
+      Ultima atualizacao: {formatTime(lastUpdate.toISOString())}
+    </p>
+  )}
+  </div>
 
           {/* Progress Steps */}
           {order.status !== "cancelled" && (
