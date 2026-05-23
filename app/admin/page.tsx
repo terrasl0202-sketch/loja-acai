@@ -47,7 +47,9 @@ import {
   Link2,
   ExternalLink,
   RotateCcw,
-  FolderArchive
+  FolderArchive,
+  RefreshCw,
+  Volume2
 } from "lucide-react"
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, type Entregador, defaultConfig } from "@/lib/config-types"
@@ -69,8 +71,12 @@ export default function AdminPage() {
   const [expandedProduct, setExpandedProduct] = useState<number | null>(null)
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [soundActivated, setSoundActivated] = useState(false)
+  const [strongNotification, setStrongNotification] = useState(true)
   const [lastOrderIds, setLastOrderIds] = useState<Set<string>>(new Set())
   const [lastPaidIds, setLastPaidIds] = useState<Set<string>>(new Set())
+  const [seenOrderIds, setSeenOrderIds] = useState<Set<string>>(new Set())
+  const [newOrdersCount, setNewOrdersCount] = useState(0)
+  const [pulsingOrders, setPulsingOrders] = useState<Set<string>>(new Set())
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -127,24 +133,52 @@ export default function AdminPage() {
     }
   }, [isAuthenticated, sessionPassword])
 
-  // Notificacao sonora quando chegar novo pedido
+  // Notificacao sonora PROFISSIONAL quando chegar novo pedido
   const playNotificationSound = () => {
     if (!soundEnabled || !soundActivated) return
+    
+    // Vibracao no celular (se suportado)
+    if (strongNotification && navigator.vibrate) {
+      navigator.vibrate([200, 100, 200, 100, 400, 100, 200, 100, 200]) // Padrao de vibracao longo
+    }
+    
     try {
       const audio = new Audio("/notification.mp3")
-      audio.volume = 0.5
+      audio.volume = strongNotification ? 1.0 : 0.6
       audio.play().catch(() => {
-        // Fallback: usar beep
-        const ctx = new AudioContext()
-        const oscillator = ctx.createOscillator()
-        const gainNode = ctx.createGain()
-        oscillator.connect(gainNode)
-        gainNode.connect(ctx.destination)
-        oscillator.frequency.value = 800
-        oscillator.type = "sine"
-        gainNode.gain.value = 0.3
-        oscillator.start()
-        setTimeout(() => oscillator.stop(), 300)
+        // Fallback: usar beep longo e forte com Web Audio API
+        playBeepSequence()
+      })
+    } catch {
+      playBeepSequence()
+    }
+  }
+  
+  // Sequencia de beeps longos para notificacao forte
+  const playBeepSequence = () => {
+    try {
+      const ctx = new AudioContext()
+      const duration = strongNotification ? 3000 : 1000 // 3 segundos no modo forte
+      const volume = strongNotification ? 0.8 : 0.4
+      
+      // Criar sequencia de tons crescentes
+      const frequencies = strongNotification 
+        ? [523, 659, 784, 880, 784, 659, 784, 880, 1047] // Sequencia musical alertante
+        : [700, 900]
+      
+      frequencies.forEach((freq, index) => {
+        setTimeout(() => {
+          const oscillator = ctx.createOscillator()
+          const gainNode = ctx.createGain()
+          oscillator.connect(gainNode)
+          gainNode.connect(ctx.destination)
+          oscillator.frequency.value = freq
+          oscillator.type = "sine"
+          gainNode.gain.setValueAtTime(volume, ctx.currentTime)
+          gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3)
+          oscillator.start()
+          oscillator.stop(ctx.currentTime + 0.35)
+        }, index * 350)
       })
     } catch {
       console.log("Audio nao suportado")
@@ -203,17 +237,38 @@ export default function AdminPage() {
         
         // So notificar se ja temos dados anteriores (nao e primeira carga)
         if (lastOrderIds.size > 0) {
-          // Novos pedidos criados
-          if (newPedidos.length > 0) {
+          // Filtrar novos pedidos que ainda nao foram vistos
+          const unseenNewPedidos = newPedidos.filter(o => !seenOrderIds.has(o.id))
+          const unseenNewPaid = newPaid.filter(o => !seenOrderIds.has(o.id))
+          
+          // Novos pedidos criados (que nao foram vistos)
+          if (unseenNewPedidos.length > 0) {
             playNotificationSound()
-            showToast(`Novo pedido recebido! (${newPedidos[0].id})`)
+            showToast(`Novo pedido recebido! (${unseenNewPedidos[0].id})`)
+            // Adicionar aos pedidos pulsando
+            setPulsingOrders(prev => {
+              const newSet = new Set(prev)
+              unseenNewPedidos.forEach(o => newSet.add(o.id))
+              return newSet
+            })
           }
-          // Pix confirmado
-          else if (newPaid.length > 0 && lastPaidIds.size > 0) {
+          // Pix confirmado (que nao foi visto)
+          else if (unseenNewPaid.length > 0 && lastPaidIds.size > 0) {
             playNotificationSound()
-            showToast(`Pix confirmado! (${newPaid[0].id})`)
+            showToast(`Pix confirmado! (${unseenNewPaid[0].id})`)
+            setPulsingOrders(prev => {
+              const newSet = new Set(prev)
+              unseenNewPaid.forEach(o => newSet.add(o.id))
+              return newSet
+            })
           }
         }
+        
+        // Atualizar contador de pedidos nao vistos (pendentes e confirmados aguardando preparo)
+        const pendingAndConfirmed = newOrders.filter(o => 
+          (o.status === "pending" || o.status === "confirmed") && !seenOrderIds.has(o.id)
+        )
+        setNewOrdersCount(pendingAndConfirmed.length)
         
         setOrders(newOrders)
         setLastOrderIds(currentIds)
@@ -222,6 +277,17 @@ export default function AdminPage() {
     } catch (error) {
       console.error("Erro ao carregar pedidos:", error)
     }
+  }
+  
+  // Marcar pedidos como vistos
+  const markOrdersAsSeen = () => {
+    const pendingAndConfirmed = orders.filter(o => o.status === "pending" || o.status === "confirmed")
+    const newSeenIds = new Set(seenOrderIds)
+    pendingAndConfirmed.forEach(o => newSeenIds.add(o.id))
+    setSeenOrderIds(newSeenIds)
+    setNewOrdersCount(0)
+    setPulsingOrders(new Set())
+    showToast("Pedidos marcados como vistos")
   }
 
   // Solicitar permissao de notificacao
@@ -1510,7 +1576,47 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            {/* Badge de pedidos novos */}
+            {newOrdersCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/20 text-red-400 rounded-xl animate-pulse">
+                <Bell className="w-4 h-4" />
+                <span className="font-bold">{newOrdersCount} novo{newOrdersCount > 1 ? "s" : ""}</span>
+              </div>
+            )}
+            
+            {/* Botao Marcar como visto */}
+            {newOrdersCount > 0 && (
+              <button
+                onClick={markOrdersAsSeen}
+                className="px-3 py-1.5 text-sm bg-blue-500/20 text-blue-400 rounded-xl hover:bg-blue-500/30 transition-all"
+              >
+                Marcar visto
+              </button>
+            )}
+            
+            {/* Botao Atualizar */}
+            <button
+              onClick={loadOrders}
+              className="p-2 rounded-xl bg-secondary text-foreground hover:bg-secondary/80 transition-all"
+              title="Atualizar pedidos"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+            
+            {/* Toggle Notificacao Forte */}
+            <button
+              onClick={() => setStrongNotification(!strongNotification)}
+              className={`p-2 rounded-xl transition-all ${
+                strongNotification
+                  ? "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30"
+                  : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+              }`}
+              title={strongNotification ? "Notificacao Forte ATIVADA" : "Notificacao Forte desativada"}
+            >
+              <Volume2 className="w-5 h-5" />
+            </button>
+            
             {/* Botao de som */}
             <button
               onClick={() => {
@@ -2931,7 +3037,12 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
 
                   <div className="space-y-3">
                     {ordersPendingPayment.map((order) => (
-                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
+                      <div 
+                        key={order.id} 
+                        className={`p-4 rounded-xl border border-border bg-secondary/30 transition-all ${
+                          pulsingOrders.has(order.id) ? "ring-2 ring-red-500 animate-pulse" : ""
+                        }`}
+                      >
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <p className="font-bold text-foreground">{order.id}</p>
@@ -3210,7 +3321,12 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
 
                   <div className="space-y-3">
                     {ordersPaidWaiting.map((order) => (
-                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
+                      <div 
+                        key={order.id} 
+                        className={`p-4 rounded-xl border border-border bg-secondary/30 transition-all ${
+                          pulsingOrders.has(order.id) ? "ring-2 ring-green-500 animate-pulse" : ""
+                        }`}
+                      >
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <p className="font-bold text-foreground">{order.id}</p>
