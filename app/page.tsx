@@ -145,8 +145,11 @@ export default function Home() {
     total: number
     status: string
     paymentStatus: string
+    paymentMethod?: string
     createdAt: string
     deliveryType: string
+    address?: string
+    neighborhood?: string
   }>>([])
   const [loadingOrders, setLoadingOrders] = useState(false)
   const [showRepeatConfirm, setShowRepeatConfirm] = useState(false)
@@ -398,22 +401,72 @@ export default function Home() {
   
   // Confirmar e repetir pedido
   const confirmRepeatOrder = () => {
-    if (!orderToRepeat?.itemsDetailed) return
+    if (!orderToRepeat?.itemsDetailed || orderToRepeat.itemsDetailed.length === 0) {
+      showToast("Nao foi possivel repetir este pedido")
+      return
+    }
     
+    // Limpar carrinho atual e adicionar apenas os itens do pedido antigo
     const newQuantities: Record<number, number> = {}
     orderToRepeat.itemsDetailed.forEach(item => {
-      newQuantities[item.productId] = item.quantity
+      // Verificar se o produto ainda existe no cardapio
+      const productExists = products.some(p => p.id === item.productId)
+      if (productExists) {
+        newQuantities[item.productId] = item.quantity
+      }
     })
     
+    // Verificar se algum produto foi adicionado
+    if (Object.keys(newQuantities).length === 0) {
+      showToast("Produtos deste pedido nao estao mais disponiveis")
+      setShowRepeatConfirm(false)
+      setOrderToRepeat(null)
+      return
+    }
+    
+    // Limpar carrinho atual e definir novos itens
     setQuantities(newQuantities)
+    
+    // Preencher dados de entrega do pedido anterior se for entrega
+    if (orderToRepeat.deliveryType === "entrega" && orderToRepeat.address) {
+      // Extrair dados do endereco (formato: "Rua X, 123 - Bairro - Ref")
+      const addressParts = orderToRepeat.address.split(" - ")
+      const enderecoNumero = addressParts[0] || ""
+      const [endereco, numero] = enderecoNumero.includes(",") 
+        ? enderecoNumero.split(",").map(s => s.trim())
+        : [enderecoNumero, ""]
+      
+      setFormData(prev => ({
+        ...prev,
+        endereco: endereco || prev.endereco,
+        numero: numero || prev.numero,
+        bairro: orderToRepeat.neighborhood || prev.bairro,
+        referencia: addressParts.length > 2 ? addressParts.slice(2).join(" - ") : prev.referencia,
+      }))
+      
+      // Definir tipo de entrega
+      setDeliveryType("entrega")
+    } else if (orderToRepeat.deliveryType === "retirada") {
+      setDeliveryType("retirada")
+    }
+    
+    // Fechar modais
     setShowRepeatConfirm(false)
     setShowMyOrdersModal(false)
     setOrderToRepeat(null)
     
-    // Scroll para o checkout
+    // Abrir carrinho e rolar para checkout
     setTimeout(() => {
       setShowCart(true)
       showToast("Itens adicionados ao carrinho!")
+      
+      // Rolar para a area de finalizacao
+      setTimeout(() => {
+        const checkoutSection = document.getElementById("checkout-section")
+        if (checkoutSection) {
+          checkoutSection.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+      }, 300)
     }, 100)
   }
   
@@ -1740,7 +1793,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
         {/* Cart Summary */}
         {getTotalItems() > 0 && (
-          <section className="mt-8 bg-card rounded-2xl p-4 border border-primary/30 shadow-lg shadow-primary/10">
+          <section id="checkout-section" className="mt-8 bg-card rounded-2xl p-4 border border-primary/30 shadow-lg shadow-primary/10">
             <div className="flex items-center gap-2 mb-4">
               <ShoppingCart className="w-5 h-5 text-primary" />
               <h3 className="text-lg font-semibold text-foreground">Seu Pedido</h3>
