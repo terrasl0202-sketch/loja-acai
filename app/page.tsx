@@ -1414,9 +1414,8 @@ export default function Home() {
               },
             }),
           })
-          console.log("[v0] Pedido PIX salvo no backend:", newOrderId)
-        } catch (err) {
-          console.error("[v0] Erro ao salvar pedido PIX:", err)
+        } catch {
+          // Erro silencioso ao salvar pedido
         }
         
         startPaymentPolling(data.paymentId)
@@ -1460,9 +1459,8 @@ export default function Home() {
                 asaasPaymentId: paymentId,
               }),
             })
-            console.log("[v0] Pedido confirmado no backend:", orderId)
-          } catch (err) {
-            console.error("[v0] Erro ao confirmar pedido:", err)
+          } catch {
+            // Erro silencioso ao confirmar pedido
           }
         }
       } catch (error) {
