@@ -488,35 +488,87 @@ export default function Home() {
   // Confirmar e repetir pedido
   const confirmRepeatOrder = () => {
     console.log("[v0] confirmRepeatOrder INICIADO")
-    console.log("[v0] orderToRepeat:", orderToRepeat)
+    console.log("[v0] orderToRepeat:", JSON.stringify(orderToRepeat))
     console.log("[v0] products.length:", products?.length)
+    console.log("[v0] products:", products?.map(p => ({ id: p.id, name: p.name })))
     
-    if (!orderToRepeat?.itemsDetailed || orderToRepeat.itemsDetailed.length === 0) {
-      console.log("[v0] ERRO: sem itemsDetailed")
+    if (!orderToRepeat) {
+      console.log("[v0] ERRO: orderToRepeat e null")
+      showToast("Erro ao repetir pedido")
+      return
+    }
+    
+    // Se nao tem itemsDetailed, tentar parsear do campo items (string)
+    let itemsToAdd: { productId: number; productName: string; quantity: number; price: number }[] = orderToRepeat.itemsDetailed || []
+    if (itemsToAdd.length === 0) {
+      console.log("[v0] Sem itemsDetailed, tentando parsear de items string:", orderToRepeat.items)
+      // Tentar extrair do campo items (ex: "2x Acai 300ml, 1x Acai 500ml")
+      if (orderToRepeat.items) {
+        itemsToAdd = []
+        const parts = orderToRepeat.items.split(",").map(s => s.trim())
+        parts.forEach(part => {
+          const match = part.match(/^(\d+)x\s+(.+)$/)
+          if (match) {
+            const qty = parseInt(match[1])
+            const productName = match[2].trim()
+            // Encontrar produto por nome
+            const product = products.find(p => 
+              normalizeProductName(p.name) === normalizeProductName(productName) ||
+              p.name.toLowerCase().includes(productName.toLowerCase()) ||
+              productName.toLowerCase().includes(p.name.toLowerCase())
+            )
+            if (product) {
+              itemsToAdd.push({
+                productId: product.id,
+                productName: product.name,
+                quantity: qty,
+                price: product.price
+              })
+            }
+          }
+        })
+      }
+    }
+    
+    console.log("[v0] itemsToAdd:", JSON.stringify(itemsToAdd))
+    
+    if (!itemsToAdd || itemsToAdd.length === 0) {
+      console.log("[v0] ERRO: sem itens para adicionar")
       showToast("Nao foi possivel repetir este pedido")
+      setShowRepeatConfirm(false)
+      setOrderToRepeat(null)
       return
     }
     
     // Limpar carrinho atual e adicionar apenas os itens do pedido antigo
     const newQuantities: Record<number, number> = {}
-    orderToRepeat.itemsDetailed.forEach(item => {
+    itemsToAdd.forEach(item => {
       console.log("[v0] Processando item:", item.productName, "productId:", item.productId)
       
       // Primeiro tentar encontrar por ID exato
       let matchingProduct = products.find(p => p.id === item.productId)
       console.log("[v0] Match por ID:", matchingProduct?.name || "NAO ENCONTRADO")
       
-      // Se nao encontrou por ID, buscar por nome normalizado
+      // Se nao encontrou por ID, buscar por nome (varias estrategias)
       if (!matchingProduct) {
         const normalizedItemName = normalizeProductName(item.productName)
         matchingProduct = products.find(p => normalizeProductName(p.name) === normalizedItemName)
-        console.log("[v0] Match por nome:", matchingProduct?.name || "NAO ENCONTRADO")
+        console.log("[v0] Match por nome normalizado:", matchingProduct?.name || "NAO ENCONTRADO")
+      }
+      
+      // Tentar match parcial
+      if (!matchingProduct) {
+        matchingProduct = products.find(p => 
+          p.name.toLowerCase().includes(item.productName.toLowerCase()) ||
+          item.productName.toLowerCase().includes(p.name.toLowerCase())
+        )
+        console.log("[v0] Match parcial:", matchingProduct?.name || "NAO ENCONTRADO")
       }
       
       // Se encontrou produto equivalente, adicionar ao carrinho
       if (matchingProduct) {
-        newQuantities[matchingProduct.id] = item.quantity
-        console.log("[v0] ADICIONADO:", matchingProduct.id, "qty:", item.quantity)
+        newQuantities[matchingProduct.id] = (newQuantities[matchingProduct.id] || 0) + item.quantity
+        console.log("[v0] ADICIONADO:", matchingProduct.id, "qty:", newQuantities[matchingProduct.id])
       }
     })
     
