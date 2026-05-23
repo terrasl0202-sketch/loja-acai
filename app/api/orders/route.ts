@@ -163,6 +163,7 @@ export async function POST(request: NextRequest) {
       id: publicOrderId,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
+      customerId: order.customerId,
       items: order.items,
       itemsDetailed: order.itemsDetailed || [],
       total: order.total,

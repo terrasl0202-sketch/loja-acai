@@ -130,6 +130,28 @@ export interface Order {
   canceladoEm?: string
   motivoCancelamento?: string
   historicoEntrega?: { data: string; evento: string; observacao?: string }[]
+  // Identificacao do cliente
+  customerId?: string
+}
+
+// Sistema de Conta do Cliente
+export interface Customer {
+  id: string
+  name: string
+  phone: string
+  pin: string // PIN de 4 digitos
+  createdAt: string
+  lastOrderAt?: string
+  totalOrders: number
+  totalSpent: number
+  isVip: boolean // Cliente VIP (5+ pedidos)
+  favorites: number[] // IDs dos produtos favoritos
+  savedAddress?: {
+    endereco: string
+    numero: string
+    bairro: string
+    referencia: string
+  }
 }
 
 export interface SiteConfig {

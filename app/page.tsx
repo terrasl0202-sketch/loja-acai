@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
-import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock } from "lucide-react"
+import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock, Star, LogOut, ChevronRight, Package, Heart } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
-import { type SiteConfig, type Coupon, defaultConfig } from "@/lib/config-types"
+import { type SiteConfig, type Coupon, type Customer, defaultConfig } from "@/lib/config-types"
 
 type PaymentStatus = "idle" | "loading" | "awaiting" | "confirmed" | "error" | "manual"
 type DeliveryType = "entrega" | "retirada"
@@ -125,6 +125,30 @@ export default function Home() {
   const [copiedManualKey, setCopiedManualKey] = useState(false)
   const [copiedManualCode, setCopiedManualCode] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  
+  // Sistema de conta do cliente
+  const [customer, setCustomer] = useState<Customer | null>(null)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showLoginModal, setShowLoginModal] = useState(false)
+  const [showMyOrdersModal, setShowMyOrdersModal] = useState(false)
+  const [showMyAccountModal, setShowMyAccountModal] = useState(false)
+  const [loginStep, setLoginStep] = useState<"phone" | "pin" | "register">("phone")
+  const [loginPhone, setLoginPhone] = useState("")
+  const [loginPin, setLoginPin] = useState("")
+  const [loginName, setLoginName] = useState("")
+  const [loginLoading, setLoginLoading] = useState(false)
+  const [loginError, setLoginError] = useState("")
+  const [customerOrders, setCustomerOrders] = useState<Array<{
+    id: string
+    items: string
+    itemsDetailed?: { productId: number; productName: string; quantity: number; price: number }[]
+    total: number
+    status: string
+    paymentStatus: string
+    createdAt: string
+    deliveryType: string
+  }>>([])
+  const [loadingOrders, setLoadingOrders] = useState(false)
   const [pixTimeLeft, setPixTimeLeft] = useState<number>(0)
   const [pixExpired, setPixExpired] = useState(false)
   
@@ -149,6 +173,241 @@ export default function Home() {
   const showToast = (message: string) => {
     setToastMessage(message)
     setTimeout(() => setToastMessage(null), 4000)
+  }
+  
+  // Chave do localStorage para sessao do cliente
+  const CUSTOMER_SESSION_KEY = "pk-customer-session"
+  
+  // Carregar sessao do cliente ao iniciar
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedSession = localStorage.getItem(CUSTOMER_SESSION_KEY)
+      if (savedSession) {
+        try {
+          const parsed = JSON.parse(savedSession)
+          setCustomer(parsed)
+        } catch {
+          localStorage.removeItem(CUSTOMER_SESSION_KEY)
+        }
+      }
+    }
+  }, [])
+  
+  // Salvar sessao do cliente
+  const saveCustomerSession = (customerData: Customer) => {
+    setCustomer(customerData)
+    localStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(customerData))
+  }
+  
+  // Logout do cliente
+  const handleCustomerLogout = () => {
+    setCustomer(null)
+    localStorage.removeItem(CUSTOMER_SESSION_KEY)
+    setShowProfileMenu(false)
+    showToast("Voce saiu da sua conta")
+  }
+  
+  // Verificar se telefone existe
+  const checkPhoneExists = async (phone: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/customers?phone=${encodeURIComponent(phone)}`)
+      const data = await res.json()
+      return data.found === true
+    } catch {
+      return false
+    }
+  }
+  
+  // Fazer login
+  const handleLogin = async () => {
+    setLoginLoading(true)
+    setLoginError("")
+    
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "login",
+          phone: loginPhone,
+          pin: loginPin
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        saveCustomerSession(data.customer)
+        setShowLoginModal(false)
+        resetLoginForm()
+        showToast(`Bem-vindo(a), ${data.customer.name}!`)
+        
+        // Preencher formulario com dados salvos
+        if (data.customer.savedAddress) {
+          setFormData(prev => ({
+            ...prev,
+            nome: data.customer.name,
+            telefone: data.customer.phone,
+            endereco: data.customer.savedAddress?.endereco || "",
+            numero: data.customer.savedAddress?.numero || "",
+            bairro: data.customer.savedAddress?.bairro || "",
+            referencia: data.customer.savedAddress?.referencia || "",
+          }))
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            nome: data.customer.name,
+            telefone: data.customer.phone,
+          }))
+        }
+      } else {
+        setLoginError(data.error || "Erro ao fazer login")
+      }
+    } catch {
+      setLoginError("Erro de conexao")
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+  
+  // Criar conta
+  const handleRegister = async () => {
+    setLoginLoading(true)
+    setLoginError("")
+    
+    if (loginPin.length !== 4) {
+      setLoginError("PIN deve ter 4 digitos")
+      setLoginLoading(false)
+      return
+    }
+    
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "register",
+          phone: loginPhone,
+          name: loginName,
+          pin: loginPin
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        saveCustomerSession(data.customer)
+        setShowLoginModal(false)
+        resetLoginForm()
+        showToast("Conta criada com sucesso!")
+        
+        // Preencher nome e telefone no formulario
+        setFormData(prev => ({
+          ...prev,
+          nome: data.customer.name,
+          telefone: data.customer.phone,
+        }))
+      } else {
+        setLoginError(data.error || "Erro ao criar conta")
+      }
+    } catch {
+      setLoginError("Erro de conexao")
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+  
+  // Avancar no login
+  const handleLoginNext = async () => {
+    if (loginStep === "phone") {
+      if (!loginPhone || loginPhone.replace(/\D/g, "").length < 10) {
+        setLoginError("Digite um telefone valido")
+        return
+      }
+      
+      setLoginLoading(true)
+      const exists = await checkPhoneExists(loginPhone)
+      setLoginLoading(false)
+      
+      if (exists) {
+        setLoginStep("pin")
+      } else {
+        setLoginStep("register")
+      }
+    }
+  }
+  
+  // Resetar formulario de login
+  const resetLoginForm = () => {
+    setLoginStep("phone")
+    setLoginPhone("")
+    setLoginPin("")
+    setLoginName("")
+    setLoginError("")
+  }
+  
+  // Carregar pedidos do cliente
+  const loadCustomerOrders = async () => {
+    if (!customer) return
+    
+    setLoadingOrders(true)
+    try {
+      const res = await fetch(`/api/customers/orders?phone=${customer.phone}`)
+      const data = await res.json()
+      if (data.success) {
+        setCustomerOrders(data.orders || [])
+      }
+    } catch {
+      console.error("Erro ao carregar pedidos")
+    } finally {
+      setLoadingOrders(false)
+    }
+  }
+  
+  // Toggle favorito
+  const toggleFavorite = async (productId: number) => {
+    if (!customer) {
+      setShowLoginModal(true)
+      return
+    }
+    
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update",
+          phone: customer.phone,
+          toggleFavorite: productId
+        })
+      })
+      
+      const data = await res.json()
+      if (data.success) {
+        saveCustomerSession(data.customer)
+        const isFav = data.customer.favorites.includes(productId)
+        showToast(isFav ? "Adicionado aos favoritos!" : "Removido dos favoritos")
+      }
+    } catch {
+      showToast("Erro ao atualizar favoritos")
+    }
+  }
+  
+  // Repetir pedido (adicionar itens ao carrinho)
+  const repeatOrder = (order: typeof customerOrders[0]) => {
+    if (!order.itemsDetailed) {
+      showToast("Nao foi possivel repetir este pedido")
+      return
+    }
+    
+    const newQuantities: Record<number, number> = {}
+    order.itemsDetailed.forEach(item => {
+      newQuantities[item.productId] = item.quantity
+    })
+    
+    setQuantities(newQuantities)
+    setShowMyOrdersModal(false)
+    showToast("Itens adicionados ao carrinho!")
   }
   
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -640,6 +899,17 @@ export default function Home() {
       .filter((p) => quantities[p.id] > 0)
       .map((p) => `${quantities[p.id]}x ${p.name}`)
       .join(", ")
+    
+    // Detalhes do pedido para permitir "Pedir novamente"
+    const itemsDetailed = products
+      .filter((p) => quantities[p.id] > 0)
+      .map((p) => ({
+        productId: p.id,
+        productName: p.name,
+        quantity: quantities[p.id],
+        price: p.price,
+        subtotal: p.price * quantities[p.id]
+      }))
 
     try {
       await fetch("/api/orders", {
@@ -647,19 +917,60 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           order: {
-            orderId: orderId || generateOrderId(), // ID publico PK...
+            orderId: orderId || generateOrderId(),
             customerName: formData.nome,
             customerPhone: formData.telefone,
+            customerId: customer?.id, // Associar ao cliente logado
             items: orderItems,
+            itemsDetailed, // Para permitir repetir pedido
             total: getTotal(),
             paymentMethod,
             deliveryType,
             address: deliveryType === "entrega" 
               ? `${formData.endereco}, ${formData.numero} - ${formData.bairro} (Ref: ${formData.referencia})`
               : "Retirada no local",
+            neighborhood: formData.bairro,
+            reference: formData.referencia,
           },
         }),
       })
+      
+      // Se cliente logado, atualizar estatisticas e salvar endereco
+      if (customer) {
+        // Registrar pedido nas estatisticas
+        await fetch("/api/customers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "recordOrder",
+            phone: customer.phone,
+            orderTotal: getTotal()
+          })
+        })
+        
+        // Salvar endereco se for entrega
+        if (deliveryType === "entrega" && formData.endereco) {
+          const updateRes = await fetch("/api/customers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "update",
+              phone: customer.phone,
+              savedAddress: {
+                endereco: formData.endereco,
+                numero: formData.numero,
+                bairro: formData.bairro,
+                referencia: formData.referencia
+              }
+            })
+          })
+          
+          const updateData = await updateRes.json()
+          if (updateData.success) {
+            saveCustomerSession(updateData.customer)
+          }
+        }
+      }
     } catch (error) {
       console.error("Erro ao registrar pedido:", error)
     }
@@ -1205,17 +1516,105 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
               <h1 className="text-xl font-bold text-primary">{STORE_NAME}</h1>
               <p className="text-xs text-muted-foreground">Paulo e Karina</p>
             </div>
-            <button
-              onClick={() => setShowCart(!showCart)}
-              className="relative p-3 bg-primary rounded-full transition-transform hover:scale-105 active:scale-95"
-            >
-              <ShoppingCart className="w-5 h-5 text-primary-foreground" />
-              {getTotalItems() > 0 && (
-                <span className="absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center animate-pulse">
-                  {getTotalItems()}
-                </span>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Icone de Perfil/Conta */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className={`p-2.5 rounded-full transition-all ${
+                    customer 
+                      ? "bg-primary/10 text-primary hover:bg-primary/20" 
+                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                  }`}
+                >
+                  <User className="w-5 h-5" />
+                  {customer?.isVip && (
+                    <Star className="absolute -top-0.5 -right-0.5 w-3 h-3 text-yellow-500 fill-yellow-500" />
+                  )}
+                </button>
+                
+                {/* Menu dropdown */}
+                {showProfileMenu && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setShowProfileMenu(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-56 bg-card rounded-xl border border-border shadow-xl z-50 overflow-hidden">
+                      {customer ? (
+                        <>
+                          <div className="p-3 border-b border-border bg-secondary/30">
+                            <p className="font-medium text-foreground flex items-center gap-2">
+                              {customer.name}
+                              {customer.isVip && (
+                                <span className="text-xs bg-yellow-500/20 text-yellow-600 px-1.5 py-0.5 rounded">VIP</span>
+                              )}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                          </div>
+                          <div className="py-1">
+                            <button
+                              onClick={() => {
+                                setShowProfileMenu(false)
+                                setShowMyAccountModal(true)
+                              }}
+                              className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-secondary/50 flex items-center gap-3"
+                            >
+                              <User className="w-4 h-4" />
+                              Minha Conta
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowProfileMenu(false)
+                                setShowMyOrdersModal(true)
+                                loadCustomerOrders()
+                              }}
+                              className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-secondary/50 flex items-center gap-3"
+                            >
+                              <Package className="w-4 h-4" />
+                              Meus Pedidos
+                            </button>
+                            <button
+                              onClick={handleCustomerLogout}
+                              className="w-full px-4 py-2.5 text-left text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-3"
+                            >
+                              <LogOut className="w-4 h-4" />
+                              Sair
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="py-1">
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false)
+                              setShowLoginModal(true)
+                            }}
+                            className="w-full px-4 py-3 text-left text-sm text-foreground hover:bg-secondary/50 flex items-center gap-3"
+                          >
+                            <User className="w-4 h-4" />
+                            Entrar / Criar Conta
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+              
+              {/* Carrinho */}
+              <button
+                onClick={() => setShowCart(!showCart)}
+                className="relative p-3 bg-primary rounded-full transition-transform hover:scale-105 active:scale-95"
+              >
+                <ShoppingCart className="w-5 h-5 text-primary-foreground" />
+                {getTotalItems() > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center animate-pulse">
+                    {getTotalItems()}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -1300,7 +1699,22 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
             >
               <div className="flex justify-between items-start gap-4">
                 <div className="flex-1">
-                  <h4 className="font-semibold text-foreground">{product.name}</h4>
+                  <div className="flex items-start justify-between">
+                    <h4 className="font-semibold text-foreground">{product.name}</h4>
+                    <button
+                      onClick={() => toggleFavorite(product.id)}
+                      className={`p-1 rounded-full transition-all ${
+                        customer?.favorites.includes(product.id)
+                          ? "text-red-500"
+                          : "text-muted-foreground hover:text-red-400"
+                      }`}
+                      aria-label={customer?.favorites.includes(product.id) ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                    >
+                      <Heart 
+                        className={`w-4 h-4 ${customer?.favorites.includes(product.id) ? "fill-red-500" : ""}`} 
+                      />
+                    </button>
+                  </div>
                   <p className="text-sm text-muted-foreground mt-1">
                     {product.description}
                   </p>
@@ -2398,6 +2812,328 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   Cancelar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Login */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-foreground">
+                {loginStep === "phone" && "Entrar ou Criar Conta"}
+                {loginStep === "pin" && "Digite seu PIN"}
+                {loginStep === "register" && "Criar Conta"}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowLoginModal(false)
+                  resetLoginForm()
+                }}
+                className="p-1 text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {loginStep === "phone" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm text-muted-foreground mb-1 block">Telefone</label>
+                  <input
+                    type="tel"
+                    value={loginPhone}
+                    onChange={(e) => setLoginPhone(e.target.value)}
+                    placeholder="(11) 99999-9999"
+                    className="w-full px-4 py-3 bg-secondary rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                {loginError && (
+                  <p className="text-sm text-red-500">{loginError}</p>
+                )}
+                <button
+                  onClick={handleLoginNext}
+                  disabled={loginLoading}
+                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Continuar
+                </button>
+              </div>
+            )}
+            
+            {loginStep === "pin" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm text-muted-foreground mb-1 block">PIN de 4 digitos</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={loginPin}
+                    onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, ""))}
+                    placeholder="****"
+                    className="w-full px-4 py-3 bg-secondary rounded-xl text-foreground text-center text-2xl tracking-widest placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                {loginError && (
+                  <p className="text-sm text-red-500">{loginError}</p>
+                )}
+                <button
+                  onClick={handleLogin}
+                  disabled={loginLoading || loginPin.length !== 4}
+                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Entrar
+                </button>
+                <button
+                  onClick={() => {
+                    setLoginStep("phone")
+                    setLoginPin("")
+                    setLoginError("")
+                  }}
+                  className="w-full py-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Voltar
+                </button>
+              </div>
+            )}
+            
+            {loginStep === "register" && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Telefone nao encontrado. Crie sua conta:
+                </p>
+                <div>
+                  <label className="text-sm text-muted-foreground mb-1 block">Seu nome</label>
+                  <input
+                    type="text"
+                    value={loginName}
+                    onChange={(e) => setLoginName(e.target.value)}
+                    placeholder="Digite seu nome"
+                    className="w-full px-4 py-3 bg-secondary rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground mb-1 block">Crie um PIN de 4 digitos</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={loginPin}
+                    onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, ""))}
+                    placeholder="****"
+                    className="w-full px-4 py-3 bg-secondary rounded-xl text-foreground text-center text-2xl tracking-widest placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Use este PIN para acessar sua conta</p>
+                </div>
+                {loginError && (
+                  <p className="text-sm text-red-500">{loginError}</p>
+                )}
+                <button
+                  onClick={handleRegister}
+                  disabled={loginLoading || loginPin.length !== 4 || !loginName.trim()}
+                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Criar Conta
+                </button>
+                <button
+                  onClick={() => {
+                    setLoginStep("phone")
+                    setLoginName("")
+                    setLoginPin("")
+                    setLoginError("")
+                  }}
+                  className="w-full py-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Voltar
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Minha Conta */}
+      {showMyAccountModal && customer && (
+        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200 max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="text-lg font-bold text-foreground">Minha Conta</h3>
+              <button
+                onClick={() => setShowMyAccountModal(false)}
+                className="p-1 text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Info do cliente */}
+              <div className="bg-secondary/30 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                    <User className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground flex items-center gap-2">
+                      {customer.name}
+                      {customer.isVip && (
+                        <span className="text-xs bg-yellow-500/20 text-yellow-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                          <Star className="w-3 h-3 fill-yellow-500" /> VIP
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Estatisticas */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-secondary/30 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-primary">{customer.totalOrders}</p>
+                  <p className="text-xs text-muted-foreground">Pedidos</p>
+                </div>
+                <div className="bg-secondary/30 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-green-500">
+                    R$ {customer.totalSpent.toFixed(2).replace(".", ",")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Total gasto</p>
+                </div>
+              </div>
+              
+              {/* Favoritos */}
+              <div>
+                <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-red-500" />
+                  Favoritos ({customer.favorites.length})
+                </h4>
+                {customer.favorites.length > 0 ? (
+                  <div className="space-y-2">
+                    {customer.favorites.map(favId => {
+                      const product = products.find(p => p.id === favId)
+                      return product ? (
+                        <div key={favId} className="flex items-center justify-between bg-secondary/30 rounded-lg p-2">
+                          <span className="text-sm text-foreground">{product.name}</span>
+                          <span className="text-sm text-primary font-medium">
+                            R$ {product.price.toFixed(2).replace(".", ",")}
+                          </span>
+                        </div>
+                      ) : null
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Nenhum favorito ainda</p>
+                )}
+              </div>
+              
+              {/* Endereco salvo */}
+              {customer.savedAddress && (
+                <div>
+                  <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-primary" />
+                    Endereco salvo
+                  </h4>
+                  <div className="bg-secondary/30 rounded-xl p-3">
+                    <p className="text-sm text-foreground">
+                      {customer.savedAddress.endereco}, {customer.savedAddress.numero}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {customer.savedAddress.bairro}
+                      {customer.savedAddress.referencia && ` - ${customer.savedAddress.referencia}`}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Meus Pedidos */}
+      {showMyOrdersModal && customer && (
+        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200 max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="text-lg font-bold text-foreground">Meus Pedidos</h3>
+              <button
+                onClick={() => setShowMyOrdersModal(false)}
+                className="p-1 text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4">
+              {loadingOrders ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : customerOrders.length > 0 ? (
+                <div className="space-y-3">
+                  {customerOrders.map(order => (
+                    <div key={order.id} className="bg-secondary/30 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono text-muted-foreground">
+                          #{order.id.slice(-6).toUpperCase()}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          order.status === "completed" ? "bg-green-500/20 text-green-500" :
+                          order.status === "cancelled" ? "bg-red-500/20 text-red-500" :
+                          order.status === "delivering" ? "bg-blue-500/20 text-blue-500" :
+                          "bg-yellow-500/20 text-yellow-600"
+                        }`}>
+                          {order.status === "completed" ? "Entregue" :
+                           order.status === "cancelled" ? "Cancelado" :
+                           order.status === "delivering" ? "Em entrega" :
+                           order.status === "preparing" ? "Preparando" :
+                           order.status === "confirmed" ? "Confirmado" :
+                           "Pendente"}
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground line-clamp-2">{order.items}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(order.createdAt).toLocaleDateString("pt-BR")}
+                        </span>
+                        <span className="text-sm font-bold text-primary">
+                          R$ {order.total.toFixed(2).replace(".", ",")}
+                        </span>
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        {order.itemsDetailed && (
+                          <button
+                            onClick={() => repeatOrder(order)}
+                            className="flex-1 py-2 text-xs bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors font-medium"
+                          >
+                            Pedir novamente
+                          </button>
+                        )}
+                        {(order.status === "pending" || order.status === "confirmed" || order.status === "preparing" || order.status === "delivering") && (
+                          <a
+                            href={`/pedido/${order.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 py-2 text-xs bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors font-medium text-center"
+                          >
+                            Acompanhar
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Package className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Voce ainda nao fez nenhum pedido</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
