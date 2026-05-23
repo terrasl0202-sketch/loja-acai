@@ -2002,108 +2002,141 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
       {/* Checkout Modal */}
       {showCheckout && (
-        <div className="fixed inset-0 z-[100] bg-background/98 backdrop-blur-md overflow-y-auto">
-          <div className="min-h-screen pb-6">
-            {/* Modal Header Premium Compacto */}
-            <header className="sticky top-0 z-10 bg-card/95 backdrop-blur-xl border-b border-primary/10 shadow-sm">
-              <div className="max-w-lg mx-auto px-4 py-3">
+        <div className="fixed inset-0 z-[100] bg-background/98 backdrop-blur-xl overflow-y-auto">
+          <div className="min-h-screen pb-8">
+            {/* Modal Header Premium */}
+            <header className="sticky top-0 z-10 bg-gradient-to-b from-card/98 via-card/95 to-card/90 backdrop-blur-2xl border-b border-primary/15 shadow-lg shadow-primary/5">
+              <div className="max-w-lg mx-auto px-4 py-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-foreground">
-                    {paymentStatus === "confirmed" ? "Pedido Confirmado" : "Finalizar Pedido"}
-                  </h2>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                      <ShoppingCart className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-foreground">
+                        {paymentStatus === "confirmed" ? "Pedido Confirmado" : "Finalizar Pedido"}
+                      </h2>
+                      <p className="text-xs text-muted-foreground">{getTotalItems()} {getTotalItems() === 1 ? 'item' : 'itens'} no carrinho</p>
+                    </div>
+                  </div>
                   <button 
                     onClick={handleCloseCheckout}
-                    className="p-2 bg-secondary/80 hover:bg-secondary rounded-xl text-foreground/80 hover:text-foreground transition-all duration-200 active:scale-95"
+                    className="p-2.5 bg-secondary/80 hover:bg-secondary rounded-xl text-foreground/70 hover:text-foreground transition-all duration-300 active:scale-95 hover:shadow-lg hover:shadow-primary/10"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
-              <div className="h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+              <div className="h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
             </header>
 
-            <div className="max-w-lg mx-auto px-4 pt-4 space-y-4">
+            <div className="max-w-lg mx-auto px-4 pt-5 space-y-5">
               {/* Payment Confirmed Screen */}
               {paymentStatus === "confirmed" && (
-                <div className="space-y-4 animate-in fade-in duration-300">
-                  {/* Success Banner */}
-                  <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-6 text-center">
-                    <div className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Check className="w-7 h-7 text-white" />
+                <div className="space-y-5 animate-in fade-in duration-500">
+                  {/* Success Banner Premium */}
+                  <div className="relative bg-gradient-to-br from-green-500/15 via-green-500/10 to-green-500/5 border border-green-500/30 rounded-3xl p-8 text-center overflow-hidden">
+                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-green-500/10 rounded-full blur-3xl" />
+                    <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-green-500/10 rounded-full blur-3xl" />
+                    <div className="relative">
+                      <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-5 shadow-2xl shadow-green-500/40 animate-float">
+                        <Check className="w-10 h-10 text-white" />
+                      </div>
+                      <h3 className="text-2xl font-black text-green-400 mb-2">PAGAMENTO APROVADO</h3>
+                      <p className="text-green-400/70 text-sm">Seu pedido foi confirmado com sucesso!</p>
                     </div>
-                    <h3 className="text-xl font-bold text-green-400 mb-1">PAGAMENTO APROVADO</h3>
-                    <p className="text-green-400/80 text-sm">Seu pedido foi confirmado com sucesso!</p>
                   </div>
 
-                  {/* Order Details */}
-                  <div className="bg-card rounded-2xl p-4 border border-border/50 shadow-sm space-y-4">
-                    <div className="flex justify-between items-center border-b border-border/50 pb-3">
-                      <span className="text-muted-foreground text-sm">Pedido No</span>
-                      <span className="font-bold text-primary">{orderId}</span>
-                    </div>
-
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Cliente</p>
-                      <p className="font-medium text-foreground">{formData.nome}</p>
+                  {/* Order Details Premium */}
+                  <div className="premium-card rounded-2xl p-5 space-y-4">
+                    <div className="flex justify-between items-center border-b border-primary/10 pb-4">
+                      <span className="text-muted-foreground text-sm flex items-center gap-2">
+                        <Package className="w-4 h-4" />
+                        Pedido No
+                      </span>
+                      <span className="font-black text-primary text-lg">{orderId}</span>
                     </div>
 
                     <div className="space-y-1.5">
-                      <p className="text-xs text-muted-foreground">Itens</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <User className="w-3 h-3" />
+                        Cliente
+                      </p>
+                      <p className="font-bold text-foreground">{formData.nome}</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <ShoppingCart className="w-3 h-3" />
+                        Itens
+                      </p>
                       {products.map((product) => {
                         const qty = quantities[product.id] || 0
                         if (qty === 0) return null
                         return (
-                          <p key={product.id} className="text-foreground flex items-center gap-2 text-sm">
-                            <span className="w-5 h-5 bg-primary/10 rounded flex items-center justify-center text-xs font-medium text-primary">{qty}</span>
+                          <p key={product.id} className="text-foreground flex items-center gap-2.5 text-sm">
+                            <span className="w-6 h-6 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg flex items-center justify-center text-xs font-bold text-primary">{qty}</span>
                             {product.name}
                           </p>
                         )
                       })}
                     </div>
 
-                    <div className="flex justify-between items-center border-t border-border/50 pt-3">
-                      <span className="font-semibold text-foreground">Total</span>
-                      <span className="text-xl font-bold text-primary">{formatCurrency(getTotal())}</span>
+                    <div className="flex justify-between items-center border-t border-primary/10 pt-4">
+                      <span className="font-bold text-foreground">Total</span>
+                      <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">{formatCurrency(getTotal())}</span>
                     </div>
 
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Pagamento</p>
-                      <p className="font-medium text-green-400 flex items-center gap-2 text-sm">
-                        <Check className="w-4 h-4" />
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <CreditCard className="w-3 h-3" />
+                        Pagamento
+                      </p>
+                      <p className="font-bold text-green-400 flex items-center gap-2 text-sm">
+                        <div className="w-5 h-5 bg-green-500/20 rounded flex items-center justify-center">
+                          <Check className="w-3 h-3" />
+                        </div>
                         PIX CONFIRMADO
                       </p>
                     </div>
 
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{deliveryType === "entrega" ? "Entrega" : "Retirada"}</p>
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3" />
+                        {deliveryType === "entrega" ? "Entrega" : "Retirada"}
+                      </p>
                       {deliveryType === "entrega" ? (
                         <>
-                          <p className="text-foreground text-sm">{formData.endereco}, {formData.numero}</p>
+                          <p className="text-foreground text-sm font-medium">{formData.endereco}, {formData.numero}</p>
                           <p className="text-muted-foreground text-xs">Ref: {formData.referencia}</p>
                           {formData.localizacao && (
-                            <a href={formData.localizacao} target="_blank" rel="noopener noreferrer" className="text-primary text-xs hover:underline flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
+                            <a href={formData.localizacao} target="_blank" rel="noopener noreferrer" className="text-primary text-xs hover:underline flex items-center gap-1.5 mt-1">
+                              <MapPin className="w-3.5 h-3.5" />
                               Ver no mapa
                             </a>
                           )}
                         </>
                       ) : (
-                        <p className="text-foreground text-sm">Retirada no local</p>
+                        <p className="text-foreground text-sm font-medium">Retirada no local</p>
                       )}
                     </div>
 
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Horario do pagamento</p>
-                      <p className="text-foreground text-sm">{paymentTime}</p>
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <Clock className="w-3 h-3" />
+                        Horario do pagamento
+                      </p>
+                      <p className="text-foreground text-sm font-medium">{paymentTime}</p>
                     </div>
                   </div>
 
-                  {/* Send to WhatsApp Button */}
+                  {/* Send to WhatsApp Button Premium */}
                   <button
                     onClick={sendConfirmedOrder}
-                    className="w-full py-4 bg-green-500 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-green-600 active:scale-[0.98]"
+                    className="premium-btn w-full py-5 bg-gradient-to-r from-green-500 to-green-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-2xl hover:shadow-green-500/40 active:scale-[0.98] relative overflow-hidden group"
                   >
-                    <Check className="w-5 h-5" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                    <Check className="w-5 h-5 relative" />
                     <span>ENVIAR PEDIDO CONFIRMADO</span>
                   </button>
                 </div>
@@ -2113,10 +2146,15 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
               {paymentStatus !== "confirmed" && (
                 <>
                   {/* Order Summary Premium */}
-                  <section className="bg-card rounded-2xl p-4 border border-border/50 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-foreground text-sm">Resumo do Pedido</h3>
-                      <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-md">
+                  <section className="premium-card rounded-2xl p-5 animate-scale-in">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-foreground flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                          <ShoppingCart className="w-4 h-4 text-primary" />
+                        </div>
+                        Resumo do Pedido
+                      </h3>
+                      <span className="text-xs font-medium text-primary bg-primary/10 px-3 py-1 rounded-full">
                         {getTotalItems()} {getTotalItems() === 1 ? 'item' : 'itens'}
                       </span>
                     </div>
@@ -2126,12 +2164,12 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                         const qty = quantities[product.id] || 0
                         if (qty === 0) return null
                         return (
-                          <div key={product.id} className="flex justify-between items-center text-sm py-1.5 border-b border-border/30 last:border-0">
-                            <span className="text-muted-foreground flex items-center gap-2">
-                              <span className="w-5 h-5 bg-primary/10 rounded flex items-center justify-center text-xs font-medium text-primary">{qty}</span>
-                              <span className="truncate">{product.name}</span>
+                          <div key={product.id} className="flex justify-between items-center text-sm py-2.5 border-b border-border/30 last:border-0 group hover:bg-secondary/20 -mx-2 px-2 rounded-lg transition-colors">
+                            <span className="text-muted-foreground flex items-center gap-2.5">
+                              <span className="w-6 h-6 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg flex items-center justify-center text-xs font-bold text-primary">{qty}</span>
+                              <span className="group-hover:text-foreground transition-colors">{product.name}</span>
                             </span>
-                            <span className="text-foreground font-medium tabular-nums ml-2">
+                            <span className="text-foreground font-semibold tabular-nums">
                               {formatCurrency(product.price * qty)}
                             </span>
                           </div>
@@ -2140,24 +2178,24 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     </div>
                       
                     {/* Subtotal, Desconto, Taxa, Total */}
-                    <div className="border-t border-border/50 mt-3 pt-3 space-y-2">
+                    <div className="border-t border-primary/10 mt-4 pt-4 space-y-2.5">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Subtotal</span>
                         <span className="text-foreground tabular-nums">{formatCurrency(getSubtotal())}</span>
                       </div>
                       {appliedCoupon && getDiscount() > 0 && (
                         <div className="flex justify-between text-sm">
-                          <span className="text-green-400 flex items-center gap-1">
-                            <Tag className="w-3 h-3" />
+                          <span className="text-green-400 flex items-center gap-1.5">
+                            <Tag className="w-3.5 h-3.5" />
                             Cupom {appliedCoupon.code}
                           </span>
-                          <span className="text-green-400 font-medium">-{formatCurrency(getDiscount())}</span>
+                          <span className="text-green-400 font-semibold">-{formatCurrency(getDiscount())}</span>
                         </div>
                       )}
                       {deliveryType === "entrega" && getDeliveryFee() > 0 && (
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground flex items-center gap-1">
-                            <Truck className="w-3 h-3" />
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <Truck className="w-3.5 h-3.5" />
                             Taxa de entrega
                           </span>
                           <span className="text-foreground tabular-nums">{formatCurrency(getDeliveryFee())}</span>
@@ -2165,28 +2203,30 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                       )}
                         
                       {/* Total Premium */}
-                      <div className="flex justify-between items-center pt-2 border-t border-primary/20 mt-2">
-                        <span className="text-foreground font-semibold">Total</span>
-                        <span className="text-xl font-bold text-primary">
-                          {formatCurrency(getTotal())}
-                        </span>
+                      <div className="flex justify-between items-center pt-3 border-t border-primary/20 mt-3">
+                        <span className="text-foreground font-bold text-lg">Total</span>
+                        <div className="text-right">
+                          <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary to-accent drop-shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+                            {formatCurrency(getTotal())}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
                     {/* Cupom */}
                     {(siteConfig.coupons || []).length > 0 && !appliedCoupon && (
-                      <div className="mt-3 pt-3 border-t border-border/30">
+                      <div className="mt-4 pt-4 border-t border-border/30">
                         <div className="flex gap-2">
                           <input
                             type="text"
                             value={couponCode}
                             onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                             placeholder="Codigo do cupom"
-                            className="flex-1 px-3 py-2.5 bg-input border border-border/50 rounded-xl text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all"
+                            className="premium-input flex-1 px-4 py-3 bg-input/50 border border-border/50 rounded-xl text-foreground text-sm placeholder:text-muted-foreground/60 focus:outline-none"
                           />
                           <button
                             onClick={applyCoupon}
-                            className="px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
+                            className="premium-btn px-5 py-3 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-[0.98]"
                           >
                             Aplicar
                           </button>
@@ -2197,10 +2237,12 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                       </div>
                     )}
                     {appliedCoupon && (
-                      <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between">
+                      <div className="mt-4 pt-4 border-t border-border/30 flex items-center justify-between bg-green-500/5 -mx-2 px-3 py-2 rounded-xl">
                         <div className="flex items-center gap-2 text-green-400">
-                          <Tag className="w-4 h-4" />
-                          <span className="text-sm font-medium">Cupom {appliedCoupon.code} aplicado</span>
+                          <div className="w-6 h-6 bg-green-500/20 rounded-lg flex items-center justify-center">
+                            <Tag className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-sm font-bold">Cupom {appliedCoupon.code} aplicado</span>
                         </div>
                         <button
                           onClick={() => setAppliedCoupon(null)}
@@ -2236,38 +2278,43 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     </div>
                   )}
 
-                  {/* Delivery Type */}
-                  <section className={`bg-card rounded-2xl p-4 border border-border/50 shadow-sm ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-2">
-                      <Truck className="w-4 h-4 text-primary" />
+                  {/* Delivery Type Premium */}
+                  <section className={`premium-card rounded-2xl p-5 animate-scale-in ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`} style={{ animationDelay: '0.1s' }}>
+                    <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                        <Truck className="w-4 h-4 text-primary" />
+                      </div>
                       Tipo de Entrega
                     </h3>
                     
-                    {/* Segmented Control */}
-                    <div className="bg-secondary/50 rounded-xl p-1">
-                      <div className="grid grid-cols-2 gap-1">
+                    {/* Segmented Control Premium */}
+                    <div className="bg-secondary/30 backdrop-blur-sm rounded-2xl p-1.5">
+                      <div className="grid grid-cols-2 gap-1.5">
                         {DELIVERY_ENABLED && (
                           <button
                             onClick={() => !isOrderBlocked && setDeliveryType("entrega")}
                             disabled={isOrderBlocked}
-                            className={`py-3 px-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                            className={`relative py-4 px-4 rounded-xl text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2.5 ${
                               deliveryType === "entrega"
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
+                                ? "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/30 glow-primary"
+                                : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/50"
                             }`}
                           >
                             <MapPin className="w-4 h-4" />
                             <span>Entrega</span>
+                            {DELIVERY_FEE > 0 && deliveryType !== "entrega" && (
+                              <span className="text-[10px] opacity-60">(+R${DELIVERY_FEE})</span>
+                            )}
                           </button>
                         )}
                         {PICKUP_ENABLED && (
                           <button
                             onClick={() => !isOrderBlocked && setDeliveryType("retirada")}
                             disabled={isOrderBlocked}
-                            className={`py-3 px-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                            className={`relative py-4 px-4 rounded-xl text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2.5 ${
                               deliveryType === "retirada"
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
+                                ? "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/30 glow-primary"
+                                : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/50"
                             }`}
                           >
                             <HomeIcon className="w-4 h-4" />
@@ -2278,29 +2325,31 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     </div>
                     
                     {deliveryType === "entrega" && siteConfig.delivery?.estimatedTime && (
-                      <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        Tempo estimado: {siteConfig.delivery.estimatedTime}
+                      <p className="text-xs text-muted-foreground text-center mt-3 flex items-center justify-center gap-1.5 bg-secondary/30 py-2 rounded-lg">
+                        <Clock className="w-3.5 h-3.5" />
+                        Tempo estimado: <span className="text-foreground font-medium">{siteConfig.delivery.estimatedTime}</span>
                       </p>
                     )}
                   </section>
 
-                  {/* Customer Info */}
-                  <section className={`bg-card rounded-2xl p-4 border border-border/50 shadow-sm space-y-4 ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
-                      <User className="w-4 h-4 text-primary" />
+                  {/* Customer Info Premium */}
+                  <section className={`premium-card rounded-2xl p-5 space-y-5 animate-scale-in ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`} style={{ animationDelay: '0.15s' }}>
+                    <h3 className="font-bold text-foreground flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                        <User className="w-4 h-4 text-primary" />
+                      </div>
                       Seus Dados
                     </h3>
                     
                     {/* Opcao de usar dados salvos */}
                     {customer && (customer.savedAddress || customerOrders.length > 0) && useSavedData === null && !isOrderBlocked && (
-                      <div className="bg-secondary/50 rounded-xl p-4 space-y-3">
-                        <p className="text-sm text-foreground font-medium">Como deseja prosseguir?</p>
-                        <div className="flex flex-col gap-2">
+                      <div className="bg-gradient-to-br from-secondary/60 to-secondary/30 backdrop-blur-sm rounded-2xl p-5 space-y-4 border border-primary/10">
+                        <p className="text-sm text-foreground font-bold">Como deseja prosseguir?</p>
+                        <div className="flex flex-col gap-3">
                           <button
                             type="button"
                             onClick={handleUseSavedData}
-                            className="w-full py-3 px-4 text-sm bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors font-medium flex items-center justify-center gap-2"
+                            className="premium-btn w-full py-4 px-4 text-sm bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-xl hover:shadow-lg hover:shadow-primary/30 transition-all font-bold flex items-center justify-center gap-2 active:scale-[0.98]"
                           >
                             <Check className="w-4 h-4" />
                             Usar dados salvos
@@ -2308,7 +2357,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           <button
                             type="button"
                             onClick={handleUseNewAddress}
-                            className="w-full py-3 px-4 text-sm bg-secondary text-foreground rounded-xl hover:bg-secondary/80 transition-colors border border-border/50 font-medium flex items-center justify-center gap-2"
+                            className="w-full py-4 px-4 text-sm bg-card/80 text-foreground rounded-xl hover:bg-card transition-all border border-border/50 font-medium flex items-center justify-center gap-2 active:scale-[0.98]"
                           >
                             <Plus className="w-4 h-4" />
                             Inserir novo endereco
@@ -2319,9 +2368,11 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     
                     {/* Indicador de dados salvos em uso */}
                     {useSavedData === true && (
-                      <div className="flex items-center justify-between bg-green-500/10 rounded-xl px-3 py-2 border border-green-500/20">
-                        <span className="text-sm text-green-400 font-medium flex items-center gap-2">
-                          <Check className="w-4 h-4" />
+                      <div className="flex items-center justify-between bg-gradient-to-r from-green-500/15 to-green-500/5 rounded-xl px-4 py-3 border border-green-500/25">
+                        <span className="text-sm text-green-400 font-bold flex items-center gap-2">
+                          <div className="w-6 h-6 bg-green-500/20 rounded-lg flex items-center justify-center">
+                            <Check className="w-3.5 h-3.5" />
+                          </div>
                           Usando dados salvos
                         </span>
                         <button
@@ -2334,23 +2385,29 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                       </div>
                     )}
                     
-                    {/* Campos */}
+                    {/* Campos Premium */}
                     {(useSavedData !== null || !customer || (!customer.savedAddress && customerOrders.length === 0)) && (
                       <>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-medium text-muted-foreground">Nome *</label>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                            <User className="w-3 h-3" />
+                            Nome *
+                          </label>
                           <input
                             type="text"
                             value={formData.nome}
                             onChange={(e) => !isOrderBlocked && setFormData({ ...formData, nome: e.target.value })}
                             disabled={isOrderBlocked}
                             placeholder="Seu nome completo"
-                            className="w-full px-3 py-3 bg-input border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all text-sm disabled:opacity-50"
+                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
                           />
                         </div>
 
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-medium text-muted-foreground">Telefone/WhatsApp *</label>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                            <Phone className="w-3 h-3" />
+                            Telefone/WhatsApp *
+                          </label>
                           <input
                             type="tel"
                             value={formData.telefone}
@@ -2363,47 +2420,56 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               setFormData({ ...formData, telefone: formatted })
                             }}
                             placeholder="(11) 99999-9999"
-                            className="w-full px-3 py-3 bg-input border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all text-sm"
+                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
                           />
                         </div>
 
                         {deliveryType === "entrega" && (
                           <>
-                            <div className="space-y-1.5">
-                              <label className="text-xs font-medium text-muted-foreground">Endereco *</label>
+                            <div className="space-y-2">
+                              <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                                <MapPin className="w-3 h-3" />
+                                Endereco *
+                              </label>
                               <input
                                 type="text"
                                 value={formData.endereco}
                                 onChange={(e) => !isOrderBlocked && setFormData({ ...formData, endereco: e.target.value })}
                                 disabled={isOrderBlocked}
                                 placeholder="Rua"
-                                className="w-full px-3 py-3 bg-input border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all text-sm disabled:opacity-50"
+                                className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
                               />
                             </div>
 
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">Numero *</label>
+                          <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                              <HomeIcon className="w-3 h-3" />
+                              Numero *
+                            </label>
                             <input
                               type="text"
                               value={formData.numero}
                               onChange={(e) => !isOrderBlocked && setFormData({ ...formData, numero: e.target.value })}
                               disabled={isOrderBlocked}
                               placeholder="Numero"
-                              className="w-full px-3 py-3 bg-input border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all text-sm disabled:opacity-50"
+                              className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
                             />
                           </div>
                         </div>
 
-                        {/* Bairro Dropdown */}
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-medium text-muted-foreground">Bairro *</label>
+                        {/* Bairro Dropdown Premium */}
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                            <MapPin className="w-3 h-3" />
+                            Bairro *
+                          </label>
                           <select
                             value={formData.bairro}
                             onChange={(e) => !isOrderBlocked && setFormData({ ...formData, bairro: e.target.value })}
                             disabled={isOrderBlocked}
-                            className={`w-full px-3 py-3 bg-input border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all text-sm appearance-none ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px' }}
+                            className={`premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground focus:outline-none appearance-none ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center', backgroundSize: '18px' }}
                           >
                             <option value="">Selecione seu bairro</option>
                             {(siteConfig.delivery?.neighborhoodFees || [])
@@ -2415,100 +2481,155 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               ))}
                           </select>
                           {formData.bairro && (
-                            <div className="mt-2 p-3 bg-primary/10 border border-primary/20 rounded-xl">
+                            <div className="mt-3 p-4 bg-gradient-to-r from-primary/15 to-primary/5 border border-primary/25 rounded-xl">
                               <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">Taxa de entrega:</span>
-                                <span className="font-semibold text-primary">
+                                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                                  <Truck className="w-4 h-4 text-primary" />
+                                  Taxa de entrega:
+                                </span>
+                                <span className="font-black text-primary text-lg">
                                   {formatCurrency(orderSnapshot ? orderSnapshot.deliveryFee : getDeliveryFee())}
                                 </span>
                               </div>
                             </div>
                           )}
                           {!formData.bairro && !isOrderBlocked && (
-                            <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
-                              <AlertCircle className="w-3 h-3" />
+                            <p className="text-xs text-amber-400 mt-2 flex items-center gap-1.5">
+                              <AlertCircle className="w-3.5 h-3.5" />
                               Selecione seu bairro para calcular a entrega.
                             </p>
                           )}
                         </div>
 
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-medium text-muted-foreground">Referencia *</label>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                            <MapPinned className="w-3 h-3" />
+                            Referencia *
+                          </label>
                           <input
                             type="text"
                             value={formData.referencia}
                             onChange={(e) => !isOrderBlocked && setFormData({ ...formData, referencia: e.target.value })}
                             disabled={isOrderBlocked}
                             placeholder="Ponto de referencia"
-                            className="w-full px-3 py-3 bg-input border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all text-sm disabled:opacity-50"
+                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
                           />
                         </div>
 
                         <button
                           onClick={getLocation}
                           disabled={isOrderBlocked}
-                          className={`w-full py-3 bg-secondary text-foreground rounded-xl flex items-center justify-center gap-2 transition-all text-sm font-medium ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-secondary/80 active:scale-[0.98]'}`}
+                          className={`premium-btn w-full py-4 bg-gradient-to-r from-secondary to-secondary/80 text-foreground rounded-xl flex items-center justify-center gap-2.5 font-bold border border-border/50 ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg hover:shadow-primary/10 active:scale-[0.98]'}`}
                         >
                           <MapPinned className="w-4 h-4" />
                           Enviar minha localizacao
                         </button>
                         {formData.localizacao && (
-                          <p className="text-xs text-green-400 text-center flex items-center justify-center gap-1">
-                            <Check className="w-3 h-3" />
+                          <p className="text-xs text-green-400 text-center flex items-center justify-center gap-1.5 bg-green-500/10 py-2 rounded-lg">
+                            <Check className="w-3.5 h-3.5" />
                             Localizacao capturada com sucesso!
                           </p>
                         )}
                       </>
                     )}
 
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Observacoes (opcional)</label>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                        <MessageSquare className="w-3 h-3" />
+                        Observacoes (opcional)
+                      </label>
                       <textarea
                         value={formData.observacao}
                         onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
                         placeholder="Ex: Sem banana, mais granola..."
                         rows={2}
-                        className="w-full px-3 py-3 bg-input border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all text-sm resize-none"
+                        className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none resize-none"
                       />
                     </div>
                       </>
                     )}
                   </section>
 
-                  {/* Payment Method */}
-                  <section className="bg-card rounded-2xl p-4 border border-border/50 shadow-sm space-y-4">
-                    <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-primary" />
+                  {/* Payment Method Premium */}
+                  <section className="premium-card rounded-2xl p-5 space-y-5 animate-scale-in" style={{ animationDelay: '0.2s' }}>
+                    <h3 className="font-bold text-foreground flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                        <CreditCard className="w-4 h-4 text-primary" />
+                      </div>
                       Forma de Pagamento
                     </h3>
                     
-                    {/* Payment Options */}
+                    {/* Payment Options Premium */}
                     {!isOrderLocked && (
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { value: "pix", label: "Pix", icon: "⚡" },
-                          { value: "dinheiro", label: "Dinheiro", icon: "💵" },
-                          { value: "cartao", label: "Cartao", icon: "💳" },
-                        ].map((option) => (
-                          <button
-                            key={option.value}
-                            onClick={() => {
-                              setFormData({ ...formData, pagamento: option.value })
-                              if (!isInCooldown) {
-                                setPaymentStatus("idle")
-                                setPixData(null)
-                              }
-                            }}
-                            className={`py-3 px-2 rounded-xl text-center font-medium transition-all duration-200 flex flex-col items-center gap-1 ${
-                              formData.pagamento === option.value
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                            }`}
-                          >
-                            <span className="text-lg">{option.icon}</span>
-                            <span className="text-xs">{option.label}</span>
-                          </button>
-                        ))}
+                      <div className="grid grid-cols-3 gap-3">
+                        {/* PIX Card */}
+                        <button
+                          onClick={() => {
+                            setFormData({ ...formData, pagamento: "pix" })
+                            if (!isInCooldown) {
+                              setPaymentStatus("idle")
+                              setPixData(null)
+                            }
+                          }}
+                          className={`relative py-5 px-3 rounded-2xl text-center font-bold transition-all duration-300 flex flex-col items-center gap-2 overflow-hidden group ${
+                            formData.pagamento === "pix"
+                              ? "bg-gradient-to-br from-primary via-primary to-primary/80 text-primary-foreground shadow-xl shadow-primary/40 glow-primary-intense scale-[1.02]"
+                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/30 hover:border-primary/30"
+                          }`}
+                        >
+                          {formData.pagamento === "pix" && (
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
+                          )}
+                          <span className="text-2xl relative">💠</span>
+                          <span className="text-sm relative">Pix</span>
+                          <span className={`text-[10px] relative ${formData.pagamento === "pix" ? 'text-primary-foreground/80' : 'text-muted-foreground/60'}`}>
+                            Pagamento automatico
+                          </span>
+                        </button>
+                        
+                        {/* Dinheiro Card */}
+                        <button
+                          onClick={() => {
+                            setFormData({ ...formData, pagamento: "dinheiro" })
+                            if (!isInCooldown) {
+                              setPaymentStatus("idle")
+                              setPixData(null)
+                            }
+                          }}
+                          className={`relative py-5 px-3 rounded-2xl text-center font-bold transition-all duration-300 flex flex-col items-center gap-2 ${
+                            formData.pagamento === "dinheiro"
+                              ? "bg-gradient-to-br from-primary via-primary to-primary/80 text-primary-foreground shadow-xl shadow-primary/40 glow-primary scale-[1.02]"
+                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/30 hover:border-primary/30"
+                          }`}
+                        >
+                          <span className="text-2xl">💵</span>
+                          <span className="text-sm">Dinheiro</span>
+                          <span className={`text-[10px] ${formData.pagamento === "dinheiro" ? 'text-primary-foreground/80' : 'text-muted-foreground/60'}`}>
+                            Pagamento na entrega
+                          </span>
+                        </button>
+                        
+                        {/* Cartao Card */}
+                        <button
+                          onClick={() => {
+                            setFormData({ ...formData, pagamento: "cartao" })
+                            if (!isInCooldown) {
+                              setPaymentStatus("idle")
+                              setPixData(null)
+                            }
+                          }}
+                          className={`relative py-5 px-3 rounded-2xl text-center font-bold transition-all duration-300 flex flex-col items-center gap-2 ${
+                            formData.pagamento === "cartao"
+                              ? "bg-gradient-to-br from-primary via-primary to-primary/80 text-primary-foreground shadow-xl shadow-primary/40 glow-primary scale-[1.02]"
+                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/30 hover:border-primary/30"
+                          }`}
+                        >
+                          <span className="text-2xl">💳</span>
+                          <span className="text-sm">Cartao</span>
+                          <span className={`text-[10px] ${formData.pagamento === "cartao" ? 'text-primary-foreground/80' : 'text-muted-foreground/60'}`}>
+                            Pagamento na entrega
+                          </span>
+                        </button>
                       </div>
                     )}
 
@@ -2687,52 +2808,58 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           </div>
                         )}
 
-                        {/* Awaiting Payment */}
+                        {/* Awaiting Payment Premium */}
                         {paymentStatus === "awaiting" && pixData && (
-                          <div className="space-y-4 animate-in fade-in duration-300">
-                            {/* Header PIX */}
-                            <div className="text-center border-b border-border pb-3">
-                              <h4 className="font-bold text-foreground text-lg">Pagamento via PIX</h4>
+                          <div className="space-y-5 animate-in fade-in duration-500">
+                            {/* Header PIX Premium */}
+                            <div className="text-center border-b border-primary/10 pb-4">
+                              <div className="flex items-center justify-center gap-2 mb-3">
+                                <span className="text-2xl">💠</span>
+                                <h4 className="font-black text-foreground text-xl">Pagamento via PIX</h4>
+                              </div>
                               {!pixExpired ? (
-                                <div className="flex items-center justify-center gap-2 mt-2">
+                                <div className="inline-flex items-center gap-2 bg-yellow-500/10 px-4 py-2 rounded-full border border-yellow-500/30">
                                   <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-                                  <span className="text-yellow-400 font-medium text-sm">AGUARDANDO PAGAMENTO</span>
+                                  <span className="text-yellow-400 font-bold text-sm">AGUARDANDO PAGAMENTO</span>
                                 </div>
                               ) : (
-                                <div className="flex items-center justify-center gap-2 mt-2">
+                                <div className="inline-flex items-center gap-2 bg-red-500/10 px-4 py-2 rounded-full border border-red-500/30">
                                   <div className="w-2 h-2 bg-red-400 rounded-full" />
-                                  <span className="text-red-400 font-medium text-sm">PIX EXPIRADO</span>
+                                  <span className="text-red-400 font-bold text-sm">PIX EXPIRADO</span>
                                 </div>
                               )}
-                              {/* Timer */}
+                              {/* Timer Premium */}
                               {!pixExpired && pixTimeLeft > 0 && (
-                                <div className="mt-2 inline-flex items-center gap-2 bg-secondary/50 px-3 py-1.5 rounded-lg">
-                                  <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                                  <span className="text-xs text-muted-foreground">Expira em: </span>
-                                  <span className={`font-mono font-semibold ${pixTimeLeft <= 60 ? 'text-red-400' : 'text-foreground'}`}>
+                                <div className="mt-4 inline-flex items-center gap-3 bg-gradient-to-r from-secondary/60 to-secondary/30 px-5 py-2.5 rounded-xl border border-border/30">
+                                  <Clock className="w-4 h-4 text-muted-foreground" />
+                                  <span className="text-sm text-muted-foreground">Expira em</span>
+                                  <span className={`font-mono font-black text-lg ${pixTimeLeft <= 60 ? 'text-red-400' : 'text-primary'}`}>
                                     {Math.floor(pixTimeLeft / 60).toString().padStart(2, '0')}:{(pixTimeLeft % 60).toString().padStart(2, '0')}
                                   </span>
                                 </div>
                               )}
                             </div>
 
-                            {/* QR Code */}
+                            {/* QR Code Premium */}
                             <div className="flex flex-col items-center">
-                              <p className="text-sm text-muted-foreground mb-3">
+                              <p className="text-sm text-muted-foreground mb-4">
                                 {pixExpired ? "PIX expirado - gere um novo" : "Escaneie o QR Code para pagar"}
                               </p>
-                              <div className={`bg-white p-4 rounded-xl shadow-md ${pixExpired ? 'opacity-40 grayscale' : ''}`}>
+                              <div className={`relative bg-white p-5 rounded-2xl shadow-2xl shadow-primary/20 ${pixExpired ? 'opacity-40 grayscale' : 'glow-primary'}`}>
+                                {!pixExpired && (
+                                  <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/30 to-primary/30 rounded-2xl blur-sm -z-10" />
+                                )}
                                 {pixData.pixQrCode ? (
                                   <img
                                     src={`data:image/png;base64,${pixData.pixQrCode}`}
                                     alt="QR Code PIX"
-                                    width={160}
-                                    height={160}
+                                    width={180}
+                                    height={180}
                                   />
                                 ) : (
                                   <QRCodeSVG
                                     value={pixData.pixCopyPaste}
-                                    size={160}
+                                    size={180}
                                     level="M"
                                     includeMargin={false}
                                   />
@@ -2741,65 +2868,84 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               {pixExpired && (
                                 <button
                                   onClick={cancelOrderAndStartNew}
-                                  className="mt-3 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-all"
+                                  className="premium-btn mt-5 px-6 py-3 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-xl font-bold hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-[0.98]"
                                 >
                                   Comecar novo pedido
                                 </button>
                               )}
                             </div>
 
-                            {/* Dados do recebedor */}
-                            <div className="space-y-2">
-                              <div className="bg-input rounded-xl px-3 py-3">
-                                <p className="text-xs text-muted-foreground">Nome do Recebedor</p>
-                                <p className="font-semibold text-foreground mt-0.5">{PIX_RECEIVER_NAME}</p>
+                            {/* Dados do recebedor Premium */}
+                            <div className="space-y-3">
+                              <div className="bg-gradient-to-r from-input/80 to-input/50 rounded-xl px-4 py-3.5 border border-border/30">
+                                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                  <User className="w-3 h-3" />
+                                  Nome do Recebedor
+                                </p>
+                                <p className="font-bold text-foreground mt-1">{PIX_RECEIVER_NAME}</p>
                               </div>
 
-                              <div className="bg-primary/10 rounded-xl px-3 py-3 border border-primary/20">
-                                <p className="text-xs text-muted-foreground">Valor do Pedido</p>
-                                <p className="font-bold text-xl text-primary mt-0.5">{formatCurrency(orderSnapshot?.total || pixData.value)}</p>
+                              <div className="bg-gradient-to-r from-primary/15 to-primary/5 rounded-xl px-4 py-4 border border-primary/25">
+                                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                  <CreditCard className="w-3 h-3" />
+                                  Valor do Pedido
+                                </p>
+                                <p className="font-black text-2xl text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent mt-1">{formatCurrency(orderSnapshot?.total || pixData.value)}</p>
                               </div>
                               
                               {orderSnapshot && (
-                                <div className="bg-secondary/30 rounded-xl px-3 py-2 text-xs space-y-1">
-                                  <p className="text-muted-foreground">Subtotal: {formatCurrency(orderSnapshot.subtotal)}</p>
+                                <div className="bg-secondary/30 rounded-xl px-4 py-3 text-xs space-y-1.5 border border-border/20">
+                                  <p className="text-muted-foreground flex justify-between">
+                                    <span>Subtotal:</span>
+                                    <span className="font-medium text-foreground">{formatCurrency(orderSnapshot.subtotal)}</span>
+                                  </p>
                                   {orderSnapshot.discount > 0 && (
-                                    <p className="text-green-400">Desconto: -{formatCurrency(orderSnapshot.discount)}</p>
+                                    <p className="text-green-400 flex justify-between">
+                                      <span>Desconto:</span>
+                                      <span className="font-medium">-{formatCurrency(orderSnapshot.discount)}</span>
+                                    </p>
                                   )}
                                   {orderSnapshot.deliveryFee > 0 && (
-                                    <p className="text-muted-foreground">Entrega ({orderSnapshot.bairro}): {formatCurrency(orderSnapshot.deliveryFee)}</p>
+                                    <p className="text-muted-foreground flex justify-between">
+                                      <span>Entrega ({orderSnapshot.bairro}):</span>
+                                      <span className="font-medium text-foreground">{formatCurrency(orderSnapshot.deliveryFee)}</span>
+                                    </p>
                                   )}
                                 </div>
                               )}
                             </div>
 
-                            {/* Codigo PIX Copia e Cola */}
-                            <div className="bg-input rounded-xl p-4 space-y-3">
-                              <p className="text-sm font-medium text-foreground">Codigo PIX Copia e Cola</p>
-                              <div className="bg-background/50 rounded-lg p-3 max-h-20 overflow-y-auto">
-                                <p className="font-mono text-xs text-muted-foreground break-all select-all">
+                            {/* Codigo PIX Copia e Cola Premium */}
+                            <div className="bg-gradient-to-br from-input/80 to-input/50 rounded-xl p-5 space-y-4 border border-border/30">
+                              <p className="font-bold text-foreground flex items-center gap-2">
+                                <Copy className="w-4 h-4 text-primary" />
+                                Codigo PIX Copia e Cola
+                              </p>
+                              <div className="bg-background/60 rounded-xl p-4 max-h-24 overflow-y-auto border border-border/20">
+                                <p className="font-mono text-xs text-muted-foreground break-all select-all leading-relaxed">
                                   {pixData.pixCopyPaste}
                                 </p>
                               </div>
                               <button
                                 onClick={() => !pixExpired && copyToClipboard(pixData.pixCopyPaste, setCopiedCode)}
                                 disabled={pixExpired}
-                                className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-medium transition-all ${
+                                className={`premium-btn w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-bold transition-all ${
                                   pixExpired 
                                     ? 'bg-muted text-muted-foreground cursor-not-allowed' 
                                     : copiedCode
-                                      ? 'bg-green-500 text-white'
-                                      : 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98]'
+                                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/30'
+                                      : 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98]'
                                 }`}
                               >
-                                {copiedCode ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                {copiedCode ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
                                 {pixExpired ? "PIX Expirado" : copiedCode ? "Copiado!" : "Copiar Codigo PIX"}
                               </button>
                             </div>
 
-                            {/* Aviso */}
-                            <div className="bg-primary/10 border border-primary/20 rounded-xl p-3">
-                              <p className="text-sm text-foreground text-center">
+                            {/* Aviso Premium */}
+                            <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4">
+                              <p className="text-sm text-foreground text-center font-medium flex items-center justify-center gap-2">
+                                <Zap className="w-4 h-4 text-primary" />
                                 O pagamento sera confirmado automaticamente
                               </p>
                             </div>
@@ -2808,7 +2954,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             {!pixExpired && (
                               <button
                                 onClick={() => setShowChangePaymentModal(true)}
-                                className="w-full py-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+                                className="w-full py-3 text-sm text-muted-foreground hover:text-primary transition-all hover:bg-secondary/30 rounded-xl"
                               >
                                 Alterar forma de pagamento
                               </button>
@@ -2816,21 +2962,25 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           </div>
                         )}
 
-                        {/* Manual PIX - For orders below R$15 */}
+                        {/* Manual PIX Premium - For orders below R$15 */}
                         {paymentStatus === "manual" && manualPixCode && (
-                          <div className="space-y-4 animate-in fade-in duration-300">
-                            {/* Header */}
-                            <div className="text-center border-b border-border pb-3">
-                              <h4 className="font-bold text-foreground text-lg">Pagamento via PIX Manual</h4>
-                              <p className="text-xs text-muted-foreground mt-1">
+                          <div className="space-y-5 animate-in fade-in duration-500">
+                            {/* Header Premium */}
+                            <div className="text-center border-b border-primary/10 pb-4">
+                              <div className="flex items-center justify-center gap-2 mb-2">
+                                <span className="text-2xl">💠</span>
+                                <h4 className="font-black text-foreground text-xl">Pagamento via PIX Manual</h4>
+                              </div>
+                              <p className="text-xs text-muted-foreground bg-secondary/40 inline-block px-3 py-1 rounded-full">
                                 Pedidos abaixo de R$ 15,00
                               </p>
                             </div>
 
-                            {/* QR Code */}
+                            {/* QR Code Premium */}
                             <div className="flex flex-col items-center">
-                              <p className="text-sm text-muted-foreground mb-3">Escaneie o QR Code para pagar</p>
-                              <div className="bg-white p-4 rounded-xl shadow-lg">
+                              <p className="text-sm text-muted-foreground mb-4">Escaneie o QR Code para pagar</p>
+                              <div className="relative bg-white p-5 rounded-2xl shadow-2xl shadow-primary/20 glow-primary">
+                                <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/30 to-primary/30 rounded-2xl blur-sm -z-10" />
                                 <QRCodeSVG
                                   value={manualPixCode}
                                   size={180}
@@ -2840,61 +2990,81 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               </div>
                             </div>
 
-                            {/* Dados do recebedor */}
-                            <div className="space-y-2">
-                              <div className="bg-input rounded-xl px-4 py-3">
-                                <p className="text-xs text-muted-foreground">Nome do Recebedor</p>
-                                <p className="font-semibold text-foreground">{PIX_MANUAL_NAME}</p>
+                            {/* Dados do recebedor Premium */}
+                            <div className="space-y-3">
+                              <div className="bg-gradient-to-r from-input/80 to-input/50 rounded-xl px-4 py-3.5 border border-border/30">
+                                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                  <User className="w-3 h-3" />
+                                  Nome do Recebedor
+                                </p>
+                                <p className="font-bold text-foreground mt-1">{PIX_MANUAL_NAME}</p>
                               </div>
 
-                              <div className="flex items-center justify-between bg-input rounded-xl px-4 py-3">
+                              <div className="flex items-center justify-between bg-gradient-to-r from-input/80 to-input/50 rounded-xl px-4 py-3.5 border border-border/30">
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Chave PIX (Telefone)</p>
-                                  <p className="font-mono font-semibold text-foreground">{PIX_MANUAL_KEY}</p>
+                                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                    <Phone className="w-3 h-3" />
+                                    Chave PIX (Telefone)
+                                  </p>
+                                  <p className="font-mono font-bold text-foreground mt-1">{PIX_MANUAL_KEY}</p>
                                 </div>
                                 <button
                                   onClick={() => copyToClipboard(PIX_MANUAL_KEY, setCopiedManualKey)}
-                                  className="flex items-center gap-2 px-3 py-2 bg-primary rounded-lg text-primary-foreground text-sm font-medium transition-all hover:brightness-110 active:scale-95"
+                                  className={`premium-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                                    copiedManualKey 
+                                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/30'
+                                      : 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/30'
+                                  }`}
                                 >
                                   {copiedManualKey ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                   {copiedManualKey ? "Copiado!" : "Copiar"}
                                 </button>
                               </div>
 
-                              <div className="bg-input rounded-xl px-4 py-3">
-                                <p className="text-xs text-muted-foreground">Valor do Pedido</p>
-                                <p className="font-bold text-xl text-primary">{formatCurrency(getTotal())}</p>
+                              <div className="bg-gradient-to-r from-primary/15 to-primary/5 rounded-xl px-4 py-4 border border-primary/25">
+                                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                  <CreditCard className="w-3 h-3" />
+                                  Valor do Pedido
+                                </p>
+                                <p className="font-black text-2xl text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent mt-1">{formatCurrency(getTotal())}</p>
                               </div>
                             </div>
 
-                            {/* Codigo PIX Copia e Cola */}
-                            <div className="bg-input rounded-xl p-4 space-y-3">
-                              <p className="text-sm font-medium text-foreground">Codigo PIX Copia e Cola</p>
-                              <div className="bg-background/50 rounded-lg p-3 max-h-24 overflow-y-auto">
-                                <p className="font-mono text-xs text-muted-foreground break-all select-all">
+                            {/* Codigo PIX Copia e Cola Premium */}
+                            <div className="bg-gradient-to-br from-input/80 to-input/50 rounded-xl p-5 space-y-4 border border-border/30">
+                              <p className="font-bold text-foreground flex items-center gap-2">
+                                <Copy className="w-4 h-4 text-primary" />
+                                Codigo PIX Copia e Cola
+                              </p>
+                              <div className="bg-background/60 rounded-xl p-4 max-h-24 overflow-y-auto border border-border/20">
+                                <p className="font-mono text-xs text-muted-foreground break-all select-all leading-relaxed">
                                   {manualPixCode}
                                 </p>
                               </div>
                               <button
                                 onClick={() => copyToClipboard(manualPixCode, setCopiedManualCode)}
-                                className="w-full flex items-center justify-center gap-2 py-3 bg-primary rounded-xl text-primary-foreground font-medium transition-all hover:brightness-110 active:scale-[0.98]"
+                                className={`premium-btn w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-bold transition-all active:scale-[0.98] ${
+                                  copiedManualCode
+                                    ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/30'
+                                    : 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/30'
+                                }`}
                               >
                                 {copiedManualCode ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
                                 {copiedManualCode ? "Copiado com sucesso!" : "Copiar Codigo PIX"}
                               </button>
                             </div>
 
-                            {/* Aviso */}
-                            <div className="bg-primary/20 border border-primary/30 rounded-xl p-4">
-                              <p className="text-sm text-foreground text-center">
+                            {/* Aviso Premium */}
+                            <div className="bg-gradient-to-r from-primary/15 to-primary/5 border border-primary/25 rounded-xl p-4">
+                              <p className="text-sm text-foreground text-center font-medium">
                                 Apos o pagamento, envie o comprovante no WhatsApp para agilizar a confirmacao do pedido.
                               </p>
                             </div>
 
-                            {/* Botao WhatsApp */}
+                            {/* Botao WhatsApp Premium */}
                             <button
                               onClick={sendManualPayment}
-                              className="w-full py-4 bg-green-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-green-700 active:scale-[0.98]"
+                              className="premium-btn w-full py-5 bg-gradient-to-r from-green-500 to-green-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-2xl hover:shadow-green-500/40 active:scale-[0.98] relative overflow-hidden group"
                             >
                               <Send className="w-5 h-5" />
                               Enviar Comprovante no WhatsApp
@@ -2920,20 +3090,21 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               </div>
                             ) : (
                               <>
-                                <p className="text-muted-foreground mb-3 text-sm">
+                                <p className="text-muted-foreground mb-4 text-sm">
                                   {getTotal() < MIN_VALUE_FOR_ASAAS 
                                     ? "Clique abaixo para ver os dados do PIX" 
                                     : "Clique abaixo para gerar o PIX automatico"}
                                 </p>
                                 <button
                                   onClick={createPixCharge}
-                                  className="w-full py-3.5 bg-primary text-primary-foreground font-semibold rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-primary/90 active:scale-[0.98]"
+                                  className="premium-btn w-full py-4 bg-gradient-to-r from-primary via-primary to-primary/90 text-primary-foreground font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-2xl hover:shadow-primary/40 active:scale-[0.98] glow-primary-intense relative overflow-hidden group"
                                 >
-                                  <CreditCard className="w-4 h-4" />
-                                  <span>{getTotal() < MIN_VALUE_FOR_ASAAS ? "Ver PIX Manual" : "Gerar PIX Automatico"}</span>
+                                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                                  <span className="text-xl relative">💠</span>
+                                  <span className="relative text-base">{getTotal() < MIN_VALUE_FOR_ASAAS ? "Ver PIX Manual" : "Gerar PIX Automatico"}</span>
                                 </button>
                                 {getTotal() < MIN_VALUE_FOR_ASAAS && (
-                                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                                  <p className="text-xs text-muted-foreground mt-3 text-center">
                                     Pedidos abaixo de R$ 15 usam PIX manual
                                   </p>
                                 )}
@@ -2942,11 +3113,11 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           </div>
                         )}
 
-                        {/* Fallback Button */}
+                        {/* Fallback Button Premium */}
                         {(paymentStatus === "awaiting" || paymentStatus === "error") && (
                           <button
                             onClick={sendManualPayment}
-                            className="w-full py-3 bg-secondary text-foreground rounded-xl flex items-center justify-center gap-2 text-sm font-medium transition-all hover:bg-secondary/80 active:scale-[0.98]"
+                            className="w-full py-3.5 bg-secondary/80 text-foreground rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all hover:bg-secondary active:scale-[0.98] border border-border/30"
                           >
                             <Phone className="w-4 h-4" />
                             Problema com o Pix? Pagar pelo WhatsApp
@@ -2956,14 +3127,16 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     )}
                   </section>
 
-                  {/* Submit Button for non-PIX payments */}
+                  {/* Submit Button for non-PIX payments - Premium */}
                   {formData.pagamento !== "pix" && (
                     <button
                       onClick={handleManualPayment}
-                      className="w-full py-4 bg-primary text-primary-foreground font-semibold rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-primary/90 active:scale-[0.98]"
+                      className="premium-btn w-full py-5 bg-gradient-to-r from-green-500 to-green-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-2xl hover:shadow-green-500/40 active:scale-[0.98] relative overflow-hidden group animate-scale-in"
+                      style={{ animationDelay: '0.25s' }}
                     >
-                      <Send className="w-4 h-4" />
-                      <span>Finalizar Pedido no WhatsApp</span>
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                      <Send className="w-5 h-5 relative" />
+                      <span className="relative text-base">Finalizar Pedido no WhatsApp</span>
                     </button>
                   )}
                       </>
