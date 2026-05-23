@@ -43,6 +43,12 @@ export async function GET(request: Request) {
         if (result && result.stream) {
           const text = await new Response(result.stream).text()
           const config = JSON.parse(text) as SiteConfig
+          
+          // Se produtos estiver vazio, usar produtos padrao
+          if (!config.products || config.products.length === 0) {
+            config.products = defaultConfig.products
+          }
+          
           return NextResponse.json({ success: true, config }, { headers: noCacheHeaders })
         }
       }

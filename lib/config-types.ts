@@ -144,7 +144,11 @@ export interface SiteConfig {
 
 export const defaultConfig: SiteConfig = {
   storeName: "P.K Gostosuras",
-  products: [], // Vazio - produtos vem da API/Blob
+  products: [
+    { id: 1, name: "Acai 500ml", price: 15.00, description: "Acai puro 500ml", active: true, stock: 100, order: 1 },
+    { id: 2, name: "Acai 1L", price: 25.00, description: "Acai puro 1 litro", active: true, stock: 100, order: 2 },
+    { id: 3, name: "Acai 2L", price: 45.00, description: "Acai puro 2 litros", active: true, stock: 100, order: 3 },
+  ],
   banner: {
     mainText: "Os melhores açaís de garrafa",
     secondaryText: "da região!",
