@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
-import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock, Star, LogOut, ChevronRight, Package, Heart } from "lucide-react"
+import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock, Star, LogOut, ChevronRight, Package, Heart, Zap, Snowflake, Award, Sparkles } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { type SiteConfig, type Coupon, type Customer, defaultConfig } from "@/lib/config-types"
 
@@ -1662,22 +1662,22 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       </audio>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-md border-b border-border">
-        <div className="max-w-lg mx-auto px-4 py-4">
+      <header className="sticky top-0 z-50 bg-gradient-to-b from-card/98 to-card/95 backdrop-blur-xl border-b border-primary/10 shadow-lg shadow-black/5">
+        <div className="max-w-lg mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-primary">{STORE_NAME}</h1>
-              <p className="text-xs text-muted-foreground">Paulo e Karina</p>
+              <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/80">{STORE_NAME}</h1>
+              <p className="text-[10px] text-muted-foreground font-medium tracking-wide">Paulo e Karina</p>
             </div>
             <div className="flex items-center gap-2">
               {/* Icone de Perfil/Conta */}
               <div className="relative">
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className={`p-2.5 rounded-full transition-all ${
+                  className={`p-2 rounded-xl transition-all duration-300 ${
                     customer 
-                      ? "bg-primary/10 text-primary hover:bg-primary/20" 
-                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                      ? "bg-gradient-to-br from-primary/20 to-primary/10 text-primary hover:from-primary/30 hover:to-primary/20 shadow-inner" 
+                      : "bg-secondary/80 text-muted-foreground hover:bg-secondary hover:text-foreground"
                   }`}
                 >
                   <User className="w-5 h-5" />
@@ -1758,11 +1758,11 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
               {/* Carrinho */}
               <button
                 onClick={() => setShowCart(!showCart)}
-                className="relative p-2.5 bg-primary rounded-full transition-all duration-200 hover:scale-105 hover:shadow-md hover:shadow-primary/30 active:scale-95"
+                className="relative p-2 bg-gradient-to-br from-primary to-primary/80 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-primary/40 active:scale-95 shadow-md shadow-primary/30"
               >
                 <ShoppingCart className="w-5 h-5 text-primary-foreground" />
                 {getTotalItems() > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-white text-primary text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center shadow-sm">
+                  <span className="absolute -top-1.5 -right-1.5 bg-white text-primary text-[10px] font-black min-w-[20px] h-[20px] px-1 rounded-full flex items-center justify-center shadow-md ring-2 ring-primary/20 animate-[pulse_2s_ease-in-out_infinite]">
                     {getTotalItems()}
                   </span>
                 )}
@@ -1773,22 +1773,34 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       </header>
 
       {/* Hero */}
-      <section className="relative h-36 sm:h-40 overflow-hidden">
+      <section className="relative h-40 sm:h-44 overflow-hidden">
         <Image
           src="/acai-bowl.jpg"
-          alt="Açaí delicioso"
+          alt="Acai delicioso"
           fill
-          className="object-cover"
+          className="object-cover scale-105"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-background/60 to-background" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-background" />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent" />
         <div className="absolute bottom-4 left-4 right-4">
-          <h2 className="text-xl sm:text-2xl font-black text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
+          <h2 className="text-xl sm:text-2xl font-black text-white drop-shadow-[0_2px_15px_rgba(0,0,0,0.6)]">
             Acai artesanal entregue geladinho
           </h2>
-          <p className="text-xs sm:text-sm text-white/80 mt-1 font-medium tracking-wide">
-            Entrega rapida • Qualidade premium
-          </p>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="flex items-center gap-1 text-[10px] text-white/90 font-medium bg-white/10 backdrop-blur-sm px-2 py-1 rounded-full">
+              <Zap className="w-3 h-3 text-yellow-400" />
+              Entrega rapida
+            </span>
+            <span className="flex items-center gap-1 text-[10px] text-white/90 font-medium bg-white/10 backdrop-blur-sm px-2 py-1 rounded-full">
+              <Snowflake className="w-3 h-3 text-cyan-400" />
+              Geladinho
+            </span>
+            <span className="flex items-center gap-1 text-[10px] text-white/90 font-medium bg-white/10 backdrop-blur-sm px-2 py-1 rounded-full">
+              <Award className="w-3 h-3 text-primary" />
+              Premium
+            </span>
+          </div>
         </div>
       </section>
 
@@ -1820,70 +1832,78 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       )}
 
       {/* Products */}
-      <section className="mt-4 space-y-3 px-3">
-          <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-            <span className="w-1 h-5 bg-primary rounded-full"></span>
+      <section className="mt-5 space-y-4 px-3">
+          <h3 className="text-lg font-black text-foreground flex items-center gap-2 mb-1">
+            <span className="w-1.5 h-6 bg-gradient-to-b from-primary to-primary/50 rounded-full"></span>
             Cardapio
+            <Sparkles className="w-4 h-4 text-primary/60" />
           </h3>
           
           {/* Produtos - Renderizar imediatamente com defaultConfig */}
           {products.map((product, index) => (
             <div
               key={product.id}
-              className="group relative bg-gradient-to-br from-card to-card/95 rounded-2xl p-4 border border-primary/10 shadow-md shadow-primary/5 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 hover:border-primary/20 active:scale-[0.995]"
+              className="group relative bg-gradient-to-br from-card via-card to-card/90 rounded-2xl p-4 border border-primary/5 shadow-xl shadow-black/5 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/10 hover:border-primary/15 hover:-translate-y-0.5 active:scale-[0.995] active:translate-y-0 backdrop-blur-sm"
             >
+              {/* Glow effect on hover */}
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+              
               {/* Badge Premium - canto superior esquerdo */}
               {index === 0 && (
-                <span className="absolute -top-2 left-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[8px] font-bold px-2 py-0.5 rounded-md shadow-sm uppercase tracking-wider z-10">
+                <span className="absolute -top-2 left-3 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 text-white text-[8px] font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-amber-500/30 uppercase tracking-wider z-10 flex items-center gap-1">
+                  <Star className="w-2.5 h-2.5 fill-white" />
                   Mais vendido
                 </span>
               )}
               {product.price < 20 && index !== 0 && (
-                <span className="absolute -top-2 left-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[8px] font-bold px-2 py-0.5 rounded-md shadow-sm uppercase tracking-wider z-10">
+                <span className="absolute -top-2 left-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 text-white text-[8px] font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/30 uppercase tracking-wider z-10">
                   Melhor custo
                 </span>
               )}
               
-              <div className="flex justify-between items-start gap-4">
+              <div className="flex justify-between items-start gap-4 relative z-[1]">
                 <div className="flex-1 pr-2">
                   <div className="flex items-start justify-between">
-                    <h4 className="font-bold text-foreground text-base">{product.name}</h4>
+                    <div>
+                      <h4 className="font-bold text-foreground text-base">{product.name}</h4>
+                      <p className="text-[10px] text-muted-foreground/70 font-medium">Serve 1 pessoa</p>
+                    </div>
                     <button
                       onClick={() => toggleFavorite(product.id)}
-                      className={`p-1.5 rounded-full transition-all duration-200 ${
+                      className={`p-1.5 rounded-xl transition-all duration-300 ${
                         customer?.favorites.includes(product.id)
-                          ? "text-red-500 bg-red-500/10"
-                          : "text-muted-foreground hover:text-red-400 hover:bg-red-500/5"
+                          ? "text-red-500 bg-red-500/15 shadow-inner"
+                          : "text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
                       }`}
                       aria-label={customer?.favorites.includes(product.id) ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                     >
                       <Heart 
-                        className={`w-4 h-4 transition-transform duration-200 ${customer?.favorites.includes(product.id) ? "fill-red-500 scale-110" : ""}`} 
+                        className={`w-4 h-4 transition-all duration-300 ${customer?.favorites.includes(product.id) ? "fill-red-500 scale-110" : "hover:scale-110"}`} 
                       />
                     </button>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+                  <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
                     {product.description}
                   </p>
-                  <p className="text-xl font-black text-primary mt-3">
+                  <p className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/80 mt-3">
                     {formatCurrency(product.price)}
                   </p>
                 </div>
                 
-                <div className="flex items-center gap-1.5 bg-secondary/80 rounded-full p-1 backdrop-blur-sm">
+                <div className="flex items-center gap-1 bg-secondary/60 backdrop-blur-md rounded-2xl p-1 shadow-inner">
                   <button
                     onClick={() => updateQuantity(product.id, -1)}
-                    className="w-10 h-10 flex items-center justify-center bg-card rounded-full text-foreground transition-all duration-200 hover:bg-primary/10 active:scale-90 active:bg-primary active:text-primary-foreground"
+                    className="w-10 h-10 flex items-center justify-center bg-card/80 rounded-xl text-foreground transition-all duration-200 hover:bg-primary/10 active:scale-90 active:bg-primary active:text-primary-foreground shadow-sm"
                     aria-label={`Diminuir quantidade de ${product.name}`}
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="w-7 text-center font-bold text-foreground tabular-nums">
+                  <span className="w-8 text-center font-black text-foreground tabular-nums text-lg">
                     {quantities[product.id] || 0}
                   </span>
                   <button
                     onClick={() => updateQuantity(product.id, 1)}
-                    className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-primary to-primary/90 rounded-full text-primary-foreground transition-all duration-200 hover:brightness-110 hover:scale-105 active:scale-95 shadow-md shadow-primary/20"
+                    className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-primary via-primary to-primary/80 rounded-xl text-primary-foreground transition-all duration-200 hover:brightness-110 hover:scale-105 hover:shadow-lg hover:shadow-primary/40 active:scale-95 shadow-md shadow-primary/30"
                     aria-label={`Aumentar quantidade de ${product.name}`}
                   >
                     <Plus className="w-4 h-4" />
@@ -1939,10 +1959,10 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         </footer>
 
       {/* Fixed Bottom Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-xl border-t border-border/50 p-3">
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background/98 to-background/90 backdrop-blur-2xl border-t border-primary/10 p-3 shadow-[0_-10px_40px_rgba(0,0,0,0.15)]">
         <div className="max-w-lg mx-auto">
             {!isStoreOpen ? (
-            <div className="w-full py-3 bg-red-500/10 text-red-400 font-bold text-base rounded-xl flex items-center justify-center gap-2 border border-red-500/30">
+            <div className="w-full py-3 bg-gradient-to-r from-red-500/10 to-red-500/5 text-red-400 font-bold text-base rounded-xl flex items-center justify-center gap-2 border border-red-500/20">
               <X className="w-4 h-4" />
               Loja Fechada
             </div>
@@ -1950,22 +1970,25 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
             <button
               onClick={openCheckout}
               disabled={getTotalItems() === 0}
-              className="w-full py-3.5 bg-gradient-to-r from-primary via-primary to-primary/90 text-primary-foreground font-bold text-sm rounded-xl flex items-center justify-between px-4 transition-all duration-300 hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40"
+              className="relative w-full py-3.5 bg-gradient-to-r from-primary via-primary to-primary/90 text-primary-foreground font-bold text-sm rounded-2xl flex items-center justify-between px-4 transition-all duration-300 hover:brightness-110 hover:shadow-2xl hover:shadow-primary/50 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-primary/40 overflow-hidden group"
             >
+              {/* Shimmer effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+              
               {getTotalItems() > 0 ? (
                 <>
-                  <span className="bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-bold tabular-nums">
+                  <span className="relative bg-white/25 backdrop-blur-sm px-3 py-1 rounded-xl text-xs font-black tabular-nums shadow-inner">
                     {getTotalItems()} {getTotalItems() === 1 ? "item" : "itens"}
                   </span>
-                  <span className="font-bold tracking-wide">Finalizar Pedido</span>
-                  <span className="bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-bold tabular-nums">
+                  <span className="relative font-black tracking-wide text-base">Finalizar Pedido</span>
+                  <span className="relative bg-white/25 backdrop-blur-sm px-3 py-1 rounded-xl text-xs font-black tabular-nums shadow-inner">
                     {formatCurrency(getTotal())}
                   </span>
                 </>
               ) : (
                 <>
                   <span></span>
-                  <span className="flex items-center gap-2">
+                  <span className="relative flex items-center gap-2 font-bold">
                     <ShoppingCart className="w-4 h-4" />
                     Finalizar Pedido
                   </span>
