@@ -126,6 +126,9 @@ export interface Order {
   entregadorNome?: string
   entregadorWhatsapp?: string
   saiuParaEntregaEm?: string
+  entregueEm?: string
+  canceladoEm?: string
+  motivoCancelamento?: string
   historicoEntrega?: { data: string; evento: string; observacao?: string }[]
 }
 

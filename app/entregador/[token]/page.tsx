@@ -11,7 +11,9 @@ import {
   Lock,
   Navigation,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Play,
+  XCircle
 } from "lucide-react"
 
 interface Pedido {
@@ -45,8 +47,11 @@ export default function PainelEntregador({ params }: { params: Promise<{ token: 
   const [loadingAuth, setLoadingAuth] = useState(false)
   const [entregador, setEntregador] = useState<EntregadorInfo | null>(null)
   const [pedidos, setPedidos] = useState<Pedido[]>([])
-  const [entregando, setEntregando] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [tokenValido, setTokenValido] = useState(true)
+  const [showCancelModal, setShowCancelModal] = useState<string | null>(null)
+  const [cancelObservacao, setCancelObservacao] = useState("")
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   // Verificar se token existe
   useEffect(() => {
@@ -124,30 +129,68 @@ export default function PainelEntregador({ params }: { params: Promise<{ token: 
     }
   }
 
-  // Marcar como entregue
-  const marcarEntregue = async (orderId: string) => {
+  // Mostrar toast
+  const showToast = (message: string) => {
+    setToastMessage(message)
+    setTimeout(() => setToastMessage(null), 3000)
+  }
+
+  // Executar acao no pedido
+  const executarAcao = async (orderId: string, action: "iniciar" | "finalizar" | "cancelar", observacao?: string) => {
     const savedPin = sessionStorage.getItem(`entregador_pin_${token}`)
     if (!savedPin) return
 
-    setEntregando(orderId)
+    setActionLoading(`${orderId}-${action}`)
 
     try {
       const res = await fetch(`/api/entregador/${token}/entregar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: savedPin, orderId }),
+        body: JSON.stringify({ pin: savedPin, orderId, action, observacao }),
       })
 
       const data = await res.json()
       if (res.ok && data.success) {
-        // Remover pedido da lista
-        setPedidos(prev => prev.filter(p => p.id !== orderId))
+        showToast(data.message)
+        
+        if (action === "iniciar") {
+          // Atualizar status local para delivering
+          setPedidos(prev => prev.map(p => 
+            p.id === orderId ? { ...p, status: "delivering", saiuParaEntregaEm: new Date().toISOString() } : p
+          ))
+        } else {
+          // Remover pedido da lista (finalizado ou cancelado)
+          setPedidos(prev => prev.filter(p => p.id !== orderId))
+        }
+        
+        // Fechar modal de cancelamento se estiver aberto
+        if (action === "cancelar") {
+          setShowCancelModal(null)
+          setCancelObservacao("")
+        }
+      } else {
+        showToast(data.error || "Erro ao executar acao")
       }
     } catch {
-      console.error("Erro ao marcar como entregue")
+      showToast("Erro de conexao")
     } finally {
-      setEntregando(null)
+      setActionLoading(null)
     }
+  }
+
+  // Iniciar entrega
+  const iniciarEntrega = (orderId: string) => executarAcao(orderId, "iniciar")
+
+  // Finalizar entrega
+  const finalizarEntrega = (orderId: string) => executarAcao(orderId, "finalizar")
+
+  // Cancelar pedido
+  const cancelarPedido = (orderId: string) => {
+    if (!cancelObservacao.trim()) {
+      showToast("Digite o motivo do cancelamento")
+      return
+    }
+    executarAcao(orderId, "cancelar", cancelObservacao)
   }
 
   // Normalizar telefone para WhatsApp
@@ -357,7 +400,7 @@ export default function PainelEntregador({ params }: { params: Promise<{ token: 
                 </div>
               )}
 
-              {/* Acoes */}
+              {/* Acoes rapidas */}
               <div className="p-4 grid grid-cols-2 gap-2">
                 <button
                   onClick={() => abrirWhatsApp(pedido.customerPhone, pedido.customerName)}
@@ -377,27 +420,105 @@ export default function PainelEntregador({ params }: { params: Promise<{ token: 
                 )}
               </div>
 
-              {/* Botao entregar */}
-              {pedido.status === "delivering" && (
-                <div className="p-4 pt-0">
+              {/* Botoes de acao principais */}
+              <div className="p-4 pt-0 space-y-2">
+                {/* Botao Iniciar Entrega - so mostra se status NAO e delivering */}
+                {pedido.status !== "delivering" && (
                   <button
-                    onClick={() => marcarEntregue(pedido.id)}
-                    disabled={entregando === pedido.id}
+                    onClick={() => iniciarEntrega(pedido.id)}
+                    disabled={actionLoading === `${pedido.id}-iniciar`}
+                    className="w-full py-3 bg-yellow-500 text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {actionLoading === `${pedido.id}-iniciar` ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Play className="w-5 h-5" />
+                        Iniciar Entrega
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* Botao Finalizar Entrega - so mostra se status E delivering */}
+                {pedido.status === "delivering" && (
+                  <button
+                    onClick={() => finalizarEntrega(pedido.id)}
+                    disabled={actionLoading === `${pedido.id}-finalizar`}
                     className="w-full py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {entregando === pedido.id ? (
+                    {actionLoading === `${pedido.id}-finalizar` ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
                         <CheckCircle2 className="w-5 h-5" />
-                        Marcar como Entregue
+                        Finalizar Entrega
                       </>
                     )}
                   </button>
-                </div>
-              )}
+                )}
+
+                {/* Botao Problema/Cancelar */}
+                <button
+                  onClick={() => setShowCancelModal(pedido.id)}
+                  className="w-full py-3 bg-red-500/20 text-red-400 font-medium rounded-lg hover:bg-red-500/30 transition-colors flex items-center justify-center gap-2"
+                >
+                  <XCircle className="w-5 h-5" />
+                  Problema / Cancelar
+                </button>
+              </div>
             </div>
           ))
+        )}
+
+        {/* Modal de Cancelamento */}
+        {showCancelModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+            <div className="w-full max-w-sm bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+              <div className="p-4 border-b border-zinc-800">
+                <h3 className="text-lg font-bold text-white">Cancelar Pedido</h3>
+                <p className="text-sm text-zinc-400">Informe o motivo do cancelamento</p>
+              </div>
+              <div className="p-4">
+                <textarea
+                  value={cancelObservacao}
+                  onChange={(e) => setCancelObservacao(e.target.value)}
+                  placeholder="Ex: Cliente nao atendeu, endereco incorreto, cliente cancelou..."
+                  className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+                  rows={3}
+                />
+              </div>
+              <div className="p-4 pt-0 flex gap-2">
+                <button
+                  onClick={() => {
+                    setShowCancelModal(null)
+                    setCancelObservacao("")
+                  }}
+                  className="flex-1 py-3 bg-zinc-800 text-white font-medium rounded-lg hover:bg-zinc-700 transition-colors"
+                >
+                  Voltar
+                </button>
+                <button
+                  onClick={() => cancelarPedido(showCancelModal)}
+                  disabled={actionLoading === `${showCancelModal}-cancelar` || !cancelObservacao.trim()}
+                  className="flex-1 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {actionLoading === `${showCancelModal}-cancelar` ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    "Confirmar"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Toast */}
+        {toastMessage && (
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-zinc-800 text-white rounded-lg shadow-lg border border-zinc-700 z-50">
+            {toastMessage}
+          </div>
         )}
       </main>
     </div>

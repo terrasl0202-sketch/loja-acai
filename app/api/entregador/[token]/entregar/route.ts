@@ -27,7 +27,7 @@ async function cleanupOldBlobs() {
   }
 }
 
-// POST: Marcar pedido como entregue
+// POST: Atualizar status do pedido pelo entregador
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -35,7 +35,13 @@ export async function POST(
   try {
     const { token } = await params
     const body = await request.json()
-    const { pin, orderId } = body
+    const { pin, orderId, action, observacao } = body
+    
+    // Validar action
+    const validActions = ["iniciar", "finalizar", "cancelar"]
+    if (!validActions.includes(action)) {
+      return NextResponse.json({ error: "Acao invalida" }, { status: 400 })
+    }
 
     // Carregar config
     let config: SiteConfig | null = null
@@ -96,16 +102,47 @@ export async function POST(
       return NextResponse.json({ error: "Pedido nao pertence a este entregador" }, { status: 403 })
     }
 
-    // Atualizar pedido para finalizado
-    orders[orderIndex].status = "completed"
-    orders[orderIndex].historicoEntrega = [
-      ...(orders[orderIndex].historicoEntrega || []),
-      { 
-        data: new Date().toISOString(), 
-        evento: "ENTREGUE", 
-        observacao: `Marcado como entregue pelo entregador ${entregador.nome}` 
-      }
-    ]
+    const agora = new Date().toISOString()
+
+    // Executar acao
+    if (action === "iniciar") {
+      // Iniciar entrega - mudar para delivering
+      orders[orderIndex].status = "delivering"
+      orders[orderIndex].saiuParaEntregaEm = agora
+      orders[orderIndex].historicoEntrega = [
+        ...(orders[orderIndex].historicoEntrega || []),
+        { 
+          data: agora, 
+          evento: "SAIU_PARA_ENTREGA", 
+          observacao: `Entrega iniciada por ${entregador.nome}` 
+        }
+      ]
+    } else if (action === "finalizar") {
+      // Finalizar entrega - mudar para completed
+      orders[orderIndex].status = "completed"
+      orders[orderIndex].entregueEm = agora
+      orders[orderIndex].historicoEntrega = [
+        ...(orders[orderIndex].historicoEntrega || []),
+        { 
+          data: agora, 
+          evento: "ENTREGUE", 
+          observacao: `Entregue por ${entregador.nome}` 
+        }
+      ]
+    } else if (action === "cancelar") {
+      // Cancelar - mudar para cancelled
+      orders[orderIndex].status = "cancelled"
+      orders[orderIndex].canceladoEm = agora
+      orders[orderIndex].motivoCancelamento = observacao || "Cancelado pelo entregador"
+      orders[orderIndex].historicoEntrega = [
+        ...(orders[orderIndex].historicoEntrega || []),
+        { 
+          data: agora, 
+          evento: "CANCELADO", 
+          observacao: observacao || `Cancelado pelo entregador ${entregador.nome}` 
+        }
+      ]
+    }
 
     // Salvar pedidos com o mesmo formato da API principal (timestamp no nome)
     const timestamp = Date.now()
@@ -119,12 +156,19 @@ export async function POST(
     // Limpar blobs antigos
     await cleanupOldBlobs()
 
+    const messages: Record<string, string> = {
+      iniciar: "Entrega iniciada",
+      finalizar: "Pedido entregue com sucesso",
+      cancelar: "Pedido cancelado"
+    }
+
     return NextResponse.json({
       success: true,
-      message: "Pedido marcado como entregue"
+      message: messages[action],
+      newStatus: orders[orderIndex].status
     })
   } catch (error) {
-    console.error("Erro ao marcar pedido como entregue:", error)
+    console.error("Erro ao atualizar pedido:", error)
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
 }
