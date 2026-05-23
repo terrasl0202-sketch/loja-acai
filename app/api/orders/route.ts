@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { type Order } from "@/lib/config-types"
 
 const ORDERS_PREFIX = "pk-orders-"
+const FINANCIAL_HISTORY_PREFIX = "pk-financial-history-"
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
 
 // Evitar cache
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url)
     const password = url.searchParams.get("password")
+    const includeHistory = url.searchParams.get("includeHistory") === "true"
 
     if (password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noCacheHeaders })
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
     const { blobs } = await list({ prefix: ORDERS_PREFIX })
 
     if (blobs.length === 0) {
-      return NextResponse.json({ success: true, orders: [] }, { headers: noCacheHeaders })
+      return NextResponse.json({ success: true, orders: [], financialHistory: [] }, { headers: noCacheHeaders })
     }
 
     // Pegar o mais recente
@@ -57,6 +59,27 @@ export async function GET(request: NextRequest) {
     )[0]
 
     const result = await get(latestBlob.pathname, { access: "private" })
+    
+    let financialHistory: Array<{ id: string, total: number, paymentMethod: string, createdAt: string, confirmedAt?: string, deletedAt: string }> = []
+    
+    // Carregar historico financeiro se solicitado
+    if (includeHistory) {
+      try {
+        const { blobs: historyBlobs } = await list({ prefix: FINANCIAL_HISTORY_PREFIX })
+        if (historyBlobs.length > 0) {
+          const latestHistoryBlob = historyBlobs.sort(
+            (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+          )[0]
+          const historyResult = await get(latestHistoryBlob.pathname, { access: "private" })
+          if (historyResult && historyResult.stream) {
+            const historyText = await new Response(historyResult.stream).text()
+            financialHistory = JSON.parse(historyText)
+          }
+        }
+      } catch {
+        // Sem historico
+      }
+    }
 
     if (result && result.stream) {
       const text = await new Response(result.stream).text()
@@ -84,10 +107,10 @@ export async function GET(request: NextRequest) {
       }
       orders = Array.from(orderMap.values())
       
-      return NextResponse.json({ success: true, orders }, { headers: noCacheHeaders })
+      return NextResponse.json({ success: true, orders, financialHistory }, { headers: noCacheHeaders })
     }
 
-    return NextResponse.json({ success: true, orders: [] }, { headers: noCacheHeaders })
+    return NextResponse.json({ success: true, orders: [], financialHistory }, { headers: noCacheHeaders })
   } catch (error) {
     console.error("[Orders GET] Erro:", error)
     return NextResponse.json({ success: true, orders: [] }, { headers: noCacheHeaders })
@@ -348,6 +371,51 @@ export async function DELETE(request: NextRequest) {
 
       const originalCount = orders.length
       const idsToDelete = new Set(orderIds)
+      
+      // Salvar historico financeiro dos pedidos finalizados antes de excluir
+      const ordersToDelete = orders.filter(o => idsToDelete.has(o.id))
+      const completedOrdersToArchive = ordersToDelete.filter(o => o.status === "completed" && o.paymentStatus === "confirmed")
+      
+      if (completedOrdersToArchive.length > 0) {
+        // Carregar historico existente
+        let financialHistory: Array<{ id: string, total: number, paymentMethod: string, createdAt: string, confirmedAt?: string, deletedAt: string }> = []
+        try {
+          const { blobs: historyBlobs } = await list({ prefix: FINANCIAL_HISTORY_PREFIX })
+          if (historyBlobs.length > 0) {
+            const latestHistoryBlob = historyBlobs.sort(
+              (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+            )[0]
+            const historyResult = await get(latestHistoryBlob.pathname, { access: "private" })
+            if (historyResult && historyResult.stream) {
+              const historyText = await new Response(historyResult.stream).text()
+              financialHistory = JSON.parse(historyText)
+            }
+          }
+        } catch {
+          // Sem historico anterior
+        }
+        
+        // Adicionar pedidos excluidos ao historico
+        for (const order of completedOrdersToArchive) {
+          financialHistory.push({
+            id: order.id,
+            total: order.total,
+            paymentMethod: order.paymentMethod,
+            createdAt: order.createdAt,
+            confirmedAt: order.confirmedAt,
+            deletedAt: new Date().toISOString()
+          })
+        }
+        
+        // Salvar historico atualizado
+        const historyTimestamp = Date.now()
+        const historyFilename = `${FINANCIAL_HISTORY_PREFIX}${historyTimestamp}.json`
+        await put(historyFilename, JSON.stringify(financialHistory, null, 2), {
+          access: "private",
+          contentType: "application/json",
+        })
+      }
+      
       orders = orders.filter(o => !idsToDelete.has(o.id))
       const deletedCount = originalCount - orders.length
 

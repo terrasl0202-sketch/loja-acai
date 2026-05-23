@@ -65,6 +65,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<TabType>("store")
   const [sessionPassword, setSessionPassword] = useState("")
   const [orders, setOrders] = useState<Order[]>([])
+  const [financialHistory, setFinancialHistory] = useState<Array<{ id: string, total: number, paymentMethod: string, createdAt: string, confirmedAt?: string, deletedAt: string }>>([])
   const [expandedProduct, setExpandedProduct] = useState<number | null>(null)
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [soundActivated, setSoundActivated] = useState(false)
@@ -87,10 +88,30 @@ export default function AdminPage() {
   const [archivedSearchQuery, setArchivedSearchQuery] = useState("")
   const [confirmEntregador, setConfirmEntregador] = useState<{orderId: string, entregador: Entregador} | null>(null)
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
+  const [selectedOrdersTab, setSelectedOrdersTab] = useState<TabType | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [showDeleteMultiple, setShowDeleteMultiple] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [showTabWarning, setShowTabWarning] = useState(false)
   const notificationAudioRef = { current: null as HTMLAudioElement | null }
+  
+  // Sessao persistente - verificar ao carregar
+  useEffect(() => {
+    const sessionData = localStorage.getItem("admin_session")
+    if (sessionData) {
+      try {
+        const { password: savedPassword, expiry } = JSON.parse(sessionData)
+        if (new Date().getTime() < expiry) {
+          setSessionPassword(savedPassword)
+          setIsAuthenticated(true)
+        } else {
+          localStorage.removeItem("admin_session")
+        }
+      } catch {
+        localStorage.removeItem("admin_session")
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (isAuthenticated && sessionPassword) {
@@ -228,10 +249,13 @@ export default function AdminPage() {
 
   const loadOrders = async () => {
     try {
-      const res = await fetch(`/api/orders?password=${encodeURIComponent(sessionPassword)}`)
+      const res = await fetch(`/api/orders?password=${encodeURIComponent(sessionPassword)}&includeHistory=true`)
       const data = await res.json()
       if (data.success && data.orders) {
         setOrders(data.orders)
+      }
+      if (data.financialHistory) {
+        setFinancialHistory(data.financialHistory)
       }
     } catch (error) {
       console.error("Erro ao carregar pedidos:", error)
@@ -256,6 +280,9 @@ export default function AdminPage() {
         setIsAuthenticated(true)
         setSessionPassword(password)
         setPassword("")
+        // Salvar sessao por 1 hora
+        const expiry = new Date().getTime() + (60 * 60 * 1000)
+        localStorage.setItem("admin_session", JSON.stringify({ password, expiry }))
       } else {
         setAuthError("Senha incorreta")
       }
@@ -271,6 +298,7 @@ export default function AdminPage() {
     setSessionPassword("")
     setConfig(defaultConfig)
     setOrders([])
+    localStorage.removeItem("admin_session")
   }
 
   const handleSave = async () => {
@@ -551,16 +579,42 @@ export default function AdminPage() {
   }
   
   // Toggle selecao de pedido
-  const toggleOrderSelection = (orderId: string) => {
+  const toggleOrderSelection = (orderId: string, tab: TabType) => {
+    // Se ja tem pedidos selecionados em outra aba, mostrar aviso
+    if (selectedOrdersTab && selectedOrdersTab !== tab && selectedOrders.size > 0) {
+      setShowTabWarning(true)
+      return
+    }
+    
     setSelectedOrders(prev => {
       const newSet = new Set(prev)
       if (newSet.has(orderId)) {
         newSet.delete(orderId)
+        if (newSet.size === 0) {
+          setSelectedOrdersTab(null)
+        }
       } else {
         newSet.add(orderId)
+        setSelectedOrdersTab(tab)
       }
       return newSet
     })
+  }
+  
+  // Selecionar todos os pedidos de uma aba
+  const selectAllOrders = (ordersList: Order[], tab: TabType) => {
+    if (selectedOrdersTab && selectedOrdersTab !== tab && selectedOrders.size > 0) {
+      setShowTabWarning(true)
+      return
+    }
+    setSelectedOrders(new Set(ordersList.map(o => o.id)))
+    setSelectedOrdersTab(tab)
+  }
+  
+  // Desmarcar todos os pedidos
+  const deselectAllOrders = () => {
+    setSelectedOrders(new Set())
+    setSelectedOrdersTab(null)
   }
   
   // Confirmar atribuicao de entregador
@@ -873,23 +927,38 @@ export default function AdminPage() {
     o.paidAt ||
     o.status === "completed"
 
+  // Calcular faturamento do historico (pedidos excluidos)
+  const historicalRevenue = financialHistory.reduce((sum, h) => sum + h.total, 0)
+  const historicalPixAuto = financialHistory.filter(h => h.paymentMethod === "PIX Asaas").reduce((s, h) => s + h.total, 0)
+  const historicalPixManual = financialHistory.filter(h => h.paymentMethod === "PIX Manual" || h.paymentMethod === "PIX").reduce((s, h) => s + h.total, 0)
+  const historicalDinheiro = financialHistory.filter(h => h.paymentMethod === "Dinheiro").reduce((s, h) => s + h.total, 0)
+  const historicalCartao = financialHistory.filter(h => h.paymentMethod === "Cartao" || h.paymentMethod === "Cartão").reduce((s, h) => s + h.total, 0)
+  
   const reportStats = {
-    totalOrders: activeOrders.length,
-    totalRevenue: activeOrders.reduce((sum, o) => sum + o.total, 0),
+    totalOrders: activeOrders.length + financialHistory.length,
+    totalRevenue: activeOrders.reduce((sum, o) => sum + o.total, 0) + historicalRevenue,
     
     // Pedidos confirmados (para totais gerais)
     confirmedOrders: activeOrders.filter(isOrderConfirmed),
     
-    // Por forma de pagamento - SOMENTE CONFIRMADOS
+    // Por forma de pagamento - SOMENTE CONFIRMADOS (inclui historico)
     pixAutomatic: activeOrders.filter(o => (o.isPixAutomatic || o.paymentMethod === "PIX Asaas") && isOrderConfirmed(o)),
     pixManual: activeOrders.filter(o => (o.paymentMethod === "PIX Manual" || (o.paymentMethod === "PIX" && !o.isPixAutomatic)) && isOrderConfirmed(o)),
     dinheiro: activeOrders.filter(o => o.paymentMethod === "Dinheiro" && isOrderConfirmed(o)),
     cartao: activeOrders.filter(o => (o.paymentMethod === "Cartao" || o.paymentMethod === "Cartão") && isOrderConfirmed(o)),
     
-    // Faturamento confirmado
+    // Valores historicos (pedidos excluidos)
+    historicalPixAuto,
+    historicalPixManual,
+    historicalDinheiro,
+    historicalCartao,
+    historicalRevenue,
+    historicalCount: financialHistory.length,
+    
+    // Faturamento confirmado (inclui historico)
     confirmedRevenue: activeOrders
       .filter(isOrderConfirmed)
-      .reduce((sum, o) => sum + o.total, 0),
+      .reduce((sum, o) => sum + o.total, 0) + historicalRevenue,
     
     // Faturamento pendente
     pendingRevenue: activeOrders
@@ -3007,7 +3076,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                     <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
                       <DollarSign className="w-5 h-5 text-primary" />
                       Faturamento por Forma de Pagamento
-                      <span className="text-xs text-muted-foreground font-normal">(somente confirmados)</span>
+                      <span className="text-xs text-muted-foreground font-normal">(inclui historico)</span>
                     </h3>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
@@ -3016,8 +3085,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <span className="text-foreground">PIX Automatico</span>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-foreground">{formatCurrency(reportStats.pixAutomatic.reduce((s, o) => s + o.total, 0))}</p>
-                          <p className="text-xs text-muted-foreground">{reportStats.pixAutomatic.length} pedidos confirmados</p>
+                          <p className="font-bold text-foreground">{formatCurrency(reportStats.pixAutomatic.reduce((s, o) => s + o.total, 0) + reportStats.historicalPixAuto)}</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.pixAutomatic.length} atuais{reportStats.historicalPixAuto > 0 ? ` + historico` : ``}</p>
                         </div>
                       </div>
                       
@@ -3027,8 +3096,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <span className="text-foreground">PIX Manual</span>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-foreground">{formatCurrency(reportStats.pixManual.reduce((s, o) => s + o.total, 0))}</p>
-                          <p className="text-xs text-muted-foreground">{reportStats.pixManual.length} pedidos confirmados</p>
+                          <p className="font-bold text-foreground">{formatCurrency(reportStats.pixManual.reduce((s, o) => s + o.total, 0) + reportStats.historicalPixManual)}</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.pixManual.length} atuais{reportStats.historicalPixManual > 0 ? ` + historico` : ``}</p>
                         </div>
                       </div>
                       
@@ -3038,8 +3107,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <span className="text-foreground">Dinheiro</span>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-foreground">{formatCurrency(reportStats.dinheiro.reduce((s, o) => s + o.total, 0))}</p>
-                          <p className="text-xs text-muted-foreground">{reportStats.dinheiro.length} pedidos confirmados</p>
+                          <p className="font-bold text-foreground">{formatCurrency(reportStats.dinheiro.reduce((s, o) => s + o.total, 0) + reportStats.historicalDinheiro)}</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.dinheiro.length} atuais{reportStats.historicalDinheiro > 0 ? ` + historico` : ``}</p>
                         </div>
                       </div>
                       
@@ -3049,8 +3118,8 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <span className="text-foreground">Cartao</span>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-foreground">{formatCurrency(reportStats.cartao.reduce((s, o) => s + o.total, 0))}</p>
-                          <p className="text-xs text-muted-foreground">{reportStats.cartao.length} pedidos confirmados</p>
+                          <p className="font-bold text-foreground">{formatCurrency(reportStats.cartao.reduce((s, o) => s + o.total, 0) + reportStats.historicalCartao)}</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.cartao.length} atuais{reportStats.historicalCartao > 0 ? ` + historico` : ``}</p>
                         </div>
                       </div>
 
@@ -3062,7 +3131,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-primary text-lg">{formatCurrency(reportStats.confirmedRevenue)}</p>
-                          <p className="text-xs text-muted-foreground">{reportStats.confirmedOrders.length} pedidos</p>
+                          <p className="text-xs text-muted-foreground">{reportStats.confirmedOrders.length} atuais{reportStats.historicalCount > 0 ? ` + ${reportStats.historicalCount} historico` : ``}</p>
                         </div>
                       </div>
                     </div>
@@ -3566,14 +3635,28 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 <div className="space-y-6">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <h2 className="text-xl font-bold text-foreground">Finalizados ({ordersCompleted.length})</h2>
-                    <div className="flex items-center gap-2">
-                      {selectedOrders.size > 0 && (
-                        <button
-                          onClick={() => setShowDeleteMultiple(true)}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
-                        >
-                          <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
-                        </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button 
+                        onClick={() => selectAllOrders(ordersCompleted, "orders-completed")}
+                        className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
+                      >
+                        Selecionar todos
+                      </button>
+                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-completed" && (
+                        <>
+                          <button 
+                            onClick={deselectAllOrders}
+                            className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
+                          >
+                            Desmarcar
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteMultiple(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
+                          >
+                            <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
+                          </button>
+                        </>
                       )}
                       <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
                         <Loader2 className="w-4 h-4" /> Atualizar
@@ -3588,7 +3671,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <input
                             type="checkbox"
                             checked={selectedOrders.has(order.id)}
-                            onChange={() => toggleOrderSelection(order.id)}
+                            onChange={() => toggleOrderSelection(order.id, "orders-completed")}
                             className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
                           />
                           <div className="flex-1">
@@ -3686,14 +3769,28 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 <div className="space-y-6">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <h2 className="text-xl font-bold text-foreground">Cancelados ({ordersCancelled.length})</h2>
-                    <div className="flex items-center gap-2">
-                      {selectedOrders.size > 0 && (
-                        <button
-                          onClick={() => setShowDeleteMultiple(true)}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
-                        >
-                          <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
-                        </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button 
+                        onClick={() => selectAllOrders(ordersCancelled, "orders-cancelled")}
+                        className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
+                      >
+                        Selecionar todos
+                      </button>
+                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-cancelled" && (
+                        <>
+                          <button 
+                            onClick={deselectAllOrders}
+                            className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
+                          >
+                            Desmarcar
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteMultiple(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
+                          >
+                            <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
+                          </button>
+                        </>
                       )}
                       <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
                         <Loader2 className="w-4 h-4" /> Atualizar
@@ -3708,7 +3805,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <input
                             type="checkbox"
                             checked={selectedOrders.has(order.id)}
-                            onChange={() => toggleOrderSelection(order.id)}
+                            onChange={() => toggleOrderSelection(order.id, "orders-cancelled")}
                             className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
                           />
                           <div className="flex-1">
@@ -3764,14 +3861,28 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 <div className="space-y-6">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <h2 className="text-xl font-bold text-foreground">Abandonados ({ordersAbandoned.length})</h2>
-                    <div className="flex items-center gap-2">
-                      {selectedOrders.size > 0 && (
-                        <button
-                          onClick={() => setShowDeleteMultiple(true)}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
-                        >
-                          <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
-                        </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button 
+                        onClick={() => selectAllOrders(ordersAbandoned, "orders-abandoned")}
+                        className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
+                      >
+                        Selecionar todos
+                      </button>
+                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-abandoned" && (
+                        <>
+                          <button 
+                            onClick={deselectAllOrders}
+                            className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
+                          >
+                            Desmarcar
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteMultiple(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
+                          >
+                            <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
+                          </button>
+                        </>
                       )}
                       <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
                         <Loader2 className="w-4 h-4" /> Atualizar
@@ -3792,7 +3903,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <input
                             type="checkbox"
                             checked={selectedOrders.has(order.id)}
-                            onChange={() => toggleOrderSelection(order.id)}
+                            onChange={() => toggleOrderSelection(order.id, "orders-abandoned")}
                             className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
                           />
                           <div className="flex-1">
@@ -3872,9 +3983,33 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 <div className="space-y-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <h2 className="text-xl font-bold text-foreground">Arquivados ({ordersArchived.length})</h2>
-                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                      <Loader2 className="w-4 h-4" /> Atualizar
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button 
+                        onClick={() => selectAllOrders(ordersArchived, "orders-archived")}
+                        className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
+                      >
+                        Selecionar todos
+                      </button>
+                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-archived" && (
+                        <>
+                          <button 
+                            onClick={deselectAllOrders}
+                            className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
+                          >
+                            Desmarcar
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteMultiple(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
+                          >
+                            <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
+                          </button>
+                        </>
+                      )}
+                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
+                        <Loader2 className="w-4 h-4" /> Atualizar
+                      </button>
+                    </div>
                   </div>
                   
                   {/* Busca de arquivados */}
@@ -3922,7 +4057,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           <input
                             type="checkbox"
                             checked={selectedOrders.has(order.id)}
-                            onChange={() => toggleOrderSelection(order.id)}
+                            onChange={() => toggleOrderSelection(order.id, "orders-archived")}
                             className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
                           />
                           <div className="flex-1">
@@ -4070,6 +4205,40 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                   className="flex-1 py-3 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {deleteLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Excluir"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de aviso de aba diferente */}
+        {showTabWarning && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertCircle className="w-8 h-8 text-yellow-400" />
+                </div>
+                <h3 className="text-xl font-bold text-foreground">Selecao em outra aba</h3>
+                <p className="text-muted-foreground mt-2">
+                  Voce ja tem pedidos selecionados em outra aba. Desmarque-os antes de selecionar nesta aba.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowTabWarning(false)}
+                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-all"
+                >
+                  Entendi
+                </button>
+                <button
+                  onClick={() => {
+                    deselectAllOrders()
+                    setShowTabWarning(false)
+                  }}
+                  className="flex-1 py-3 bg-primary text-primary-foreground font-medium rounded-xl hover:brightness-110 transition-all"
+                >
+                  Desmarcar todos
                 </button>
               </div>
             </div>
