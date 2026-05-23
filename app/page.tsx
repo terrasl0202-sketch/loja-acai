@@ -1758,11 +1758,11 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
               {/* Carrinho */}
               <button
                 onClick={() => setShowCart(!showCart)}
-                className="relative p-3 bg-primary rounded-full transition-transform hover:scale-105 active:scale-95"
+                className="relative p-2.5 bg-primary rounded-full transition-all duration-200 hover:scale-105 hover:shadow-md hover:shadow-primary/30 active:scale-95"
               >
                 <ShoppingCart className="w-5 h-5 text-primary-foreground" />
                 {getTotalItems() > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center animate-pulse">
+                  <span className="absolute -top-1 -right-1 bg-white text-primary text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center shadow-sm">
                     {getTotalItems()}
                   </span>
                 )}
@@ -1830,16 +1830,16 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
           {products.map((product, index) => (
             <div
               key={product.id}
-              className="group relative bg-card rounded-2xl p-4 border border-border/50 shadow-lg shadow-primary/5 transition-all duration-300 hover:shadow-xl hover:shadow-primary/15 hover:border-primary/20 active:scale-[0.995]"
+              className="group relative bg-gradient-to-br from-card to-card/95 rounded-2xl p-4 border border-primary/10 shadow-md shadow-primary/5 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 hover:border-primary/20 active:scale-[0.995]"
             >
-              {/* Badge Premium */}
+              {/* Badge Premium - canto superior esquerdo */}
               {index === 0 && (
-                <span className="absolute top-3 right-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-lg shadow-lg shadow-amber-500/30 uppercase tracking-wide">
+                <span className="absolute -top-2 left-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[8px] font-bold px-2 py-0.5 rounded-md shadow-sm uppercase tracking-wider z-10">
                   Mais vendido
                 </span>
               )}
               {product.price < 20 && index !== 0 && (
-                <span className="absolute top-3 right-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-lg shadow-lg shadow-emerald-500/30 uppercase tracking-wide">
+                <span className="absolute -top-2 left-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[8px] font-bold px-2 py-0.5 rounded-md shadow-sm uppercase tracking-wider z-10">
                   Melhor custo
                 </span>
               )}
@@ -1883,7 +1883,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   </span>
                   <button
                     onClick={() => updateQuantity(product.id, 1)}
-                    className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-primary to-primary/80 rounded-full text-primary-foreground transition-all duration-200 hover:brightness-110 hover:scale-105 active:scale-95 shadow-lg shadow-primary/40"
+                    className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-primary to-primary/90 rounded-full text-primary-foreground transition-all duration-200 hover:brightness-110 hover:scale-105 active:scale-95 shadow-md shadow-primary/20"
                     aria-label={`Aumentar quantidade de ${product.name}`}
                   >
                     <Plus className="w-4 h-4" />
