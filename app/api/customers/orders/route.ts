@@ -1,4 +1,4 @@
-import { list, get } from "@vercel/blob"
+import { list } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
 import { type Order } from "@/lib/config-types"
 
@@ -38,12 +38,13 @@ export async function GET(request: NextRequest) {
       (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
     )[0]
     
-    const result = await get(latestBlob.pathname, { access: "private" })
-    if (!result || !result.stream) {
+    // Usar fetch diretamente (mais rapido que get)
+    const response = await fetch(latestBlob.url)
+    if (!response.ok) {
       return NextResponse.json({ success: true, orders: [] }, { headers: noCacheHeaders })
     }
     
-    const text = await new Response(result.stream).text()
+    const text = await response.text()
     const allOrders: Order[] = JSON.parse(text)
     
     // Filtrar pedidos do cliente (por telefone ou customerId)

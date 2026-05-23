@@ -1,4 +1,4 @@
-import { put, list, del, get } from "@vercel/blob"
+import { put, list, del } from "@vercel/blob"
 import { NextResponse } from "next/server"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
@@ -37,11 +37,11 @@ export async function GET(request: Request) {
           new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
         )[0]
         
-        // Usar get() para blobs privados
-        const result = await get(latestBlob.pathname, { access: "private" })
+        // Usar fetch diretamente na URL (mais rapido que get)
+        const response = await fetch(latestBlob.url)
         
-        if (result && result.stream) {
-          const text = await new Response(result.stream).text()
+        if (response.ok) {
+          const text = await response.text()
           const config = JSON.parse(text) as SiteConfig
           
           // Se produtos estiver vazio, usar produtos padrao

@@ -500,10 +500,10 @@ export default function Home() {
           }
         }
         
-        console.log("[v0] Pedido restaurado do localStorage")
+        // Pedido restaurado
       }
     } catch (error) {
-      console.error("[v0] Erro ao restaurar pedido:", error)
+      console.error("Erro ao restaurar pedido:", error)
     }
   }, [])
   
@@ -1682,29 +1682,8 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       <section className="mt-6 space-y-4">
           <h3 className="text-lg font-semibold text-foreground">Cardapio</h3>
           
-          {/* Loading state */}
-          {!configLoaded && (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="bg-card rounded-2xl p-4 border border-border shadow-lg animate-pulse"
-                >
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1 space-y-3">
-                      <div className="h-5 bg-secondary rounded w-2/3"></div>
-                      <div className="h-4 bg-secondary rounded w-full"></div>
-                      <div className="h-6 bg-secondary rounded w-1/4"></div>
-                    </div>
-                    <div className="w-28 h-10 bg-secondary rounded-full"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          
-          {/* Products loaded */}
-          {configLoaded && products.map((product) => (
+          {/* Produtos - Renderizar imediatamente com defaultConfig */}
+          {products.map((product) => (
             <div
               key={product.id}
               className="bg-card rounded-2xl p-4 border border-border shadow-lg shadow-primary/5 transition-all hover:shadow-primary/10"
