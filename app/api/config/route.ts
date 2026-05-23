@@ -1,4 +1,4 @@
-import { put, list, del } from "@vercel/blob"
+import { put, list, del, head } from "@vercel/blob"
 import { NextResponse } from "next/server"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
@@ -37,8 +37,12 @@ export async function GET(request: Request) {
           new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
         )[0]
         
-        // Usar fetch diretamente na URL (mais rapido que get)
-        const response = await fetch(latestBlob.url)
+        // Usar head() para pegar downloadUrl (funciona com blobs privados)
+        const blobInfo = await head(latestBlob.url)
+        const downloadUrl = blobInfo.downloadUrl
+        
+        // Fazer fetch na downloadUrl
+        const response = await fetch(downloadUrl)
         
         if (response.ok) {
           const text = await response.text()

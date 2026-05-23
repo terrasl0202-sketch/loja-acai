@@ -1,4 +1,4 @@
-import { list } from "@vercel/blob"
+import { list, head } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
 import { type Order } from "@/lib/config-types"
 
@@ -38,8 +38,9 @@ export async function GET(
       (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
     )[0]
 
-    // Buscar conteudo via fetch (mais confiavel que get)
-    const response = await fetch(latestBlob.url)
+    // Usar head() para pegar downloadUrl (funciona com blobs privados)
+    const blobInfo = await head(latestBlob.url)
+    const response = await fetch(blobInfo.downloadUrl)
     
     if (!response.ok) {
       return NextResponse.json({ error: "Failed to load orders", success: false }, { status: 500, headers: noCacheHeaders })

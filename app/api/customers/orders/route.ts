@@ -1,4 +1,4 @@
-import { list } from "@vercel/blob"
+import { list, head } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
 import { type Order } from "@/lib/config-types"
 
@@ -38,8 +38,9 @@ export async function GET(request: NextRequest) {
       (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
     )[0]
     
-    // Usar fetch diretamente (mais rapido que get)
-    const response = await fetch(latestBlob.url)
+    // Usar head() para pegar downloadUrl (funciona com blobs privados)
+    const blobInfo = await head(latestBlob.url)
+    const response = await fetch(blobInfo.downloadUrl)
     if (!response.ok) {
       return NextResponse.json({ success: true, orders: [] }, { headers: noCacheHeaders })
     }

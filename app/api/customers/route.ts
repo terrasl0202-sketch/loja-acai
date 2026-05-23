@@ -1,4 +1,4 @@
-import { put, list } from "@vercel/blob"
+import { put, list, head } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
 import { type Customer } from "@/lib/config-types"
 
@@ -18,7 +18,7 @@ function generateId(): string {
   return `cust_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 }
 
-// Funcao para carregar clientes (otimizada com fetch)
+// Funcao para carregar clientes (usando head para blobs privados)
 async function loadCustomers(): Promise<Customer[]> {
   try {
     const { blobs } = await list({ prefix: CUSTOMERS_PREFIX })
@@ -28,7 +28,9 @@ async function loadCustomers(): Promise<Customer[]> {
       (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
     )[0]
     
-    const response = await fetch(latestBlob.url)
+    // Usar head() para pegar downloadUrl (funciona com blobs privados)
+    const blobInfo = await head(latestBlob.url)
+    const response = await fetch(blobInfo.downloadUrl)
     if (response.ok) {
       const text = await response.text()
       return JSON.parse(text)
