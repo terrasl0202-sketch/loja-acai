@@ -1,4 +1,4 @@
-import { list, head } from "@vercel/blob"
+import { list, get } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
 import { type Order } from "@/lib/config-types"
 
@@ -38,15 +38,14 @@ export async function GET(
       (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
     )[0]
 
-    // Usar head() para pegar downloadUrl (funciona com blobs privados)
-    const blobInfo = await head(latestBlob.url)
-    const response = await fetch(blobInfo.downloadUrl)
+    // Usar get() para blobs privados - METODO QUE FUNCIONA
+    const result = await get(latestBlob.pathname, { access: "private" })
     
-    if (!response.ok) {
+    if (!result || !result.stream) {
       return NextResponse.json({ error: "Failed to load orders", success: false }, { status: 500, headers: noCacheHeaders })
     }
     
-    const text = await response.text()
+    const text = await new Response(result.stream).text()
     const orders = JSON.parse(text) as Order[]
     
     // Buscar pedido por ID

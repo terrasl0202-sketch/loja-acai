@@ -309,19 +309,11 @@ export default function AdminPage() {
   const loadConfig = async () => {
     try {
       setLoading(true)
-      console.log("[Admin] Carregando config...")
       const res = await fetch(`/api/config?admin=true&password=${encodeURIComponent(sessionPassword)}`)
       const data = await res.json()
-      console.log("[Admin] Resposta:", data.success, "source:", data.source, "produtos:", data.config?.products?.length)
       if (data.success && data.config) {
         // Usar dados reais do servidor - NAO misturar com defaults
-        // Os defaults so sao usados se a API retornar defaultConfig (blob vazio)
         setConfig(data.config)
-        
-        // Mostrar de onde veio a config (para debug)
-        if (data.source && data.source !== "blob") {
-          console.warn("[Admin] ATENCAO: Config veio de fallback:", data.source)
-        }
       }
     } catch (error) {
       console.error("Erro ao carregar config:", error)
@@ -406,11 +398,9 @@ export default function AdminPage() {
       })
 
       const data = await res.json()
-      console.log("[Admin] Resposta do save:", data.success, "erro:", data.error)
 
       if (data.success) {
         setSaveSuccess(true)
-        console.log("[Admin] Salvou com sucesso, recarregando...")
         await loadConfig()
         setTimeout(() => setSaveSuccess(false), 5000)
       } else {
