@@ -220,6 +220,33 @@ export async function PATCH(request: NextRequest) {
 
     // Atualizar campos conforme fornecido
     if (status !== undefined) {
+      // Validar que o status so pode avancar (exceto para cancelled e voltar para preparing)
+      const statusOrder: Record<string, number> = { 
+        pending: 1, 
+        confirmed: 2, 
+        preparing: 3, 
+        delivering: 4, 
+        completed: 5, 
+        cancelled: 0 // Cancelado pode vir de qualquer estado
+      }
+      const currentStatusOrder = statusOrder[orders[orderIndex].status] || 0
+      const newStatusOrder = statusOrder[status] || 0
+      
+      // Permitir: avanco normal, cancelamento, ou voltar para preparing (problema na entrega)
+      const isValidTransition = 
+        status === "cancelled" || // Sempre pode cancelar
+        status === "preparing" || // Sempre pode voltar para preparo (problema entrega)
+        newStatusOrder >= currentStatusOrder // Avanco normal
+      
+      if (!isValidTransition) {
+        console.log(`[Orders PATCH] Transicao de status bloqueada: ${orders[orderIndex].status} -> ${status}`)
+        return NextResponse.json({ 
+          error: "Invalid status transition", 
+          currentStatus: orders[orderIndex].status,
+          attemptedStatus: status 
+        }, { status: 400 })
+      }
+      
       orders[orderIndex].status = status
       // Se mudou para "delivering", salvar horario de saida
       if (status === "delivering") {
@@ -227,9 +254,14 @@ export async function PATCH(request: NextRequest) {
       }
     }
     if (paymentStatus !== undefined) {
-      orders[orderIndex].paymentStatus = paymentStatus
-      if (paymentStatus === "confirmed") {
-        orders[orderIndex].confirmedAt = new Date().toISOString()
+      // Nunca regredir de confirmed para pending
+      if (orders[orderIndex].paymentStatus === "confirmed" && paymentStatus === "pending") {
+        console.log(`[Orders PATCH] Impedida regressao de paymentStatus: confirmed -> pending`)
+      } else {
+        orders[orderIndex].paymentStatus = paymentStatus
+        if (paymentStatus === "confirmed") {
+          orders[orderIndex].confirmedAt = new Date().toISOString()
+        }
       }
     }
     if (manuallyConfirmed !== undefined) {

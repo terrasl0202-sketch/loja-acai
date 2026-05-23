@@ -1,9 +1,31 @@
 import { NextRequest, NextResponse } from "next/server"
-import { get, list, put } from "@vercel/blob"
+import { get, list, put, del } from "@vercel/blob"
 import type { SiteConfig, Order } from "@/lib/config-types"
 
 const CONFIG_PREFIX = "pk-config-"
-const ORDERS_PREFIX = "orders/"
+const ORDERS_PREFIX = "pk-orders-"
+
+// Evitar cache
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
+// Funcao para limpar blobs antigos (manter apenas os 2 mais recentes)
+async function cleanupOldBlobs() {
+  try {
+    const { blobs } = await list({ prefix: ORDERS_PREFIX })
+    if (blobs.length > 2) {
+      const sorted = blobs.sort(
+        (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+      )
+      const toDelete = sorted.slice(2)
+      for (const blob of toDelete) {
+        await del(blob.url)
+      }
+    }
+  } catch (error) {
+    console.error("[Cleanup] Erro ao limpar blobs antigos:", error)
+  }
+}
 
 // POST: Marcar pedido como entregue
 export async function POST(
@@ -85,11 +107,17 @@ export async function POST(
       }
     ]
 
-    // Salvar pedidos
-    await put(`${ORDERS_PREFIX}orders.json`, JSON.stringify(orders), {
+    // Salvar pedidos com o mesmo formato da API principal (timestamp no nome)
+    const timestamp = Date.now()
+    const filename = `${ORDERS_PREFIX}${timestamp}.json`
+
+    await put(filename, JSON.stringify(orders, null, 2), {
       access: "private",
       contentType: "application/json",
     })
+
+    // Limpar blobs antigos
+    await cleanupOldBlobs()
 
     return NextResponse.json({
       success: true,

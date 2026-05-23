@@ -439,31 +439,58 @@ export default function AdminPage() {
 
   // Atribuir entregador ao pedido (SEM mudar status)
   const assignEntregador = async (orderId: string, entregador: Entregador) => {
-    try {
-      const res = await fetch("/api/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          password: sessionPassword, 
-          orderId, 
-          entregadorId: entregador.id,
-          entregadorNome: entregador.nome,
-          entregadorWhatsapp: entregador.whatsapp,
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { 
-          ...o, 
-          entregadorId: entregador.id,
-          entregadorNome: entregador.nome,
-          entregadorWhatsapp: entregador.whatsapp,
-        } : o))
-        showToast(`Entregador ${entregador.nome} selecionado`)
-      }
-    } catch (error) {
-      console.error("Erro ao atribuir entregador:", error)
-    }
+  try {
+  const res = await fetch("/api/orders", {
+  method: "PATCH",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+  password: sessionPassword,
+  orderId,
+  entregadorId: entregador.id,
+  entregadorNome: entregador.nome,
+  entregadorWhatsapp: entregador.whatsapp,
+  }),
+  })
+  const data = await res.json()
+  if (data.success) {
+  setOrders(prev => prev.map(o => o.id === orderId ? {
+  ...o,
+  entregadorId: entregador.id,
+  entregadorNome: entregador.nome,
+  entregadorWhatsapp: entregador.whatsapp,
+  } : o))
+  showToast(`Entregador ${entregador.nome} selecionado`)
+  }
+  } catch (error) {
+  console.error("Erro ao atribuir entregador:", error)
+  }
+  }
+  
+  // Remover entregador do pedido (salva no servidor)
+  const removeEntregador = async (orderId: string) => {
+  try {
+  const res = await fetch("/api/orders", {
+  method: "PATCH",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+  password: sessionPassword,
+  orderId,
+  limparEntregador: true,
+  }),
+  })
+  const data = await res.json()
+  if (data.success) {
+  setOrders(prev => prev.map(o => o.id === orderId ? {
+  ...o,
+  entregadorId: undefined,
+  entregadorNome: undefined,
+  entregadorWhatsapp: undefined,
+  } : o))
+  showToast("Entregador removido")
+  }
+  } catch (error) {
+  console.error("Erro ao remover entregador:", error)
+  }
   }
 
   // Marcar pedido como saiu para entrega
@@ -3197,15 +3224,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                                       <span className="text-xs text-muted-foreground">({order.entregadorWhatsapp})</span>
                                     </div>
                                     <button
-                                      onClick={() => {
-                                        // Remover entregador
-                                        setOrders(prev => prev.map(o => o.id === order.id ? {
-                                          ...o,
-                                          entregadorId: undefined,
-                                          entregadorNome: undefined,
-                                          entregadorWhatsapp: undefined,
-                                        } : o))
-                                      }}
+                                      onClick={() => removeEntregador(order.id)}
                                       className="text-xs text-muted-foreground hover:text-red-400"
                                     >
                                       Trocar
