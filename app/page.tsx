@@ -106,6 +106,7 @@ export default function Home() {
   const [deliveryType, setDeliveryType] = useState<DeliveryType>(DELIVERY_ENABLED ? "entrega" : "retirada")
   const [showCart, setShowCart] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
+  const [useSavedData, setUseSavedData] = useState<boolean | null>(null) // null = nao escolheu, true = usar salvos, false = novo endereco
   const [copied, setCopied] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
   
@@ -224,7 +225,36 @@ export default function Home() {
     setCustomer(null)
     localStorage.removeItem(CUSTOMER_SESSION_KEY)
     setShowProfileMenu(false)
+    setUseSavedData(null)
     showToast("Voce saiu da sua conta")
+  }
+  
+  // Usar dados salvos do cliente
+  const handleUseSavedData = () => {
+    if (customer) {
+      setFormData(prev => ({
+        ...prev,
+        nome: customer.name || prev.nome,
+        telefone: customer.phone || prev.telefone,
+        endereco: customer.savedAddress?.endereco || prev.endereco,
+        numero: customer.savedAddress?.numero || prev.numero,
+        bairro: customer.savedAddress?.bairro || prev.bairro,
+        referencia: customer.savedAddress?.referencia || prev.referencia,
+      }))
+      setUseSavedData(true)
+    }
+  }
+  
+  // Usar novo endereco (limpar campos de endereco)
+  const handleUseNewAddress = () => {
+    setFormData(prev => ({
+      ...prev,
+      endereco: "",
+      numero: "",
+      bairro: "",
+      referencia: "",
+    }))
+    setUseSavedData(false)
   }
   
   // Verificar se telefone existe
@@ -399,6 +429,11 @@ export default function Home() {
     setShowRepeatConfirm(true)
   }
   
+  // Funcao para normalizar nome de produto para comparacao
+  const normalizeProductName = (name: string) => {
+    return name.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  }
+  
   // Confirmar e repetir pedido
   const confirmRepeatOrder = () => {
     if (!orderToRepeat?.itemsDetailed || orderToRepeat.itemsDetailed.length === 0) {
@@ -409,10 +444,18 @@ export default function Home() {
     // Limpar carrinho atual e adicionar apenas os itens do pedido antigo
     const newQuantities: Record<number, number> = {}
     orderToRepeat.itemsDetailed.forEach(item => {
-      // Verificar se o produto ainda existe no cardapio
-      const productExists = products.some(p => p.id === item.productId)
-      if (productExists) {
-        newQuantities[item.productId] = item.quantity
+      // Primeiro tentar encontrar por ID exato
+      let matchingProduct = products.find(p => p.id === item.productId)
+      
+      // Se nao encontrou por ID, buscar por nome normalizado
+      if (!matchingProduct) {
+        const normalizedItemName = normalizeProductName(item.productName)
+        matchingProduct = products.find(p => normalizeProductName(p.name) === normalizedItemName)
+      }
+      
+      // Se encontrou produto equivalente, adicionar ao carrinho
+      if (matchingProduct) {
+        newQuantities[matchingProduct.id] = item.quantity
       }
     })
     
@@ -2118,6 +2161,43 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   {/* Customer Info */}
                   <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`}>
                     <h3 className="font-semibold text-foreground">Seus Dados</h3>
+                    
+                    {/* Opcao de usar dados salvos - so aparece se logado e tem endereco salvo e ainda nao escolheu */}
+                    {customer && customer.savedAddress && useSavedData === null && !isOrderBlocked && (
+                      <div className="bg-secondary/50 rounded-xl p-3 space-y-2">
+                        <p className="text-sm text-muted-foreground">Voce tem dados salvos. Deseja usa-los?</p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={handleUseSavedData}
+                            className="flex-1 py-2 px-3 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                          >
+                            Usar meus dados
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleUseNewAddress}
+                            className="flex-1 py-2 px-3 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                          >
+                            Novo endereco
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Indicador de dados salvos em uso */}
+                    {useSavedData === true && (
+                      <div className="flex items-center justify-between bg-green-500/10 rounded-lg px-3 py-2">
+                        <span className="text-sm text-green-600">Usando dados salvos</span>
+                        <button
+                          type="button"
+                          onClick={() => setUseSavedData(null)}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Alterar
+                        </button>
+                      </div>
+                    )}
                     
                     <div>
                       <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
