@@ -59,16 +59,20 @@ export default function PedidoPage() {
 
   const fetchOrder = async () => {
     try {
+      console.log("[v0] Buscando pedido:", orderId)
       const res = await fetch(`/api/orders/public/${orderId}`)
       const data = await res.json()
+      console.log("[v0] Resposta:", data)
       
       if (data.success && data.order) {
         setOrder(data.order)
         setError(null)
       } else {
+        console.log("[v0] Erro:", data.error)
         setError("Pedido nao encontrado")
       }
-    } catch {
+    } catch (err) {
+      console.log("[v0] Erro fetch:", err)
       setError("Erro ao carregar pedido")
     } finally {
       setLoading(false)

@@ -487,7 +487,12 @@ export default function Home() {
   
   // Confirmar e repetir pedido
   const confirmRepeatOrder = () => {
+    console.log("[v0] confirmRepeatOrder INICIADO")
+    console.log("[v0] orderToRepeat:", orderToRepeat)
+    console.log("[v0] products.length:", products?.length)
+    
     if (!orderToRepeat?.itemsDetailed || orderToRepeat.itemsDetailed.length === 0) {
+      console.log("[v0] ERRO: sem itemsDetailed")
       showToast("Nao foi possivel repetir este pedido")
       return
     }
@@ -495,28 +500,38 @@ export default function Home() {
     // Limpar carrinho atual e adicionar apenas os itens do pedido antigo
     const newQuantities: Record<number, number> = {}
     orderToRepeat.itemsDetailed.forEach(item => {
+      console.log("[v0] Processando item:", item.productName, "productId:", item.productId)
+      
       // Primeiro tentar encontrar por ID exato
       let matchingProduct = products.find(p => p.id === item.productId)
+      console.log("[v0] Match por ID:", matchingProduct?.name || "NAO ENCONTRADO")
       
       // Se nao encontrou por ID, buscar por nome normalizado
       if (!matchingProduct) {
         const normalizedItemName = normalizeProductName(item.productName)
         matchingProduct = products.find(p => normalizeProductName(p.name) === normalizedItemName)
+        console.log("[v0] Match por nome:", matchingProduct?.name || "NAO ENCONTRADO")
       }
       
       // Se encontrou produto equivalente, adicionar ao carrinho
       if (matchingProduct) {
         newQuantities[matchingProduct.id] = item.quantity
+        console.log("[v0] ADICIONADO:", matchingProduct.id, "qty:", item.quantity)
       }
     })
     
+    console.log("[v0] newQuantities:", JSON.stringify(newQuantities))
+    
     // Verificar se algum produto foi adicionado
     if (Object.keys(newQuantities).length === 0) {
+      console.log("[v0] ERRO: nenhum produto adicionado")
       showToast("Produtos deste pedido nao estao mais disponiveis")
       setShowRepeatConfirm(false)
       setOrderToRepeat(null)
       return
     }
+    
+    console.log("[v0] Atualizando carrinho...")
     
     // Limpar carrinho atual e definir novos itens
     setQuantities(newQuantities)
@@ -531,24 +546,31 @@ export default function Home() {
       setDeliveryType("retirada")
     }
     
+    console.log("[v0] Fechando modais...")
+    
     // Fechar modais
     setShowRepeatConfirm(false)
     setShowMyOrdersModal(false)
     setOrderToRepeat(null)
     
     // Abrir carrinho e rolar para checkout
+    console.log("[v0] Abrindo carrinho em 100ms...")
     setTimeout(() => {
+      console.log("[v0] setShowCart(true)")
       setShowCart(true)
       showToast("Itens adicionados ao carrinho!")
       
       // Rolar para a area de finalizacao
       setTimeout(() => {
         const checkoutSection = document.getElementById("checkout-section")
+        console.log("[v0] checkout-section:", checkoutSection ? "ENCONTRADO" : "NAO ENCONTRADO")
         if (checkoutSection) {
           checkoutSection.scrollIntoView({ behavior: "smooth", block: "start" })
         }
       }, 300)
     }, 100)
+    
+    console.log("[v0] confirmRepeatOrder FINALIZADO")
   }
   
   // Funcao antiga mantida para compatibilidade
