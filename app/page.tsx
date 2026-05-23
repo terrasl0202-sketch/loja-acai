@@ -487,142 +487,77 @@ export default function Home() {
   
   // Confirmar e repetir pedido
   const confirmRepeatOrder = () => {
-    console.log("[v0] confirmRepeatOrder INICIADO")
-    console.log("[v0] orderToRepeat:", JSON.stringify(orderToRepeat))
-    console.log("[v0] products.length:", products?.length)
-    console.log("[v0] products:", products?.map(p => ({ id: p.id, name: p.name })))
-    
-    if (!orderToRepeat) {
-      console.log("[v0] ERRO: orderToRepeat e null")
+    if (!orderToRepeat || !orderToRepeat.itemsDetailed || orderToRepeat.itemsDetailed.length === 0) {
       showToast("Erro ao repetir pedido")
-      return
-    }
-    
-    // Se nao tem itemsDetailed, tentar parsear do campo items (string)
-    let itemsToAdd: { productId: number; productName: string; quantity: number; price: number }[] = orderToRepeat.itemsDetailed || []
-    if (itemsToAdd.length === 0) {
-      console.log("[v0] Sem itemsDetailed, tentando parsear de items string:", orderToRepeat.items)
-      // Tentar extrair do campo items (ex: "2x Acai 300ml, 1x Acai 500ml")
-      if (orderToRepeat.items) {
-        itemsToAdd = []
-        const parts = orderToRepeat.items.split(",").map(s => s.trim())
-        parts.forEach(part => {
-          const match = part.match(/^(\d+)x\s+(.+)$/)
-          if (match) {
-            const qty = parseInt(match[1])
-            const productName = match[2].trim()
-            // Encontrar produto por nome
-            const product = products.find(p => 
-              normalizeProductName(p.name) === normalizeProductName(productName) ||
-              p.name.toLowerCase().includes(productName.toLowerCase()) ||
-              productName.toLowerCase().includes(p.name.toLowerCase())
-            )
-            if (product) {
-              itemsToAdd.push({
-                productId: product.id,
-                productName: product.name,
-                quantity: qty,
-                price: product.price
-              })
-            }
-          }
-        })
-      }
-    }
-    
-    console.log("[v0] itemsToAdd:", JSON.stringify(itemsToAdd))
-    
-    if (!itemsToAdd || itemsToAdd.length === 0) {
-      console.log("[v0] ERRO: sem itens para adicionar")
-      showToast("Nao foi possivel repetir este pedido")
       setShowRepeatConfirm(false)
       setOrderToRepeat(null)
       return
     }
     
-    // Limpar carrinho atual e adicionar apenas os itens do pedido antigo
+    // Criar novo carrinho com os itens do pedido antigo
     const newQuantities: Record<number, number> = {}
-    itemsToAdd.forEach(item => {
-      console.log("[v0] Processando item:", item.productName, "productId:", item.productId)
+    
+    for (const item of orderToRepeat.itemsDetailed) {
+      // Tentar encontrar o produto por ID
+      let product = products.find(p => p.id === item.productId)
       
-      // Primeiro tentar encontrar por ID exato
-      let matchingProduct = products.find(p => p.id === item.productId)
-      console.log("[v0] Match por ID:", matchingProduct?.name || "NAO ENCONTRADO")
-      
-      // Se nao encontrou por ID, buscar por nome (varias estrategias)
-      if (!matchingProduct) {
-        const normalizedItemName = normalizeProductName(item.productName)
-        matchingProduct = products.find(p => normalizeProductName(p.name) === normalizedItemName)
-        console.log("[v0] Match por nome normalizado:", matchingProduct?.name || "NAO ENCONTRADO")
+      // Se nao encontrou por ID, tentar por nome
+      if (!product) {
+        const itemNameLower = item.productName.toLowerCase().trim()
+        product = products.find(p => p.name.toLowerCase().trim() === itemNameLower)
       }
       
-      // Tentar match parcial
-      if (!matchingProduct) {
-        matchingProduct = products.find(p => 
-          p.name.toLowerCase().includes(item.productName.toLowerCase()) ||
-          item.productName.toLowerCase().includes(p.name.toLowerCase())
+      // Se ainda nao encontrou, tentar match parcial
+      if (!product) {
+        const itemNameLower = item.productName.toLowerCase()
+        product = products.find(p => 
+          p.name.toLowerCase().includes(itemNameLower) || 
+          itemNameLower.includes(p.name.toLowerCase())
         )
-        console.log("[v0] Match parcial:", matchingProduct?.name || "NAO ENCONTRADO")
       }
       
-      // Se encontrou produto equivalente, adicionar ao carrinho
-      if (matchingProduct) {
-        newQuantities[matchingProduct.id] = (newQuantities[matchingProduct.id] || 0) + item.quantity
-        console.log("[v0] ADICIONADO:", matchingProduct.id, "qty:", newQuantities[matchingProduct.id])
+      if (product) {
+        newQuantities[product.id] = item.quantity
       }
-    })
+    }
     
-    console.log("[v0] newQuantities:", JSON.stringify(newQuantities))
-    
-    // Verificar se algum produto foi adicionado
+    // Se nenhum produto foi encontrado
     if (Object.keys(newQuantities).length === 0) {
-      console.log("[v0] ERRO: nenhum produto adicionado")
-      showToast("Produtos deste pedido nao estao mais disponiveis")
+      showToast("Produtos nao disponiveis")
       setShowRepeatConfirm(false)
       setOrderToRepeat(null)
       return
     }
     
-    console.log("[v0] Atualizando carrinho...")
-    
-    // Limpar carrinho atual e definir novos itens
+    // Atualizar carrinho
     setQuantities(newQuantities)
     
-    // Resetar escolha de dados salvos para mostrar opcoes novamente
+    // Resetar escolha de dados salvos
     setUseSavedData(null)
     
-    // Definir tipo de entrega do pedido anterior
+    // Definir tipo de entrega
     if (orderToRepeat.deliveryType === "entrega") {
       setDeliveryType("entrega")
     } else if (orderToRepeat.deliveryType === "retirada") {
       setDeliveryType("retirada")
     }
     
-    console.log("[v0] Fechando modais...")
-    
-    // Fechar modais
+    // Fechar modais primeiro
     setShowRepeatConfirm(false)
     setShowMyOrdersModal(false)
     setOrderToRepeat(null)
     
-    // Abrir carrinho e rolar para checkout
-    console.log("[v0] Abrindo carrinho em 100ms...")
+    // Abrir carrinho apos um pequeno delay
     setTimeout(() => {
-      console.log("[v0] setShowCart(true)")
       setShowCart(true)
-      showToast("Itens adicionados ao carrinho!")
+      showToast("Itens adicionados!")
       
-      // Rolar para a area de finalizacao
+      // Scroll para checkout
       setTimeout(() => {
-        const checkoutSection = document.getElementById("checkout-section")
-        console.log("[v0] checkout-section:", checkoutSection ? "ENCONTRADO" : "NAO ENCONTRADO")
-        if (checkoutSection) {
-          checkoutSection.scrollIntoView({ behavior: "smooth", block: "start" })
-        }
-      }, 300)
-    }, 100)
-    
-    console.log("[v0] confirmRepeatOrder FINALIZADO")
+        const el = document.getElementById("checkout-section")
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 200)
+    }, 50)
   }
   
   // Funcao antiga mantida para compatibilidade

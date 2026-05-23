@@ -50,7 +50,7 @@ const statusLabels: Record<string, string> = {
 
 export default function PedidoPage() {
   const params = useParams()
-  const orderId = params.id as string
+  const orderId = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : ""
   
   const [order, setOrder] = useState<PublicOrder | null>(null)
   const [loading, setLoading] = useState(true)
@@ -59,20 +59,16 @@ export default function PedidoPage() {
 
   const fetchOrder = async () => {
     try {
-      console.log("[v0] Buscando pedido:", orderId)
       const res = await fetch(`/api/orders/public/${orderId}`)
       const data = await res.json()
-      console.log("[v0] Resposta:", data)
       
       if (data.success && data.order) {
         setOrder(data.order)
         setError(null)
       } else {
-        console.log("[v0] Erro:", data.error)
         setError("Pedido nao encontrado")
       }
-    } catch (err) {
-      console.log("[v0] Erro fetch:", err)
+    } catch {
       setError("Erro ao carregar pedido")
     } finally {
       setLoading(false)
