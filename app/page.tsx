@@ -1670,23 +1670,24 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         <source src="data:audio/wav;base64,UklGRl9vT19teleS0OAREREAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2Onp6WgWdXXWx5ipOXlpCJgHx3c3J0dn+Hi5CSlZiZmZmYlpORjoyJh4WDgoKDhYiLj5KVl5iYl5WTkI2Lh4WDgYGChIeKjpGUlpeYl5WTkI2Kh4SCgIGDhYmMj5KVl5iYl5WSj4yJhoOBgIGDhomMj5KVl5iYmJaUkY6Lh4SBgICChYiMj5KVl5iYmJaUkY6Lh4SBgICChYiLj5KVl5iYmJaUkY6Lh4SBgIGChYiMj5KVl5iYmJaUkY6Lh4SBgICChYiLj5KVl5iYmJaUkY6LiISBgICChYiLj5KVl5iYmJaUkY6LiISBgICChYiMj5KVl5iYmJaUkY6Lh4SBgICChYiMj5KVl5iYl5aTkI2Kh4SBgIGDhYmMj5KVl5iYl5WTkI2KhoOBgIGDhomMj5KVl5iYl5WTkI2KhoOBgIKEh4qNkJOWmJiYl5WSkI2KhoOBgIKEh4qNkJOWl5iYl5WSkI2KhoOBgIKEh4qOkZSWl5iYl5WSkI2KhoOBgIKEh4qNkJOWl5iYl5WSkI2KhoOBgIKEh4qNkJOWmJiYl5WSkI2Kh4OBgIKEh4qNkJOWmJiYl5WSkI2Kh4OBgIKEh4qNkJOWmJiYl5WSkI2KhoOBgIKEh4qNkJOWmJiYl5WSkI6Lh4SBgYKEh4qNkJOWmJiYl5WSkI6Lh4SBgYKEh4qNkJOW" type="audio/wav" />
       </audio>
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-gradient-to-b from-card/98 to-card/95 backdrop-blur-xl border-b border-primary/10 shadow-lg shadow-black/5">
-        <div className="max-w-lg mx-auto px-4 py-3">
+      {/* Header Premium */}
+      <header className="sticky top-0 z-50 glass border-b border-white/5 shadow-xl shadow-black/10">
+        <div className="max-w-lg mx-auto px-4 py-3.5">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/80">{STORE_NAME}</h1>
-              <p className="text-[10px] text-muted-foreground font-medium tracking-wide">Paulo e Karina</p>
+            <div className="relative">
+              <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary to-purple-400 drop-shadow-sm">{STORE_NAME}</h1>
+              <p className="text-[10px] text-muted-foreground/70 font-medium tracking-widest uppercase">Paulo e Karina</p>
+              <div className="absolute -bottom-1 left-0 w-12 h-0.5 bg-gradient-to-r from-primary to-transparent rounded-full" />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               {/* Icone de Perfil/Conta */}
               <div className="relative">
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className={`p-2 rounded-xl transition-all duration-300 ${
+                  className={`p-2.5 rounded-xl transition-all duration-300 ${
                     customer 
-                      ? "bg-gradient-to-br from-primary/20 to-primary/10 text-primary hover:from-primary/30 hover:to-primary/20 shadow-inner" 
-                      : "bg-secondary/80 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      ? "bg-primary/15 text-primary hover:bg-primary/25 shadow-lg shadow-primary/20 ring-1 ring-primary/30" 
+                      : "bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground hover:shadow-lg hover:shadow-primary/10"
                   }`}
                 >
                   <User className="w-5 h-5" />
@@ -1782,66 +1783,73 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       </header>
 
       {/* Hero - Cinematografico Premium */}
-      <section className="relative h-44 sm:h-52 overflow-hidden">
+      <section className="relative h-48 sm:h-56 overflow-hidden">
         <Image
           src="/acai-bowl.jpg"
           alt="Acai delicioso"
           fill
-          className="object-cover scale-110"
+          className="object-cover scale-110 animate-fade-in"
           priority
         />
-        {/* Premium Frost Overlay */}
-        <div className="absolute inset-0 frost-overlay" />
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/8 via-transparent to-primary/5" />
+        {/* Multi-layer Premium Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/15 via-transparent to-primary/10" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-transparent" />
         
-        {/* Decorative elements */}
-        <div className="absolute top-4 right-4 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-48 h-24 bg-primary/5 rounded-full blur-2xl" />
+        {/* Decorative glow elements */}
+        <div className="absolute top-6 right-6 w-40 h-40 bg-primary/15 rounded-full blur-3xl animate-pulse-slow" />
+        <div className="absolute bottom-0 left-0 w-56 h-32 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl" />
         
-        <div className="absolute bottom-5 left-4 right-4">
-          <h2 className="text-2xl sm:text-3xl font-black text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)] tracking-tight">
-            Acai artesanal entregue geladinho
+        <div className="absolute bottom-6 left-4 right-4">
+          <h2 className="text-2xl sm:text-3xl font-black text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.9)] tracking-tight leading-tight">
+            Acai artesanal<br/>entregue geladinho
           </h2>
-          <p className="text-white/60 text-xs mt-1 font-medium">Feito na hora com muito carinho</p>
+          <p className="text-white/50 text-xs mt-2 font-medium tracking-wide">Feito na hora com muito carinho</p>
           
-          {/* Trust Badges Premium */}
-          <div className="flex flex-wrap items-center gap-2 mt-3">
-            <span className="trust-badge text-white/90">
-              <Zap className="w-3 h-3 text-amber-400" />
+          {/* Trust Badges Glass Premium */}
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/95 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+              <Zap className="w-3 h-3 text-amber-400 drop-shadow-glow" />
               Entrega rapida
             </span>
-            <span className="trust-badge text-white/90">
-              <Snowflake className="w-3 h-3 text-cyan-400" />
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/95 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+              <Snowflake className="w-3 h-3 text-cyan-400 drop-shadow-glow" />
               Geladinho
             </span>
-            <span className="trust-badge text-white/90">
-              <Award className="w-3 h-3 text-primary" />
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/95 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+              <Award className="w-3 h-3 text-primary drop-shadow-glow" />
               Premium
             </span>
           </div>
         </div>
       </section>
 
-      {/* Aviso Loja Fechada com Horario */}
+      {/* Aviso Loja Fechada Premium */}
       {!isStoreOpen && (
-        <div className="mx-4 mt-4 p-5 bg-gradient-to-br from-red-500/20 to-orange-500/10 border border-red-500/40 rounded-2xl">
+        <div className="mx-4 mt-5 p-5 bg-gradient-to-br from-orange-500/10 via-red-500/5 to-purple-500/5 border border-orange-500/20 rounded-2xl backdrop-blur-sm shadow-xl shadow-red-500/5">
           <div className="text-center space-y-3">
             <div className="flex justify-center">
-              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
-                <Clock className="w-6 h-6 text-red-400" />
+              <div className="w-14 h-14 bg-gradient-to-br from-orange-500/20 to-red-500/10 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/10 ring-1 ring-orange-500/20">
+                <Clock className="w-7 h-7 text-orange-400" />
               </div>
             </div>
-            <h3 className="text-lg font-bold text-red-400">
-              Estamos fechados no momento
-            </h3>
+            <div>
+              <h3 className="text-lg font-bold text-orange-400">
+                Estamos fechados no momento
+              </h3>
+              <p className="text-sm text-muted-foreground/80 mt-1">
+                Voltaremos em breve
+              </p>
+            </div>
             {siteConfig.storeHours.closedMessage && (
               <p className="text-sm text-muted-foreground">
                 {siteConfig.storeHours.closedMessage}
               </p>
             )}
-            <div className="pt-2 border-t border-red-500/20">
-              <p className="text-xs text-muted-foreground mb-1">Horario de funcionamento:</p>
-              <p className="text-sm font-medium text-foreground">
+            <div className="pt-3 border-t border-orange-500/10">
+              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">Horario de funcionamento</p>
+              <p className="text-sm font-semibold text-foreground/90">
                 {siteConfig.storeHours.openTime || "18:00"} as {siteConfig.storeHours.closeTime || "23:30"}
               </p>
             </div>
