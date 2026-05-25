@@ -24,7 +24,7 @@ export const DEFAULT_FORM_DATA = {
   observacao: "",
   localizacao: "",
   bairro: "",
-} as const
+}
 
 export const PIX_CHECK_INTERVAL = 3000 // 3 segundos
 export const PIX_COOLDOWN_DURATION = 5 * 60 * 1000 // 5 minutos

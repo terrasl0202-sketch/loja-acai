@@ -4,29 +4,12 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
 import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock, Star, LogOut, ChevronRight, Package, Heart, Zap, Snowflake, Award, Sparkles } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
-import { type SiteConfig, type Coupon, type Customer, defaultConfig } from "@/lib/config-types"
+import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
-type PaymentStatus = "idle" | "loading" | "awaiting" | "confirmed" | "error" | "manual"
-type DeliveryType = "entrega" | "retirada"
-
-// Snapshot do pedido no momento do PIX
-interface OrderSnapshot {
-  items: { id: number; name: string; price: number; quantity: number }[]
-  subtotal: number
-  deliveryFee: number
-  discount: number
-  total: number
-  couponCode: string | null
-  bairro: string
-  deliveryType: DeliveryType
-  customerName: string
-  customerPhone: string
-  address: string
-  reference: string
-  orderId: string
-  createdAt: string
-  expiresAt: string
-}
+// Types, Constants e Utils da area do cliente
+import type { PaymentStatus, DeliveryType, OrderSnapshot, PixData, CustomerOrder, SavedOrder, Coupon, Customer, FormData } from "./(store)/types"
+import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURATION, ADD_TOAST_DURATION } from "./(store)/constants"
+import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode } from "./(store)/utils"
 
 export default function Home() {
   // Config do site carregada da API
@@ -87,17 +70,7 @@ export default function Home() {
   const isStoreOpen = isClient ? (siteConfig.storeHours?.isOpen && isWithinBusinessHours()) : true
 
   const [quantities, setQuantities] = useState<Record<number, number>>({})
-  const [formData, setFormData] = useState({
-    nome: "",
-    telefone: "",
-    endereco: "",
-    numero: "",
-    referencia: "",
-    pagamento: "pix",
-    observacao: "",
-    localizacao: "",
-    bairro: "",
-  })
+  const [formData, setFormData] = useState<FormData>({ ...DEFAULT_FORM_DATA })
   
   // Cupom
   const [couponCode, setCouponCode] = useState("")
@@ -113,13 +86,7 @@ export default function Home() {
   // Asaas PIX states
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("idle")
   const [paymentErrorMessage, setPaymentErrorMessage] = useState<string>("")
-  const [pixData, setPixData] = useState<{
-    paymentId: string
-    pixQrCode: string
-    pixCopyPaste: string
-    value: number
-    expiresAt?: string
-  } | null>(null)
+  const [pixData, setPixData] = useState<PixData | null>(null)
   const [orderId, setOrderId] = useState<string>("")
   const [paymentTime, setPaymentTime] = useState<string>("")
   const [manualPixCode, setManualPixCode] = useState<string>("")
@@ -139,19 +106,7 @@ export default function Home() {
   const [loginName, setLoginName] = useState("")
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState("")
-  const [customerOrders, setCustomerOrders] = useState<Array<{
-    id: string
-    items: string
-    itemsDetailed?: { productId: number; productName: string; quantity: number; price: number }[]
-    total: number
-    status: string
-    paymentStatus: string
-    paymentMethod?: string
-    createdAt: string
-    deliveryType: string
-    address?: string
-    neighborhood?: string
-  }>>([])
+  const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([])
   const [loadingOrders, setLoadingOrders] = useState(false)
   const [showRepeatConfirm, setShowRepeatConfirm] = useState(false)
   const [orderToRepeat, setOrderToRepeat] = useState<typeof customerOrders[0] | null>(null)
@@ -178,11 +133,8 @@ export default function Home() {
   // Mostrar toast
   const showToast = (message: string) => {
     setToastMessage(message)
-    setTimeout(() => setToastMessage(null), 4000)
+    setTimeout(() => setToastMessage(null), TOAST_DURATION)
   }
-  
-  // Chave do localStorage para sessao do cliente
-  const CUSTOMER_SESSION_KEY = "pk-customer-session"
   
   // Funcao para preencher dados do cliente no formulario
   const fillFormWithCustomerData = (customerData: Customer) => {
@@ -480,10 +432,8 @@ export default function Home() {
     setShowRepeatConfirm(true)
   }
   
-  // Funcao para normalizar nome de produto para comparacao
-  const normalizeProductName = (name: string) => {
-    return name.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-  }
+  // Funcao para normalizar nome de produto para comparacao - usando util importado
+  // (mantendo a funcao local para garantir compatibilidade exata)
   
   // Confirmar e repetir pedido
   const confirmRepeatOrder = () => {
@@ -570,26 +520,7 @@ export default function Home() {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const pixTimerRef = useRef<NodeJS.Timeout | null>(null)
   
-  // Chave do localStorage para persistir pedido
-  const ORDER_STORAGE_KEY = "pk-order-in-progress"
-  
-  // Interface do pedido salvo
-  interface SavedOrder {
-    quantities: Record<string, number>
-    formData: typeof formData
-    deliveryType: DeliveryType
-    showCheckout: boolean
-    paymentStatus: PaymentStatus
-    pixData: typeof pixData
-    orderSnapshot: OrderSnapshot | null
-    orderId: string
-    pixTimeLeft: number
-    pixExpired: boolean
-    pixCooldownEnd: number | null
-    appliedCoupon: typeof appliedCoupon
-    couponCode: string
-    savedAt: number
-  }
+  // Interface do pedido salvo - usando tipo importado
   
   // Restaurar pedido do localStorage ao carregar
   useEffect(() => {
@@ -761,18 +692,8 @@ export default function Home() {
     // Limpar carrinho
     setQuantities({})
     
-    // Limpar formulario
-    setFormData({
-      nome: "",
-      telefone: "",
-      endereco: "",
-      numero: "",
-      referencia: "",
-      pagamento: "pix",
-      observacao: "",
-      localizacao: "",
-      bairro: "",
-    })
+    // Limpar formulario - usando constante importada
+    setFormData({ ...DEFAULT_FORM_DATA })
     
     // Limpar cupom
     setAppliedCoupon(null)
@@ -918,18 +839,8 @@ export default function Home() {
     // Limpar carrinho
     setQuantities({})
     
-    // Limpar formulario
-    setFormData({
-      nome: "",
-      telefone: "",
-      endereco: "",
-      numero: "",
-      referencia: "",
-      pagamento: "pix",
-      observacao: "",
-      localizacao: "",
-      bairro: "",
-    })
+    // Limpar formulario - usando constante importada
+    setFormData({ ...DEFAULT_FORM_DATA })
     
     // Limpar cupom
     setAppliedCoupon(null)
@@ -1044,18 +955,7 @@ export default function Home() {
     return Object.values(quantities).reduce((sum, qty) => sum + qty, 0)
   }
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    })
-  }
-
-  const generateOrderId = () => {
-    const now = new Date()
-    const id = `PK${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`
-    return id
-  }
+  // formatCurrency e generateOrderId agora sao importados de utils
 
   // Registra pedido na API
   const registerOrder = async (paymentMethod: string) => {
@@ -1140,52 +1040,8 @@ export default function Home() {
     }
   }
 
-  // Gera codigo PIX EMV para pagamento manual
-  const generateManualPixCode = (amount: number) => {
-    const pixKey = PIX_MANUAL_KEY_FULL
-    const merchantName = "CARINA KAREN DA SILVA"
-    const merchantCity = "SAO PAULO"
-    const amountStr = amount.toFixed(2)
-
-    const crc16 = (str: string): string => {
-      let crc = 0xFFFF
-      for (let i = 0; i < str.length; i++) {
-        crc ^= str.charCodeAt(i) << 8
-        for (let j = 0; j < 8; j++) {
-          if (crc & 0x8000) {
-            crc = (crc << 1) ^ 0x1021
-          } else {
-            crc <<= 1
-          }
-          crc &= 0xFFFF
-        }
-      }
-      return crc.toString(16).toUpperCase().padStart(4, "0")
-    }
-
-    const tlv = (tag: string, value: string): string => {
-      return tag + value.length.toString().padStart(2, "0") + value
-    }
-
-    const gui = tlv("00", "br.gov.bcb.pix")
-    const chave = tlv("01", pixKey)
-    const merchantAccountInfo = tlv("26", gui + chave)
-
-    let payload = ""
-    payload += tlv("00", "01")
-    payload += merchantAccountInfo
-    payload += tlv("52", "0000")
-    payload += tlv("53", "986")
-    payload += tlv("54", amountStr)
-    payload += tlv("58", "BR")
-    payload += tlv("59", merchantName)
-    payload += tlv("60", merchantCity)
-    payload += tlv("62", tlv("05", "***"))
-    payload += "6304"
-
-    const crcValue = crc16(payload)
-    return payload + crcValue
-  }
+  // Gera codigo PIX EMV para pagamento manual - wrapper usando util importado
+  const generateManualPixCode = (amount: number) => generatePixCode(amount, PIX_MANUAL_KEY_FULL)
 
   const copyToClipboard = async (text: string, setCopiedFn: (v: boolean) => void) => {
     try {
