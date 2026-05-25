@@ -10,7 +10,7 @@ import type { PaymentStatus, DeliveryType, OrderSnapshot, PixData, CustomerOrder
 import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURATION } from "./(store)/constants"
 import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode } from "./(store)/utils"
 import { useCart } from "./(store)/hooks/useCart"
-import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader } from "./(store)/components"
+import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer } from "./(store)/components"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./(store)/components/modals"
 
 export default function Home() {
@@ -1559,6 +1559,19 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         totalItems={getTotalItems()}
         total={getTotal()}
         onOpenCheckout={openCheckout}
+      />
+
+      {/* Cart Drawer */}
+      <CartDrawer
+        isOpen={showCart}
+        onClose={() => setShowCart(false)}
+        products={products}
+        quantities={quantities}
+        onUpdateQuantity={updateQuantity}
+        subtotal={getSubtotal()}
+        total={getTotal()}
+        isStoreOpen={isStoreOpen}
+        onCheckout={openCheckout}
       />
 
       {/* Checkout Modal */}
