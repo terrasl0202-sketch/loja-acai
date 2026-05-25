@@ -8,7 +8,7 @@ interface AdminProductsSettingsProps {
   expandedProduct: number | null
   onExpandedProductChange: (id: number | null) => void
   onAddProduct: () => void
-  onUpdateProduct: (id: number, field: keyof Product, value: Product[keyof Product]) => void
+  onUpdateProduct: (id: number, field: keyof Product, value: string | number | boolean) => void
   onRemoveProduct: (id: number) => void
   onMoveProduct: (id: number, direction: "up" | "down") => void
 }

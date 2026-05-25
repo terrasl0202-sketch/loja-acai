@@ -7,7 +7,7 @@ interface AdminDeliverySettingsProps {
   config: SiteConfig
   onConfigChange: (updater: (prev: SiteConfig) => SiteConfig) => void
   onAddNeighborhoodFee: () => void
-  onUpdateNeighborhoodFee: (index: number, field: keyof NeighborhoodFee, value: NeighborhoodFee[keyof NeighborhoodFee]) => void
+  onUpdateNeighborhoodFee: (index: number, field: keyof NeighborhoodFee, value: string | number | boolean) => void
   onRemoveNeighborhoodFee: (index: number) => void
 }
 
