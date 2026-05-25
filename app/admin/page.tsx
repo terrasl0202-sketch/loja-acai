@@ -57,7 +57,23 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, type Entregador, defaultConfig } from "@/lib/config-types"
-import { AdminHeader, AdminOrdersCard, AdminQuickSettings, AdminRevenueReport } from "./components"
+import { 
+  AdminHeader, 
+  AdminOrdersCard, 
+  AdminQuickSettings, 
+  AdminRevenueReport,
+  AdminStoreSettings,
+  AdminProductsSettings,
+  AdminBannerSettings,
+  AdminHoursSettings,
+  AdminDeliverySettings,
+  AdminPaymentSettings,
+  AdminWhatsappSettings,
+  AdminCouponsSettings,
+  AdminEntregadoresSettings,
+  AdminReportsSettings,
+  AdminModals,
+} from "./components"
 
 type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
 
