@@ -57,6 +57,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, type Entregador, defaultConfig } from "@/lib/config-types"
+import { AdminHeader, AdminOrdersCard, AdminQuickSettings, AdminRevenueReport } from "./components"
 
 type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
 
@@ -1591,112 +1592,21 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
   return (
     <div className="min-h-screen bg-background">
       {/* Header Premium */}
-      <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-xl border-b border-primary/10 shadow-xl shadow-black/10">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 ring-1 ring-primary/20 flex-shrink-0">
-                <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="font-bold text-sm sm:text-base text-transparent bg-clip-text bg-gradient-to-r from-foreground to-foreground/80">Painel Admin</h1>
-                <p className="text-[10px] sm:text-xs text-muted-foreground/70 truncate">{config.storeName || "P.K Gostosuras"}</p>
-              </div>
-            </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-            {/* Badge de pedidos novos */}
-            {newOrdersCount > 0 && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 bg-red-500/15 text-red-400 rounded-xl animate-pulse border border-red-500/20">
-                <Bell className="w-3.5 h-3.5" />
-                <span className="font-bold text-xs">{newOrdersCount}</span>
-              </div>
-            )}
-            
-            {/* Botao Marcar como visto */}
-            {newOrdersCount > 0 && (
-              <button
-                onClick={markOrdersAsSeen}
-                className="hidden sm:flex px-2.5 py-1.5 text-xs bg-blue-500/15 text-blue-400 rounded-xl hover:bg-blue-500/25 transition-all border border-blue-500/20"
-              >
-                Visto
-              </button>
-            )}
-            
-            {/* Botao Atualizar */}
-            <button
-              onClick={() => loadOrdersWithNotification()}
-              className="p-2 rounded-xl bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground transition-all hover:shadow-lg"
-              title="Atualizar pedidos"
-            >
-              <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
-            
-            {/* Botao ATIVAR SOM */}
-            {!soundActivated ? (
-              <button
-                onClick={activateSound}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-xs rounded-xl hover:brightness-110 transition-all animate-pulse shadow-lg shadow-amber-500/20"
-              >
-                <Volume2 className="w-4 h-4" />
-                <span className="hidden sm:inline">Som</span>
-              </button>
-            ) : (
-              <>
-                {/* Botao Testar Som */}
-                <button
-                  onClick={playTestSound}
-                  className="hidden sm:flex px-2.5 py-1.5 text-xs bg-purple-500/15 text-purple-400 rounded-xl hover:bg-purple-500/25 transition-all border border-purple-500/20"
-                  title="Testar som"
-                >
-                  Testar
-                </button>
-                
-                {/* Toggle Som On/Off */}
-                <button
-                  onClick={() => setSoundEnabled(!soundEnabled)}
-                  className={`p-2 rounded-xl transition-all ${
-                    soundEnabled
-                      ? "bg-green-500/15 text-green-400 hover:bg-green-500/25 ring-1 ring-green-500/20"
-                      : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
-                  }`}
-                  title={soundEnabled ? "Som ATIVADO" : "Som desativado"}
-                >
-                  {soundEnabled ? <Bell className="w-4 h-4 sm:w-5 sm:h-5" /> : <BellOff className="w-4 h-4 sm:w-5 sm:h-5" />}
-                </button>
-              </>
-            )}
-            
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 font-semibold text-xs sm:text-sm rounded-xl transition-all disabled:opacity-50 shadow-lg ${
-                saveSuccess
-                  ? "bg-green-500 text-white shadow-green-500/20"
-                  : "bg-primary text-primary-foreground hover:brightness-110 shadow-primary/20"
-              }`}
-            >
-              {saving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : saveSuccess ? (
-                <Check className="w-4 h-4" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              <span className="hidden sm:inline">{saving ? "..." : saveSuccess ? "Salvo!" : "Salvar"}</span>
-            </button>
-
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-xl text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all"
-              title="Sair"
-            >
-              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
-          </div>
-          </div>
-        </div>
-      </header>
+      <AdminHeader
+        storeName={config.storeName || "P.K Gostosuras"}
+        newOrdersCount={newOrdersCount}
+        soundActivated={soundActivated}
+        soundEnabled={soundEnabled}
+        saving={saving}
+        saveSuccess={saveSuccess}
+        onRefresh={() => loadOrdersWithNotification()}
+        onActivateSound={activateSound}
+        onTestSound={playTestSound}
+        onToggleSound={() => setSoundEnabled(!soundEnabled)}
+        onSave={handleSave}
+        onLogout={handleLogout}
+        onMarkAsSeen={markOrdersAsSeen}
+      />
 
       {/* Success Banner */}
       {saveSuccess && (
@@ -1716,270 +1626,39 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
         ) : (
           <div className="space-y-4">
             
-            {/* BLOCO PRINCIPAL - PEDIDOS (Foco Total) */}
-            <div className="bg-[#12121c]/80 backdrop-blur-sm rounded-2xl border border-white/5 overflow-hidden shadow-2xl">
-              {/* Header do bloco Pedidos */}
-              <div className="p-4 flex items-center justify-between border-b border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                    <ShoppingBag className="w-4 h-4 text-purple-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-white font-bold">Pedidos</h2>
-                    <p className="text-[10px] text-gray-500">Gerenciamento em tempo real</p>
-                  </div>
-                </div>
-                <button className="flex items-center gap-1 text-purple-400 text-sm hover:text-purple-300 transition-colors">
-                  Ver todos
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Busca e Filtros */}
-              <div className="p-4 space-y-3 border-b border-white/5">
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                    <input
-                      type="text"
-                      placeholder="Buscar pedido..."
-                      value={searchInput}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && executeSearch()}
-                      className="w-full pl-10 pr-4 py-2.5 text-sm bg-[#1a1a2e] border border-white/5 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500/50"
-                    />
-                  </div>
-                  <button
-                    onClick={executeSearch}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white font-medium text-sm rounded-xl hover:bg-purple-500 transition-all"
-                  >
-                    <Search className="w-4 h-4" />
-                    Buscar
-                  </button>
-                  <button
-                    onClick={() => { setSearchInput(""); setSearchQuery(""); }}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-[#1a1a2e] text-gray-300 font-medium text-sm rounded-xl hover:bg-[#252538] transition-all border border-white/5"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Limpar
-                  </button>
-                </div>
-
-                {/* Filtro por periodo */}
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-gray-500" />
-                  <select
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
-                    className="flex-1 px-3 py-2.5 text-sm bg-[#1a1a2e] border border-white/5 rounded-xl text-white focus:outline-none focus:ring-1 focus:ring-purple-500/50 appearance-none cursor-pointer"
-                  >
-                    <option value="all">Todos os periodos</option>
-                    <option value="today">Hoje</option>
-                    <option value="yesterday">Ontem</option>
-                    <option value="week">Esta semana</option>
-                    <option value="month">Este mes</option>
-                  </select>
-                </div>
-                {searchQuery && (
-                  <p className="text-xs text-center text-gray-500">
-                    {activeOrders.length > 0 ? `${activeOrders.length} pedido(s) encontrado(s)` : "Nenhum pedido encontrado"}
-                  </p>
-                )}
-              </div>
-
-              {/* Status dos Pedidos - LISTA igual mockup */}
-              <div className="p-2">
-                {[
-                  { id: "orders-pending" as TabType, icon: ClockIcon, label: "Aguardando Pagamento", badge: ordersPendingPayment.length, color: "text-yellow-500", bgBadge: "bg-yellow-500/20 text-yellow-400" },
-                  { id: "orders-paid" as TabType, icon: CheckCircle2, label: "Aguardando Preparo", badge: ordersPaidWaiting.length, color: "text-green-500", bgBadge: "bg-green-500/20 text-green-400" },
-                  { id: "orders-preparing" as TabType, icon: ChefHat, label: "Em Preparacao", badge: ordersPreparing.length, color: "text-blue-500", bgBadge: "bg-blue-500/20 text-blue-400" },
-                  { id: "orders-delivering" as TabType, icon: Truck, label: "Saiu p/ Entrega", badge: ordersDelivering.length, color: "text-purple-500", bgBadge: "bg-purple-500/20 text-purple-400" },
-                  { id: "orders-completed" as TabType, icon: PackageCheck, label: "Finalizados", badge: ordersCompleted.length, color: "text-emerald-500", bgBadge: "bg-emerald-500/20 text-emerald-400" },
-                  { id: "orders-cancelled" as TabType, icon: Ban, label: "Cancelados", badge: ordersCancelled.length, color: "text-red-500", bgBadge: "bg-red-500/20 text-red-400" },
-                  { id: "orders-abandoned" as TabType, icon: AlertCircle, label: "Abandonados", badge: ordersAbandoned.length, color: "text-orange-500", bgBadge: "bg-orange-500/20 text-orange-400" },
-                  { id: "orders-archived" as TabType, icon: FolderArchive, label: "Arquivados", badge: ordersArchived.length, color: "text-slate-400", bgBadge: "bg-slate-500/20 text-slate-400" },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all mb-1 ${
-                      activeTab === tab.id
-                        ? "bg-primary/20 border border-primary/30"
-                        : "hover:bg-white/5"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <tab.icon className={`w-5 h-5 ${tab.color}`} />
-                      <span className="text-white font-medium text-sm">{tab.label}</span>
-                    </div>
-                    <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${tab.bgBadge}`}>
-                      {tab.badge}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* BLOCO PRINCIPAL - PEDIDOS */}
+            <AdminOrdersCard
+              activeTab={activeTab}
+              searchInput={searchInput}
+              dateFilter={dateFilter}
+              searchQuery={searchQuery}
+              activeOrdersCount={activeOrders.length}
+              ordersPendingPayment={ordersPendingPayment}
+              ordersPaidWaiting={ordersPaidWaiting}
+              ordersPreparing={ordersPreparing}
+              ordersDelivering={ordersDelivering}
+              ordersCompleted={ordersCompleted}
+              ordersCancelled={ordersCancelled}
+              ordersAbandoned={ordersAbandoned}
+              ordersArchived={ordersArchived}
+              onSearchInputChange={setSearchInput}
+              onDateFilterChange={setDateFilter}
+              onSearch={executeSearch}
+              onClearSearch={() => { setSearchInput(""); setSearchQuery(""); }}
+              onTabChange={setActiveTab}
+            />
 
             {/* CONFIGURACOES RAPIDAS */}
-            <div className="bg-[#12121c]/80 backdrop-blur-sm rounded-2xl p-4 border border-white/5">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap className="w-4 h-4 text-yellow-500" />
-                <h3 className="text-white font-bold text-sm">Configuracoes Rapidas</h3>
-              </div>
-              <div className="grid grid-cols-5 gap-2">
-                {[
-                  { id: "store" as TabType, icon: Store, label: "Loja" },
-                  { id: "products" as TabType, icon: Package, label: "Produtos" },
-                  { id: "banner" as TabType, icon: ImageIcon, label: "Banner" },
-                  { id: "hours" as TabType, icon: Clock, label: "Horario" },
-                  { id: "delivery" as TabType, icon: Truck, label: "Entrega" },
-                  { id: "payment" as TabType, icon: CreditCard, label: "Pagamento" },
-                  { id: "whatsapp" as TabType, icon: MessageCircle, label: "WhatsApp" },
-                  { id: "coupons" as TabType, icon: Tag, label: "Cupons" },
-                  { id: "entregadores" as TabType, icon: Users2, label: "Entregadores" },
-                  { id: "reports" as TabType, icon: BarChart3, label: "Relatorios" },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex flex-col items-center gap-2 p-3 rounded-xl transition-all active:scale-95 ${
-                      activeTab === tab.id
-                        ? "bg-purple-600/20 border border-purple-500/30"
-                        : "bg-[#1a1a2e] border border-white/5 hover:bg-[#252538]"
-                    }`}
-                  >
-                    <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? "text-purple-400" : "text-gray-400"}`} />
-                    <span className={`text-[10px] font-medium ${activeTab === tab.id ? "text-purple-300" : "text-gray-400"}`}>{tab.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <AdminQuickSettings
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            />
 
-            {/* RELATORIO DE FATURAMENTO - Igual Mockup */}
-            <div className="bg-[#12121c]/80 backdrop-blur-sm rounded-2xl p-4 border border-white/5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-purple-500" />
-                  <h3 className="text-white font-bold text-sm">Relatorio de Faturamento</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 px-3 py-1.5 bg-[#1a1a2e] rounded-lg border border-white/5">Hoje</span>
-                </div>
-              </div>
-
-              {/* Metricas com indicadores vs ontem */}
-              <div className="grid grid-cols-4 gap-2 mb-4">
-                {(() => {
-                  const todayOrders = ordersCompleted.filter(o => {
-                    const d = new Date(o.createdAt)
-                    return d.toDateString() === new Date().toDateString()
-                  })
-                  const yesterdayOrders = ordersCompleted.filter(o => {
-                    const d = new Date(o.createdAt)
-                    const y = new Date()
-                    y.setDate(y.getDate() - 1)
-                    return d.toDateString() === y.toDateString()
-                  })
-                  const todayRev = todayOrders.reduce((s, o) => s + (o.total || 0), 0)
-                  const yestRev = yesterdayOrders.reduce((s, o) => s + (o.total || 0), 0)
-                  const revChange = yestRev > 0 ? ((todayRev - yestRev) / yestRev * 100).toFixed(0) : "0"
-                  const ordChange = yesterdayOrders.length > 0 ? ((todayOrders.length - yesterdayOrders.length) / yesterdayOrders.length * 100).toFixed(0) : "0"
-                  const todayTicket = todayOrders.length > 0 ? todayRev / todayOrders.length : 0
-                  const yestTicket = yesterdayOrders.length > 0 ? yestRev / yesterdayOrders.length : 0
-                  const ticketChange = yestTicket > 0 ? ((todayTicket - yestTicket) / yestTicket * 100).toFixed(0) : "0"
-                  const todayCanc = ordersCancelled.filter(o => new Date(o.createdAt).toDateString() === new Date().toDateString()).length
-                  const yestCanc = ordersCancelled.filter(o => {
-                    const y = new Date(); y.setDate(y.getDate() - 1)
-                    return new Date(o.createdAt).toDateString() === y.toDateString()
-                  }).length
-                  const cancChange = yestCanc > 0 ? ((todayCanc - yestCanc) / yestCanc * 100).toFixed(0) : "0"
-                  
-                  return (
-                    <>
-                      <div className="bg-[#1a1a2e] rounded-xl p-3 border border-white/5">
-                        <p className="text-[10px] text-gray-500 mb-1">Faturamento</p>
-                        <p className="text-sm font-bold text-green-400">R$ {todayRev.toFixed(2).replace('.', ',')}</p>
-                        <p className={`text-[9px] flex items-center gap-0.5 ${Number(revChange) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {Number(revChange) >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                          {revChange}% vs ontem
-                        </p>
-                      </div>
-                      <div className="bg-[#1a1a2e] rounded-xl p-3 border border-white/5">
-                        <p className="text-[10px] text-gray-500 mb-1">Pedidos</p>
-                        <p className="text-sm font-bold text-white">{todayOrders.length}</p>
-                        <p className={`text-[9px] flex items-center gap-0.5 ${Number(ordChange) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {Number(ordChange) >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                          {ordChange}% vs ontem
-                        </p>
-                      </div>
-                      <div className="bg-[#1a1a2e] rounded-xl p-3 border border-white/5">
-                        <p className="text-[10px] text-gray-500 mb-1">Ticket Medio</p>
-                        <p className="text-sm font-bold text-purple-400">R$ {todayTicket.toFixed(2).replace('.', ',')}</p>
-                        <p className={`text-[9px] flex items-center gap-0.5 ${Number(ticketChange) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {Number(ticketChange) >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                          {ticketChange}% vs ontem
-                        </p>
-                      </div>
-                      <div className="bg-[#1a1a2e] rounded-xl p-3 border border-white/5">
-                        <p className="text-[10px] text-gray-500 mb-1">Cancelados</p>
-                        <p className="text-sm font-bold text-red-400">{todayCanc}</p>
-                        <p className={`text-[9px] flex items-center gap-0.5 ${Number(cancChange) <= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {Number(cancChange) <= 0 ? <TrendingDown className="w-2.5 h-2.5" /> : <TrendingUp className="w-2.5 h-2.5" />}
-                          {Math.abs(Number(cancChange))}% vs ontem
-                        </p>
-                      </div>
-                    </>
-                  )
-                })()}
-              </div>
-
-              {/* Grafico Ultimos 7 dias */}
-              <div className="bg-[#1a1a2e] rounded-xl p-4 border border-white/5">
-                <p className="text-xs text-gray-400 mb-4">Faturamento - Ultimos 7 dias</p>
-                {(() => {
-                  const days = Array.from({ length: 7 }, (_, i) => {
-                    const d = new Date()
-                    d.setDate(d.getDate() - (6 - i))
-                    const dayOrds = ordersCompleted.filter(o => new Date(o.createdAt).toDateString() === d.toDateString())
-                    return {
-                      label: i === 6 ? 'Hoje' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-                      rev: dayOrds.reduce((s, o) => s + (o.total || 0), 0)
-                    }
-                  })
-                  const maxRev = Math.max(...days.map(d => d.rev), 100)
-                  
-                  return (
-                    <div className="relative h-32">
-                      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                        {[0, 1, 2, 3].map(i => <div key={i} className="border-t border-white/5 w-full" />)}
-                      </div>
-                      <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-[8px] text-gray-500 pr-2">
-                        <span>R$ {maxRev.toFixed(0)}</span>
-                        <span>R$ {(maxRev * 0.66).toFixed(0)}</span>
-                        <span>R$ {(maxRev * 0.33).toFixed(0)}</span>
-                        <span>R$ 0</span>
-                      </div>
-                      <svg className="absolute inset-0 ml-10" viewBox="0 0 260 128" preserveAspectRatio="none">
-                        <defs>
-                          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="rgb(139, 92, 246)" stopOpacity="0.3" />
-                            <stop offset="100%" stopColor="rgb(139, 92, 246)" stopOpacity="0" />
-                          </linearGradient>
-                        </defs>
-                        <path d={`M 0 ${128 - (days[0].rev / maxRev) * 128} ${days.map((d, i) => `L ${(i / 6) * 260} ${128 - (d.rev / maxRev) * 128}`).join(' ')} L 260 128 L 0 128 Z`} fill="url(#chartGrad)" />
-                        <path d={`M 0 ${128 - (days[0].rev / maxRev) * 128} ${days.map((d, i) => `L ${(i / 6) * 260} ${128 - (d.rev / maxRev) * 128}`).join(' ')}`} fill="none" stroke="rgb(139, 92, 246)" strokeWidth="2" />
-                        {days.map((d, i) => (
-                          <circle key={i} cx={(i / 6) * 260} cy={128 - (d.rev / maxRev) * 128} r="4" fill="rgb(139, 92, 246)" stroke="#1a1a2e" strokeWidth="2" />
-                        ))}
-                      </svg>
-                      <div className="absolute bottom-0 left-10 right-0 flex justify-between text-[8px] text-gray-500 translate-y-5">
-                        {days.map((d, i) => <span key={i} className={i === 6 ? "text-purple-400 font-medium" : ""}>{d.label}</span>)}
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-            </div>
+            {/* RELATORIO DE FATURAMENTO */}
+            <AdminRevenueReport
+              ordersCompleted={ordersCompleted}
+              ordersCancelled={ordersCancelled}
+            />
 
             {/* Link Ver Loja */}
             <Link
