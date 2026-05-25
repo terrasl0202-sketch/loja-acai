@@ -1,59 +1,28 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { 
   Lock, 
-  LogOut, 
-  Package, 
-  Image as ImageIcon, 
-  Clock, 
-  CreditCard, 
-  MessageCircle, 
-  Save, 
-  Plus, 
-  Trash2, 
-  Eye, 
-  EyeOff,
-  Check,
   Loader2,
   ArrowLeft,
-  Store,
-  Truck,
-  Tag,
-  ShoppingBag,
-  GripVertical,
-  AlertCircle,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  BarChart3,
-  Calendar,
-  DollarSign,
-  Users,
-  Users2,
-  TrendingUp,
-  TrendingDown,
-  Bell,
-  BellOff,
-  Archive,
-  Copy,
-  Phone,
-  MapPin,
-  CheckCircle2,
-  XCircle,
-  ClockIcon,
-  ChefHat,
-  PackageCheck,
   Ban,
-  Search,
-  X,
+  Check,
+  Phone,
+  Copy,
   Link2,
   ExternalLink,
-  RotateCcw,
+  ClockIcon,
+  CheckCircle2,
+  ChefHat,
+  PackageCheck,
+  Truck,
+  Users2,
+  MessageCircle,
+  AlertCircle,
+  Search,
   FolderArchive,
-  RefreshCw,
-  Volume2,
-  Zap
+  Trash2,
+  RotateCcw
 } from "lucide-react"
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, type Entregador, defaultConfig } from "@/lib/config-types"
@@ -75,9 +44,37 @@ import {
   AdminModals,
 } from "./components"
 
-type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
+// Utils e types extraidos
+import type { TabType, FinancialHistoryItem, ReportStats } from "./types"
+import { 
+  normalizeText,
+  normalizePhoneForWhatsApp,
+  formatCurrency,
+  formatDate,
+  calcularTempoEntrega,
+  getTimeSinceCreation,
+  isOrderConfirmed,
+  getStatusColor,
+  getStatusLabel,
+  getPaymentStatusColor,
+  getPaymentStatusLabel,
+  getPublicBaseUrl,
+  getOrderTrackingLink,
+  getEntregadorPanelLink,
+  generateEntregadorMessage,
+  copyToClipboardRobust,
+} from "./utils"
+import { 
+  ORDERS_POLLING_INTERVAL,
+  SESSION_DURATION,
+  TOAST_DURATION,
+  NOTIFICATION_FREQUENCIES_STRONG,
+  NOTIFICATION_FREQUENCIES_WEAK,
+  VIBRATION_PATTERN,
+} from "./constants"
 
 export default function AdminPage() {
+  // ========== ESTADOS PRINCIPAIS ==========
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState("")
   const [authError, setAuthError] = useState("")
@@ -87,9 +84,13 @@ export default function AdminPage() {
   const [config, setConfig] = useState<SiteConfig>(defaultConfig)
   const [activeTab, setActiveTab] = useState<TabType>("store")
   const [sessionPassword, setSessionPassword] = useState("")
+  
+  // ========== ESTADOS DE PEDIDOS ==========
   const [orders, setOrders] = useState<Order[]>([])
-  const [financialHistory, setFinancialHistory] = useState<Array<{ id: string, total: number, paymentMethod: string, createdAt: string, confirmedAt?: string, deletedAt: string }>>([])
+  const [financialHistory, setFinancialHistory] = useState<FinancialHistoryItem[]>([])
   const [expandedProduct, setExpandedProduct] = useState<number | null>(null)
+  
+  // ========== ESTADOS DE NOTIFICACAO ==========
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [soundActivated, setSoundActivated] = useState(false)
   const [strongNotification, setStrongNotification] = useState(true)
@@ -98,88 +99,47 @@ export default function AdminPage() {
   const [knownOrderIds, setKnownOrderIds] = useState<Set<string>>(new Set())
   const [newOrdersCount, setNewOrdersCount] = useState(0)
   const [pulsingOrders, setPulsingOrders] = useState<Set<string>>(new Set())
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
+  
+  // ========== ESTADOS DE FILTROS ==========
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [dateFilter, setDateFilter] = useState<"today" | "yesterday" | "week" | "month" | "all">("all")
-  const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null)
-  const [manualCopyText, setManualCopyText] = useState<string | null>(null)
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
-  const [deleteProductId, setDeleteProductId] = useState<number | null>(null)
   const [filtroEntregador, setFiltroEntregador] = useState<string>("todos")
-  const [problemaEntregaOrderId, setProblemaEntregaOrderId] = useState<string | null>(null)
-  const [problemaEntregaObs, setProblemaEntregaObs] = useState("")
-  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
-  const [manualEntregadorLink, setManualEntregadorLink] = useState<string | null>(null)
   const [archivedSearchInput, setArchivedSearchInput] = useState("")
   const [archivedSearchQuery, setArchivedSearchQuery] = useState("")
+  
+  // ========== ESTADOS DE UI/MODAIS ==========
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null)
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
+  const [manualCopyText, setManualCopyText] = useState<string | null>(null)
+  const [manualEntregadorLink, setManualEntregadorLink] = useState<string | null>(null)
+  const [deleteProductId, setDeleteProductId] = useState<number | null>(null)
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
   const [confirmEntregador, setConfirmEntregador] = useState<{orderId: string, entregador: Entregador} | null>(null)
+  const [problemaEntregaOrderId, setProblemaEntregaOrderId] = useState<string | null>(null)
+  const [problemaEntregaObs, setProblemaEntregaObs] = useState("")
+  
+  // ========== ESTADOS DE SELECAO ==========
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
   const [selectedOrdersTab, setSelectedOrdersTab] = useState<TabType | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [showDeleteMultiple, setShowDeleteMultiple] = useState(false)
-  const [deleteLoading, setDeleteLoading] = useState(false)
   const [showTabWarning, setShowTabWarning] = useState(false)
-  const notificationAudioRef = { current: null as HTMLAudioElement | null }
-  
-  // Sessao persistente - verificar ao carregar
-  useEffect(() => {
-    const sessionData = localStorage.getItem("admin_session")
-    if (sessionData) {
-      try {
-        const { password: savedPassword, expiry } = JSON.parse(sessionData)
-        if (new Date().getTime() < expiry) {
-          setSessionPassword(savedPassword)
-          setIsAuthenticated(true)
-        } else {
-          localStorage.removeItem("admin_session")
-        }
-      } catch {
-        localStorage.removeItem("admin_session")
-      }
-    }
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  // ========== FUNCAO DE TOAST ==========
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message)
+    setTimeout(() => setToastMessage(null), TOAST_DURATION)
   }, [])
 
-  useEffect(() => {
-    if (isAuthenticated && sessionPassword) {
-      loadConfig()
-      loadOrders()
-      
-      // Polling para detectar novos pedidos a cada 30 segundos
-      const pollInterval = setInterval(() => {
-        loadOrdersWithNotification()
-      }, 30000)
-      
-      return () => clearInterval(pollInterval)
-    }
-  }, [isAuthenticated, sessionPassword])
-
-  // Notificacao sonora PROFISSIONAL quando chegar novo pedido
-  const playNotificationSound = () => {
-    if (!soundEnabled || !soundActivated) {
-      return
-    }
-    
-    // Vibracao no celular (se suportado)
-    if (strongNotification && navigator.vibrate) {
-      navigator.vibrate([200, 100, 200, 100, 400, 100, 200, 100, 200])
-    }
-    
-    // Usar Web Audio API diretamente (mais confiavel em mobile)
-    playBeepSequence()
-  }
-  
-  // Sequencia de beeps longos para notificacao forte
-  const playBeepSequence = () => {
+  // ========== FUNCOES DE AUDIO ==========
+  const playBeepSequence = useCallback(() => {
     try {
       const ctx = new AudioContext()
       const volume = strongNotification ? 0.8 : 0.4
-      
-      // Criar sequencia de tons
-      const frequencies = strongNotification 
-        ? [523, 659, 784, 880, 784, 659, 784, 880, 1047]
-        : [700, 900]
-      
+      const frequencies = strongNotification ? NOTIFICATION_FREQUENCIES_STRONG : NOTIFICATION_FREQUENCIES_WEAK
       frequencies.forEach((freq, index) => {
         setTimeout(() => {
           try {
@@ -193,37 +153,27 @@ export default function AdminPage() {
             gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3)
             oscillator.start()
             oscillator.stop(ctx.currentTime + 0.35)
-          } catch {
-            // Ignorar erro de tom individual
-          }
+          } catch { /* ignore */ }
         }, index * 350)
       })
-    } catch {
-      // Audio nao suportado
-    }
-  }
-  
-  // Tocar som de teste
-  const playTestSound = () => {
-    if (!soundActivated) {
-      showToast("Ative o som primeiro!")
-      return
-    }
+    } catch { /* ignore */ }
+  }, [strongNotification])
+
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabled || !soundActivated) return
+    if (strongNotification && navigator.vibrate) navigator.vibrate(VIBRATION_PATTERN)
+    playBeepSequence()
+  }, [soundEnabled, soundActivated, strongNotification, playBeepSequence])
+
+  const playTestSound = useCallback(() => {
+    if (!soundActivated) { showToast("Ative o som primeiro!"); return }
     playBeepSequence()
     showToast("Som de teste tocado!")
-  }
+  }, [soundActivated, playBeepSequence, showToast])
 
-  // Mostrar toast de notificacao
-  const showToast = (message: string) => {
-    setToastMessage(message)
-    setTimeout(() => setToastMessage(null), 4000)
-  }
-
-  // Ativar som (necessario interacao do usuario)
-  const activateSound = () => {
+  const activateSound = useCallback(() => {
     setSoundActivated(true)
     setSoundEnabled(true)
-    // Tocar som de teste para confirmar ativacao e desbloquear AudioContext
     try {
       const ctx = new AudioContext()
       const oscillator = ctx.createOscillator()
@@ -236,7 +186,6 @@ export default function AdminPage() {
       oscillator.start()
       setTimeout(() => {
         oscillator.stop()
-        // Tocar segundo beep para confirmar
         setTimeout(() => {
           const osc2 = ctx.createOscillator()
           const gain2 = ctx.createGain()
@@ -249,20 +198,66 @@ export default function AdminPage() {
           setTimeout(() => osc2.stop(), 150)
         }, 200)
       }, 150)
-    } catch {
-      // Ignorar erro
-    }
+    } catch { /* ignore */ }
     showToast("Som ativado! Voce ouvira alertas de novos pedidos.")
-  }
+  }, [showToast])
 
-  const loadOrdersWithNotification = async () => {
+  // ========== SESSAO E AUTENTICACAO ==========
+  useEffect(() => {
+    const sessionData = localStorage.getItem("admin_session")
+    if (sessionData) {
+      try {
+        const { password: savedPassword, expiry } = JSON.parse(sessionData)
+        if (new Date().getTime() < expiry) {
+          setSessionPassword(savedPassword)
+          setIsAuthenticated(true)
+        } else {
+          localStorage.removeItem("admin_session")
+        }
+      } catch { localStorage.removeItem("admin_session") }
+    }
+  }, [])
+
+  // ========== FUNCOES DE API ==========
+  const loadConfig = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await fetch(`/api/config?admin=true&password=${encodeURIComponent(sessionPassword)}`)
+      const data = await res.json()
+      if (data.success && data.config) setConfig(data.config)
+    } catch (error) {
+      console.error("Erro ao carregar config:", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [sessionPassword])
+
+  const loadOrders = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/orders?password=${encodeURIComponent(sessionPassword)}&includeHistory=true`)
+      const data = await res.json()
+      if (data.success && data.orders) {
+        const fetchedOrders = data.orders as Order[]
+        setOrders(fetchedOrders)
+        if (!initialLoadDone) {
+          const allIds = new Set(fetchedOrders.map(o => o.id))
+          setKnownOrderIds(allIds)
+          setAdminOpenedAt(new Date().toISOString())
+          setInitialLoadDone(true)
+        }
+      }
+      if (data.financialHistory) setFinancialHistory(data.financialHistory)
+    } catch (error) {
+      console.error("Erro ao carregar pedidos:", error)
+    }
+  }, [sessionPassword, initialLoadDone])
+
+  const loadOrdersWithNotification = useCallback(async () => {
     try {
       const res = await fetch(`/api/orders?password=${encodeURIComponent(sessionPassword)}`, { cache: "no-store" })
       const data = await res.json()
       if (data.success && data.orders) {
         const fetchedOrders = data.orders as Order[]
-        
-        // Na primeira carga, registrar todos os IDs existentes como "conhecidos"
         if (!initialLoadDone) {
           const allIds = new Set(fetchedOrders.map(o => o.id))
           setKnownOrderIds(allIds)
@@ -272,121 +267,67 @@ export default function AdminPage() {
           setNewOrdersCount(0)
           return
         }
-        
-        // Verificar pedidos REALMENTE novos (IDs que nao existiam antes)
         const trulyNewOrders = fetchedOrders.filter(o => {
-          // Pedido novo = ID nao conhecido + criado DEPOIS que admin abriu
           const isNewId = !knownOrderIds.has(o.id)
           const createdAfterOpen = adminOpenedAt ? new Date(o.createdAt) > new Date(adminOpenedAt) : false
-          // Nao contar cancelados/finalizados/arquivados
-          const isActive = o.status === "pending" || o.status === "confirmed" || o.status === "preparing" || o.status === "delivering"
+          const isActive = ["pending", "confirmed", "preparing", "delivering"].includes(o.status)
           return isNewId && createdAfterOpen && isActive
         })
-        
-        // Se tem pedidos realmente novos, notificar
         if (trulyNewOrders.length > 0) {
           playNotificationSound()
           showToast(`${trulyNewOrders.length} novo${trulyNewOrders.length > 1 ? "s" : ""} pedido${trulyNewOrders.length > 1 ? "s" : ""} recebido${trulyNewOrders.length > 1 ? "s" : ""}!`)
-          
-          // Adicionar aos pedidos pulsando
           setPulsingOrders(prev => {
             const newSet = new Set(prev)
             trulyNewOrders.forEach(o => newSet.add(o.id))
             return newSet
           })
-          
-          // Atualizar contador
           setNewOrdersCount(prev => prev + trulyNewOrders.length)
-          
-          // Adicionar aos conhecidos
           setKnownOrderIds(prev => {
             const newSet = new Set(prev)
             trulyNewOrders.forEach(o => newSet.add(o.id))
             return newSet
           })
         }
-        
         setOrders(fetchedOrders)
       }
     } catch (error) {
       console.error("Erro ao carregar pedidos:", error)
     }
-  }
-  
-  // Marcar pedidos como vistos
-  const markOrdersAsSeen = () => {
-    setNewOrdersCount(0)
-    setPulsingOrders(new Set())
-    showToast("Pedidos marcados como vistos")
-  }
+  }, [sessionPassword, initialLoadDone, knownOrderIds, adminOpenedAt, playNotificationSound, showToast])
 
-  // Solicitar permissao de notificacao
+  // ========== EFEITOS DE CARREGAMENTO ==========
+  useEffect(() => {
+    if (isAuthenticated && sessionPassword) {
+      loadConfig()
+      loadOrders()
+      const pollInterval = setInterval(() => loadOrdersWithNotification(), ORDERS_POLLING_INTERVAL)
+      return () => clearInterval(pollInterval)
+    }
+  }, [isAuthenticated, sessionPassword, loadConfig, loadOrders, loadOrdersWithNotification])
+
   useEffect(() => {
     if (isAuthenticated && "Notification" in window && Notification.permission === "default") {
       Notification.requestPermission()
     }
   }, [isAuthenticated])
 
-  const loadConfig = async () => {
-    try {
-      setLoading(true)
-      const res = await fetch(`/api/config?admin=true&password=${encodeURIComponent(sessionPassword)}`)
-      const data = await res.json()
-      if (data.success && data.config) {
-        // Usar dados reais do servidor - NAO misturar com defaults
-        setConfig(data.config)
-      }
-    } catch (error) {
-      console.error("Erro ao carregar config:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadOrders = async () => {
-    try {
-      const res = await fetch(`/api/orders?password=${encodeURIComponent(sessionPassword)}&includeHistory=true`)
-      const data = await res.json()
-      if (data.success && data.orders) {
-        const fetchedOrders = data.orders as Order[]
-        setOrders(fetchedOrders)
-        
-        // Na primeira carga, registrar todos IDs como conhecidos
-        if (!initialLoadDone) {
-          const allIds = new Set(fetchedOrders.map(o => o.id))
-          setKnownOrderIds(allIds)
-          setAdminOpenedAt(new Date().toISOString())
-          setInitialLoadDone(true)
-        }
-      }
-      if (data.financialHistory) {
-        setFinancialHistory(data.financialHistory)
-      }
-    } catch (error) {
-      console.error("Erro ao carregar pedidos:", error)
-    }
-  }
-
+  // ========== AUTENTICACAO ==========
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setAuthError("")
     setLoading(true)
-
     try {
       const res = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       })
-
       const data = await res.json()
-
       if (data.success) {
         setIsAuthenticated(true)
         setSessionPassword(password)
         setPassword("")
-        // Salvar sessao por 1 hora
-        const expiry = new Date().getTime() + (60 * 60 * 1000)
+        const expiry = new Date().getTime() + SESSION_DURATION
         localStorage.setItem("admin_session", JSON.stringify({ password, expiry }))
       } else {
         setAuthError("Senha incorreta")
@@ -406,20 +347,17 @@ export default function AdminPage() {
     localStorage.removeItem("admin_session")
   }
 
+  // ========== SALVAR CONFIGURACOES ==========
   const handleSave = async () => {
     setSaving(true)
     setSaveSuccess(false)
-
     try {
-      console.log("[Admin] Salvando config - produtos:", config.products?.length, "bairros:", config.delivery?.neighborhoodFees?.length)
       const res = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: sessionPassword, config }),
       })
-
       const data = await res.json()
-
       if (data.success) {
         setSaveSuccess(true)
         await loadConfig()
@@ -435,12 +373,11 @@ export default function AdminPage() {
     }
   }
 
+  // ========== FUNCOES DE PRODUTO ==========
   const updateProduct = (id: number, field: keyof Product, value: string | number | boolean) => {
     setConfig(prev => ({
       ...prev,
-      products: prev.products.map(p => 
-        p.id === id ? { ...p, [field]: value } : p
-      ),
+      products: prev.products.map(p => p.id === id ? { ...p, [field]: value } : p),
     }))
   }
 
@@ -449,32 +386,15 @@ export default function AdminPage() {
     const newOrder = Math.max(...config.products.map(p => p.order || 0), 0) + 1
     setConfig(prev => ({
       ...prev,
-      products: [
-        ...prev.products,
-        {
-          id: newId,
-          name: "Novo Produto",
-          price: 10,
-          description: "Descricao do produto",
-          active: true,
-          stock: 100,
-          outOfStock: false,
-          order: newOrder,
-        },
-      ],
+      products: [...prev.products, { id: newId, name: "Novo Produto", price: 10, description: "Descricao do produto", active: true, stock: 100, outOfStock: false, order: newOrder }],
     }))
   }
 
-  const removeProduct = (id: number) => {
-    setDeleteProductId(id)
-  }
+  const removeProduct = (id: number) => setDeleteProductId(id)
 
   const confirmDeleteProduct = () => {
     if (deleteProductId !== null) {
-      setConfig(prev => ({
-        ...prev,
-        products: prev.products.filter(p => p.id !== deleteProductId),
-      }))
+      setConfig(prev => ({ ...prev, products: prev.products.filter(p => p.id !== deleteProductId) }))
       showToast("Produto excluido")
       setDeleteProductId(null)
     }
@@ -484,221 +404,212 @@ export default function AdminPage() {
     const products = [...config.products].sort((a, b) => (a.order || 0) - (b.order || 0))
     const index = products.findIndex(p => p.id === id)
     if ((direction === "up" && index === 0) || (direction === "down" && index === products.length - 1)) return
-    
     const newIndex = direction === "up" ? index - 1 : index + 1
     const temp = products[index].order
     products[index].order = products[newIndex].order
     products[newIndex].order = temp
-    
     setConfig(prev => ({ ...prev, products }))
   }
 
+  // ========== FUNCOES DE CUPOM ==========
   const addCoupon = () => {
-    const newCoupon: Coupon = {
-      id: `coupon-${Date.now()}`,
-      code: "NOVO10",
-      type: "percentage",
-      value: 10,
-      active: true,
-      minimumOrder: 0,
-    }
-    setConfig(prev => ({
-      ...prev,
-      coupons: [...(prev.coupons || []), newCoupon],
-    }))
+    const newCoupon: Coupon = { id: `coupon-${Date.now()}`, code: "NOVO10", type: "percentage", value: 10, active: true, minimumOrder: 0 }
+    setConfig(prev => ({ ...prev, coupons: [...(prev.coupons || []), newCoupon] }))
   }
 
   const updateCoupon = (id: string, field: keyof Coupon, value: string | number | boolean) => {
-    setConfig(prev => ({
-      ...prev,
-      coupons: (prev.coupons || []).map(c => 
-        c.id === id ? { ...c, [field]: value } : c
-      ),
-    }))
+    setConfig(prev => ({ ...prev, coupons: (prev.coupons || []).map(c => c.id === id ? { ...c, [field]: value } : c) }))
   }
 
   const removeCoupon = (id: string) => {
-    setConfig(prev => ({
-      ...prev,
-      coupons: (prev.coupons || []).filter(c => c.id !== id),
-    }))
+    setConfig(prev => ({ ...prev, coupons: (prev.coupons || []).filter(c => c.id !== id) }))
   }
 
+  // ========== FUNCOES DE BAIRRO ==========
   const addNeighborhoodFee = () => {
     const newFee: NeighborhoodFee = { name: "Novo Bairro", fee: 5, active: true }
-    setConfig(prev => ({
-      ...prev,
-      delivery: {
-        ...prev.delivery,
-        neighborhoodFees: [...(prev.delivery?.neighborhoodFees || []), newFee],
-      },
-    }))
+    setConfig(prev => ({ ...prev, delivery: { ...prev.delivery, neighborhoodFees: [...(prev.delivery?.neighborhoodFees || []), newFee] } }))
   }
 
   const updateNeighborhoodFee = (index: number, field: keyof NeighborhoodFee, value: string | number | boolean) => {
     setConfig(prev => ({
       ...prev,
-      delivery: {
-        ...prev.delivery,
-        neighborhoodFees: (prev.delivery?.neighborhoodFees || []).map((f, i) => 
-          i === index ? { ...f, [field]: value } : f
-        ),
-      },
+      delivery: { ...prev.delivery, neighborhoodFees: (prev.delivery?.neighborhoodFees || []).map((f, i) => i === index ? { ...f, [field]: value } : f) },
     }))
   }
 
   const removeNeighborhoodFee = (index: number) => {
-    setConfig(prev => ({
-      ...prev,
-      delivery: {
-        ...prev.delivery,
-        neighborhoodFees: (prev.delivery?.neighborhoodFees || []).filter((_, i) => i !== index),
-      },
-    }))
+    setConfig(prev => ({ ...prev, delivery: { ...prev.delivery, neighborhoodFees: (prev.delivery?.neighborhoodFees || []).filter((_, i) => i !== index) } }))
   }
 
+  // ========== FUNCOES DE PEDIDO ==========
   const updateOrderStatus = async (orderId: string, status: Order["status"]) => {
     try {
-      const res = await fetch("/api/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: sessionPassword, orderId, status }),
-      })
+      const res = await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, orderId, status }) })
       const data = await res.json()
       if (data.success) {
-        // Atualizar localmente E recarregar do servidor para garantir sincronizacao
         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o))
-        // Recarregar do servidor apos 500ms para garantir consistencia
         setTimeout(() => loadOrders(), 500)
       }
-    } catch (error) {
-      console.error("Erro ao atualizar pedido:", error)
-    }
+    } catch (error) { console.error("Erro ao atualizar pedido:", error) }
   }
 
-  // Atribuir entregador ao pedido (SEM mudar status)
+  const updatePaymentStatus = async (orderId: string, paymentStatus: Order["paymentStatus"], manuallyConfirmed: boolean) => {
+    try {
+      const res = await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, orderId, paymentStatus, manuallyConfirmed }) })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, paymentStatus, manuallyConfirmed, status: manuallyConfirmed ? "confirmed" : o.status, confirmedAt: manuallyConfirmed ? new Date().toISOString() : o.confirmedAt } : o))
+        setTimeout(() => loadOrders(), 500)
+      }
+    } catch (error) { console.error("Erro ao atualizar pagamento:", error) }
+  }
+
   const assignEntregador = async (orderId: string, entregador: Entregador) => {
-  try {
-  const res = await fetch("/api/orders", {
-  method: "PATCH",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-  password: sessionPassword,
-  orderId,
-  entregadorId: entregador.id,
-  entregadorNome: entregador.nome,
-  entregadorWhatsapp: entregador.whatsapp,
-  }),
-  })
-  const data = await res.json()
-  if (data.success) {
-  setOrders(prev => prev.map(o => o.id === orderId ? {
-  ...o,
-  entregadorId: entregador.id,
-  entregadorNome: entregador.nome,
-  entregadorWhatsapp: entregador.whatsapp,
-  } : o))
-  showToast(`Entregador ${entregador.nome} selecionado`)
+    try {
+      const res = await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, orderId, entregadorId: entregador.id, entregadorNome: entregador.nome, entregadorWhatsapp: entregador.whatsapp }) })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, entregadorId: entregador.id, entregadorNome: entregador.nome, entregadorWhatsapp: entregador.whatsapp } : o))
+        showToast(`Entregador ${entregador.nome} selecionado`)
+      }
+    } catch (error) { console.error("Erro ao atribuir entregador:", error) }
   }
-  } catch (error) {
-  console.error("Erro ao atribuir entregador:", error)
-  }
-  }
-  
-  // Remover entregador do pedido (salva no servidor)
+
   const removeEntregador = async (orderId: string) => {
-  try {
-  const res = await fetch("/api/orders", {
-  method: "PATCH",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-  password: sessionPassword,
-  orderId,
-  limparEntregador: true,
-  }),
-  })
-  const data = await res.json()
-  if (data.success) {
-  setOrders(prev => prev.map(o => o.id === orderId ? {
-  ...o,
-  entregadorId: undefined,
-  entregadorNome: undefined,
-  entregadorWhatsapp: undefined,
-  } : o))
-  showToast("Entregador removido")
+    try {
+      const res = await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, orderId, limparEntregador: true }) })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, entregadorId: undefined, entregadorNome: undefined, entregadorWhatsapp: undefined } : o))
+        showToast("Entregador removido")
+      }
+    } catch (error) { console.error("Erro ao remover entregador:", error) }
   }
-  } catch (error) {
-  console.error("Erro ao remover entregador:", error)
+
+  const marcarSaiuParaEntrega = async (orderId: string) => {
+    try {
+      const res = await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, orderId, status: "delivering" }) })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: "delivering", saiuParaEntregaEm: new Date().toISOString() } : o))
+        showToast("Pedido saiu para entrega!")
+        setTimeout(() => loadOrders(), 500)
+      }
+    } catch (error) { console.error("Erro ao marcar saiu para entrega:", error) }
   }
+
+  const voltarParaPreparo = async (orderId: string) => {
+    const order = orders.find(o => o.id === orderId)
+    if (!order) return
+    const novoHistorico = [...(order.historicoEntrega || []), { data: new Date().toISOString(), evento: "RETORNOU_PREPARO", observacao: `Retornou do entregador: ${order.entregadorNome || "N/A"}` }]
+    try {
+      const res = await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, orderId, status: "preparing", limparEntregador: true, historicoEntrega: novoHistorico }) })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: "preparing", entregadorId: undefined, entregadorNome: undefined, entregadorWhatsapp: undefined, saiuParaEntregaEm: undefined, historicoEntrega: novoHistorico } : o))
+        showToast("Pedido voltou para preparo")
+      }
+    } catch (error) { console.error("Erro ao voltar para preparo:", error) }
   }
-  
-  // Excluir pedido individual
+
+  const registrarProblemaEntrega = async (orderId: string, observacao: string) => {
+    const order = orders.find(o => o.id === orderId)
+    if (!order) return
+    const novoHistorico = [...(order.historicoEntrega || []), { data: new Date().toISOString(), evento: "PROBLEMA", observacao }]
+    try {
+      const res = await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, orderId, historicoEntrega: novoHistorico }) })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, historicoEntrega: novoHistorico } : o))
+        showToast("Problema registrado")
+        setProblemaEntregaOrderId(null)
+        setProblemaEntregaObs("")
+      }
+    } catch (error) { console.error("Erro ao registrar problema:", error) }
+  }
+
   const deleteSingleOrder = async (orderId: string) => {
     setDeleteLoading(true)
     try {
-      const res = await fetch("/api/orders", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: sessionPassword, orderIds: [orderId] }),
-      })
+      const res = await fetch("/api/orders", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, orderIds: [orderId] }) })
       const data = await res.json()
       if (data.success) {
         setOrders(prev => prev.filter(o => o.id !== orderId))
         showToast("Pedido excluido")
         setShowDeleteConfirm(null)
-      } else {
-        showToast(data.error || "Erro ao excluir")
-      }
+      } else { showToast(data.error || "Erro ao excluir") }
     } catch (error) {
       console.error("Erro ao excluir pedido:", error)
       showToast("Erro ao excluir pedido")
-    } finally {
-      setDeleteLoading(false)
-    }
+    } finally { setDeleteLoading(false) }
   }
-  
-  // Excluir multiplos pedidos
+
   const deleteMultipleOrders = async () => {
     if (selectedOrders.size === 0) return
     setDeleteLoading(true)
     try {
-      const res = await fetch("/api/orders", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: sessionPassword, orderIds: Array.from(selectedOrders) }),
-      })
+      const res = await fetch("/api/orders", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, orderIds: Array.from(selectedOrders) }) })
       const data = await res.json()
       if (data.success) {
         setOrders(prev => prev.filter(o => !selectedOrders.has(o.id)))
         showToast(`${selectedOrders.size} pedido(s) excluido(s)`)
         setSelectedOrders(new Set())
         setShowDeleteMultiple(false)
-      } else {
-        showToast(data.error || "Erro ao excluir")
-      }
+      } else { showToast(data.error || "Erro ao excluir") }
     } catch (error) {
       console.error("Erro ao excluir pedidos:", error)
       showToast("Erro ao excluir pedidos")
-    } finally {
-      setDeleteLoading(false)
+    } finally { setDeleteLoading(false) }
+  }
+
+  const archiveAllOrders = async () => {
+    try {
+      const res = await fetch("/api/orders", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, action: "archive_all" }) })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => ({ ...o, archived: true })))
+        setShowArchiveConfirm(false)
+      }
+    } catch (error) { console.error("Erro ao arquivar pedidos:", error) }
+  }
+
+  const restaurarPedido = async (orderId: string) => {
+    try {
+      const res = await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, orderId, archived: false }) })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, archived: false } : o))
+        showToast("Pedido restaurado!")
+      }
+    } catch (error) { console.error("Erro ao restaurar pedido:", error) }
+  }
+
+  const cleanupDuplicates = async () => {
+    try {
+      const res = await fetch("/api/orders", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, action: "cleanup_duplicates" }) })
+      const data = await res.json()
+      if (data.success) {
+        showToast(`Limpeza concluida: ${data.removedCount} duplicata(s) removida(s)`)
+        loadOrders()
+      }
+    } catch (error) {
+      console.error("Erro ao limpar duplicatas:", error)
+      showToast("Erro ao limpar duplicatas")
     }
   }
-  
-  // Toggle selecao de pedido
+
+  // ========== SELECAO DE PEDIDOS ==========
   const toggleOrderSelection = (orderId: string, tab: TabType) => {
-    // Se ja tem pedidos selecionados em outra aba, mostrar aviso
     if (selectedOrdersTab && selectedOrdersTab !== tab && selectedOrders.size > 0) {
       setShowTabWarning(true)
       return
     }
-    
     setSelectedOrders(prev => {
       const newSet = new Set(prev)
       if (newSet.has(orderId)) {
         newSet.delete(orderId)
-        if (newSet.size === 0) {
-          setSelectedOrdersTab(null)
-        }
+        if (newSet.size === 0) setSelectedOrdersTab(null)
       } else {
         newSet.add(orderId)
         setSelectedOrdersTab(tab)
@@ -706,8 +617,7 @@ export default function AdminPage() {
       return newSet
     })
   }
-  
-  // Selecionar todos os pedidos de uma aba
+
   const selectAllOrders = (ordersList: Order[], tab: TabType) => {
     if (selectedOrdersTab && selectedOrdersTab !== tab && selectedOrders.size > 0) {
       setShowTabWarning(true)
@@ -716,803 +626,43 @@ export default function AdminPage() {
     setSelectedOrders(new Set(ordersList.map(o => o.id)))
     setSelectedOrdersTab(tab)
   }
-  
-  // Desmarcar todos os pedidos
+
   const deselectAllOrders = () => {
     setSelectedOrders(new Set())
     setSelectedOrdersTab(null)
   }
-  
-  // Confirmar atribuicao de entregador
+
   const confirmAssignEntregador = async () => {
     if (!confirmEntregador) return
     await assignEntregador(confirmEntregador.orderId, confirmEntregador.entregador)
     setConfirmEntregador(null)
   }
 
-  // Marcar pedido como saiu para entrega
-  const marcarSaiuParaEntrega = async (orderId: string) => {
-    try {
-      const res = await fetch("/api/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          password: sessionPassword, 
-          orderId, 
-          status: "delivering",
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { 
-          ...o, 
-          status: "delivering",
-          saiuParaEntregaEm: new Date().toISOString(),
-        } : o))
-        showToast("Pedido saiu para entrega!")
-        setTimeout(() => loadOrders(), 500)
-      }
-    } catch (error) {
-      console.error("Erro ao marcar saiu para entrega:", error)
-    }
+  const markOrdersAsSeen = () => {
+    setNewOrdersCount(0)
+    setPulsingOrders(new Set())
+    showToast("Pedidos marcados como vistos")
   }
 
-  // Gerar mensagem WhatsApp para entregador
-  const generateEntregadorMessage = (order: Order): string => {
-    const lines = [
-      `*NOVO PEDIDO - ${order.id}*`,
-      ``,
-      `*Cliente:* ${order.customerName}`,
-      `*Telefone:* ${order.customerPhone}`,
-      ``,
-    ]
-
-    if (order.address) {
-      lines.push(`*Endereco:*`)
-      lines.push(order.address)
-      if (order.neighborhood) lines.push(`Bairro: ${order.neighborhood}`)
-      if (order.reference) lines.push(`Referencia: ${order.reference}`)
-      // Link do Google Maps
-      const enderecoCompleto = `${order.address}${order.neighborhood ? `, ${order.neighborhood}` : ""}`
-      lines.push(``)
-      lines.push(`*Google Maps:*`)
-      lines.push(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(enderecoCompleto)}`)
-      lines.push(``)
-    }
-
-    lines.push(`*Itens:*`)
-    lines.push(order.items)
-    lines.push(``)
-    
-    lines.push(`*Total:* R$ ${order.total.toFixed(2)}`)
-    lines.push(`*Pagamento:* ${order.paymentMethod}`)
-    
-    if (order.observation) {
-      lines.push(``)
-      lines.push(`*Observacoes:* ${order.observation}`)
-    }
-
-    return lines.join("\n")
-  }
-
-  // Abrir WhatsApp do entregador com mensagem do pedido
+  // ========== FUNCOES DE WHATSAPP ==========
   const sendOrderToEntregador = (order: Order, entregadorWhatsapp: string) => {
     const phone = normalizePhoneForWhatsApp(entregadorWhatsapp)
     const message = generateEntregadorMessage(order)
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank")
   }
 
-  // Calcular tempo decorrido desde saida para entrega
-  const calcularTempoEntrega = (saiuParaEntregaEm: string): { minutos: number; texto: string } => {
-    const saiu = new Date(saiuParaEntregaEm).getTime()
-    const agora = Date.now()
-    const diffMs = agora - saiu
-    const minutos = Math.floor(diffMs / 60000)
-    
-    if (minutos < 1) return { minutos: 0, texto: "Agora mesmo" }
-    if (minutos === 1) return { minutos: 1, texto: "Ha 1 minuto" }
-    if (minutos < 60) return { minutos, texto: `Ha ${minutos} minutos` }
-    
-    const horas = Math.floor(minutos / 60)
-    const mins = minutos % 60
-    if (horas === 1) return { minutos, texto: mins > 0 ? `Ha 1h ${mins}min` : "Ha 1 hora" }
-    return { minutos, texto: mins > 0 ? `Ha ${horas}h ${mins}min` : `Ha ${horas} horas` }
+  const openCustomerWhatsApp = (phone: string, message?: string) => {
+    const cleanPhone = normalizePhoneForWhatsApp(phone)
+    const defaultMessage = message || "Ola, seu pedido esta em preparacao!"
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(defaultMessage)}`, "_blank")
   }
 
-  // Registrar problema na entrega
-  const registrarProblemaEntrega = async (orderId: string, observacao: string) => {
-    const order = orders.find(o => o.id === orderId)
-    if (!order) return
-
-    const novoHistorico = [
-      ...(order.historicoEntrega || []),
-      { data: new Date().toISOString(), evento: "PROBLEMA", observacao }
-    ]
-
-    try {
-      const res = await fetch("/api/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          password: sessionPassword, 
-          orderId,
-          historicoEntrega: novoHistorico
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, historicoEntrega: novoHistorico } : o))
-        showToast("Problema registrado")
-        setProblemaEntregaOrderId(null)
-        setProblemaEntregaObs("")
-      }
-    } catch (error) {
-      console.error("Erro ao registrar problema:", error)
-    }
-  }
-
-  // Voltar pedido para preparo (limpa entregador)
-  const voltarParaPreparo = async (orderId: string) => {
-    const order = orders.find(o => o.id === orderId)
-    if (!order) return
-
-    const novoHistorico = [
-      ...(order.historicoEntrega || []),
-      { data: new Date().toISOString(), evento: "RETORNOU_PREPARO", observacao: `Retornou do entregador: ${order.entregadorNome || "N/A"}` }
-    ]
-
-    try {
-      const res = await fetch("/api/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          password: sessionPassword, 
-          orderId,
-          status: "preparing",
-          limparEntregador: true,
-          historicoEntrega: novoHistorico
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { 
-          ...o, 
-          status: "preparing",
-          entregadorId: undefined,
-          entregadorNome: undefined,
-          entregadorWhatsapp: undefined,
-          saiuParaEntregaEm: undefined,
-          historicoEntrega: novoHistorico
-        } : o))
-        showToast("Pedido voltou para preparo")
-      }
-    } catch (error) {
-      console.error("Erro ao voltar para preparo:", error)
-    }
-  }
-
-  // Filtro por data
-  const filterByDate = (order: Order): boolean => {
-    if (dateFilter === "all") return true
-    
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
-    const weekStart = new Date(today.getTime() - today.getDay() * 24 * 60 * 60 * 1000)
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    
-    // Usar paidAt para pedidos confirmados, senao createdAt
-    const isConfirmed = order.paymentStatus === "confirmed" || order.manuallyConfirmed || order.confirmedAutomatically || order.paidAt
-    const dateStr = isConfirmed && order.paidAt ? order.paidAt : order.createdAt
-    const orderDate = new Date(dateStr)
-    
-    switch (dateFilter) {
-      case "today":
-        return orderDate >= today
-      case "yesterday":
-        return orderDate >= yesterday && orderDate < today
-      case "week":
-        return orderDate >= weekStart
-      case "month":
-        return orderDate >= monthStart
-      default:
-        return true
-    }
-  }
-
-  const getStatusColor = (status: Order["status"]) => {
-    switch (status) {
-      case "pending": return "bg-yellow-500/20 text-yellow-400"
-      case "confirmed": return "bg-blue-500/20 text-blue-400"
-      case "preparing": return "bg-orange-500/20 text-orange-400"
-      case "delivering": return "bg-purple-500/20 text-purple-400"
-      case "completed": return "bg-green-500/20 text-green-400"
-      case "cancelled": return "bg-red-500/20 text-red-400"
-      default: return "bg-gray-500/20 text-gray-400"
-    }
-  }
-
-  const getStatusLabel = (status: Order["status"]) => {
-    switch (status) {
-      case "pending": return "Pendente"
-      case "confirmed": return "Confirmado"
-      case "preparing": return "Preparando"
-      case "delivering": return "Saiu p/ Entrega"
-      case "completed": return "Finalizado"
-      case "cancelled": return "Cancelado"
-      default: return status
-    }
-  }
-
-  const getPaymentStatusColor = (status: Order["paymentStatus"]) => {
-    switch (status) {
-      case "pending": return "bg-yellow-500/20 text-yellow-400"
-      case "confirmed": return "bg-green-500/20 text-green-400"
-      case "failed": return "bg-red-500/20 text-red-400"
-      default: return "bg-gray-500/20 text-gray-400"
-    }
-  }
-
-  const getPaymentStatusLabel = (status: Order["paymentStatus"]) => {
-    switch (status) {
-      case "pending": return "Aguardando"
-      case "confirmed": return "Pago"
-      case "failed": return "Falhou"
-      default: return status
-    }
-  }
-
-  // Funcao para normalizar texto (remover acentos e converter para minusculas)
-  const normalizeText = (text: string): string => {
-    return text
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim()
-  }
-
-  // Funcao para normalizar telefone para WhatsApp
-  // REGRAS:
-  // 1. Remove TUDO que nao for digito
-  // 2. Se tiver 11 digitos (DDD + celular com 9), adiciona 55
-  // 3. Se tiver 13 digitos e comecar com 55, mantem
-  // 4. NAO altera ordem, NAO remove digitos, NAO troca DDD
-  const normalizePhoneForWhatsApp = (phone: string): string => {
-    // Passo 1: Remove tudo que nao for numero
-    const digits = phone.replace(/\D/g, "")
-    
-    // Passo 2: Se tem exatamente 11 digitos, adiciona 55
-    if (digits.length === 11) {
-      return "55" + digits
-    }
-    
-    // Passo 3: Se tem 13 digitos e comeca com 55, mantem
-    if (digits.length === 13 && digits.startsWith("55")) {
-      return digits
-    }
-    
-    // Caso contrario, retorna apenas os digitos (para numeros ja formatados ou incorretos)
-    return digits
-  }
-
-  // Calcular estatisticas de relatorios
-  const activeOrders = orders.filter(o => {
-    if (o.archived) return false
-    
-    // Aplicar filtro de data
-    if (!filterByDate(o)) return false
-    
-    // Aplicar filtro de busca (so quando searchQuery tem valor - apos clicar em Buscar)
-    if (searchQuery.trim()) {
-      const query = normalizeText(searchQuery)
-      
-      // Buscar apenas nos campos especificos
-      const normalizedId = normalizeText(o.id)
-      const normalizedName = normalizeText(o.customerName)
-      const normalizedPhone = o.customerPhone.replace(/\D/g, "")
-      const normalizedAddress = o.address ? normalizeText(o.address) : ""
-      const normalizedPayment = o.paymentMethod ? normalizeText(o.paymentMethod) : ""
-      
-      // Verificar correspondencia em cada campo
-      const matchId = normalizedId.includes(query)
-      const matchName = normalizedName.includes(query)
-      const matchPhone = normalizedPhone.includes(query.replace(/\D/g, ""))
-      const matchAddress = normalizedAddress.includes(query)
-      const matchPayment = normalizedPayment.includes(query)
-      
-      return matchId || matchName || matchPhone || matchAddress || matchPayment
-    }
-    return true
-  })
-  
-  // Funcao auxiliar para verificar se pedido esta confirmado
-  const isOrderConfirmed = (o: Order) => 
-    o.paymentStatus === "confirmed" || 
-    o.manuallyConfirmed || 
-    o.confirmedAutomatically || 
-    o.paidAt ||
-    o.status === "completed"
-
-  // Calcular faturamento do historico (pedidos excluidos)
-  const historicalRevenue = financialHistory.reduce((sum, h) => sum + h.total, 0)
-  const historicalPixAuto = financialHistory.filter(h => h.paymentMethod === "PIX Asaas").reduce((s, h) => s + h.total, 0)
-  const historicalPixManual = financialHistory.filter(h => h.paymentMethod === "PIX Manual" || h.paymentMethod === "PIX").reduce((s, h) => s + h.total, 0)
-  const historicalDinheiro = financialHistory.filter(h => h.paymentMethod === "Dinheiro").reduce((s, h) => s + h.total, 0)
-  const historicalCartao = financialHistory.filter(h => h.paymentMethod === "Cartao" || h.paymentMethod === "Cartão").reduce((s, h) => s + h.total, 0)
-  
-  const reportStats = {
-    totalOrders: activeOrders.length + financialHistory.length,
-    totalRevenue: activeOrders.reduce((sum, o) => sum + o.total, 0) + historicalRevenue,
-    
-    // Pedidos confirmados (para totais gerais)
-    confirmedOrders: activeOrders.filter(isOrderConfirmed),
-    
-    // Por forma de pagamento - SOMENTE CONFIRMADOS (inclui historico)
-    pixAutomatic: activeOrders.filter(o => (o.isPixAutomatic || o.paymentMethod === "PIX Asaas") && isOrderConfirmed(o)),
-    pixManual: activeOrders.filter(o => (o.paymentMethod === "PIX Manual" || (o.paymentMethod === "PIX" && !o.isPixAutomatic)) && isOrderConfirmed(o)),
-    dinheiro: activeOrders.filter(o => o.paymentMethod === "Dinheiro" && isOrderConfirmed(o)),
-    cartao: activeOrders.filter(o => (o.paymentMethod === "Cartao" || o.paymentMethod === "Cartão") && isOrderConfirmed(o)),
-    
-    // Valores historicos (pedidos excluidos)
-    historicalPixAuto,
-    historicalPixManual,
-    historicalDinheiro,
-    historicalCartao,
-    historicalRevenue,
-    historicalCount: financialHistory.length,
-    
-    // Faturamento confirmado (inclui historico)
-    confirmedRevenue: activeOrders
-      .filter(isOrderConfirmed)
-      .reduce((sum, o) => sum + o.total, 0) + historicalRevenue,
-    
-    // Faturamento pendente
-    pendingRevenue: activeOrders
-      .filter(o => !isOrderConfirmed(o) && o.status !== "cancelled")
-      .reduce((sum, o) => sum + o.total, 0),
-  }
-
-  // Produtos mais vendidos (baseado nos itens dos pedidos confirmados)
-  const getTopProducts = () => {
-    const productSales: Record<string, { name: string, quantity: number, revenue: number }> = {}
-    
-    activeOrders
-      .filter(o => isOrderConfirmed(o))
-      .forEach(order => {
-        if (order.itemsDetailed && Array.isArray(order.itemsDetailed)) {
-          order.itemsDetailed.forEach((item: { name?: string; productName?: string; quantity?: number; price?: number; subtotal?: number }) => {
-            // Tentar obter nome do produto de diferentes campos
-            const productName = item.name || item.productName || "Produto sem nome"
-            const qty = item.quantity || 1
-            const itemPrice = item.price || 0
-            const itemRevenue = item.subtotal || (itemPrice * qty) || 0
-            
-            // Ignorar itens sem nome valido
-            if (!productName || productName === "Produto sem nome" || typeof productName === "number") return
-            
-            const key = productName
-            if (!productSales[key]) {
-              productSales[key] = { name: productName, quantity: 0, revenue: 0 }
-            }
-            productSales[key].quantity += qty
-            productSales[key].revenue += itemRevenue
-          })
-        }
-      })
-    
-    return Object.values(productSales)
-      .filter(p => p.name && typeof p.name === "string" && p.quantity > 0)
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 10)
-  }
-
-  // Clientes que mais compraram
-  const getTopCustomers = () => {
-    const customerStats: Record<string, { name: string, phone: string, orders: number, revenue: number, lastOrder: string }> = {}
-    
-    activeOrders
-      .filter(o => o.paymentStatus === "confirmed" || o.manuallyConfirmed)
-      .forEach(order => {
-        const key = order.customerPhone || order.customerName
-        if (!customerStats[key]) {
-          customerStats[key] = {
-            name: order.customerName,
-            phone: order.customerPhone,
-            orders: 0,
-            revenue: 0,
-            lastOrder: order.createdAt
-          }
-        }
-        customerStats[key].orders += 1
-        customerStats[key].revenue += order.total
-        if (order.createdAt > customerStats[key].lastOrder) {
-          customerStats[key].lastOrder = order.createdAt
-        }
-      })
-    
-    return Object.values(customerStats)
-      .sort((a, b) => b.orders - a.orders)
-      .slice(0, 10)
-  }
-
-  // ====== FILTROS DE PEDIDOS POR ABA ======
-  
-  // 1. PENDENTES DE CONFIRMACAO - pagamento nao confirmado
-  const ordersPendingPayment = activeOrders.filter(o => 
-    o.paymentStatus !== "confirmed" && 
-    !o.manuallyConfirmed &&
-    !o.confirmedAutomatically &&
-    !o.paidAt &&
-    !["preparing", "delivering", "completed", "cancelled"].includes(o.status)
-  )
-
-  // 2. PENDENTES DE PREPARACAO - pagamento confirmado, aguardando preparo
-  const ordersPaidWaiting = activeOrders.filter(o => 
-    (o.paymentStatus === "confirmed" || o.manuallyConfirmed || o.confirmedAutomatically || o.paidAt) &&
-    o.status === "confirmed"
-  )
-
-  // 3. EM PREPARACAO
-  const ordersPreparing = activeOrders.filter(o => o.status === "preparing")
-
-  // 4. SAIU PARA ENTREGA
-  const ordersDelivering = activeOrders.filter(o => o.status === "delivering")
-
-  // 5. FINALIZADOS
-  const ordersCompleted = activeOrders.filter(o => o.status === "completed")
-
-  // 6. CANCELADOS
-  const ordersCancelled = activeOrders.filter(o => o.status === "cancelled")
-  
-  // Tempo configurado para abandono (padrao 15 minutos)
-  const abandonedMinutes = config.storeHours?.abandonedOrderMinutes || 15
-  
-  // Pedidos abandonados: pendentes ha mais de X minutos, nao cancelados, nao finalizados
-  const ordersAbandoned = activeOrders.filter(o => {
-    if (o.status === "cancelled" || o.status === "completed") return false
-    if (isOrderConfirmed(o)) return false
-    // Verificar se esta parado ha mais de X minutos
-    const createdAt = new Date(o.createdAt).getTime()
-    const now = Date.now()
-    const minutesPassed = (now - createdAt) / (1000 * 60)
-    return minutesPassed >= abandonedMinutes
-  })
-  
-  // PEDIDOS ARQUIVADOS (com filtro de busca opcional)
-  const ordersArchived = orders.filter(o => {
-    if (!o.archived) return false
-    
-    // Aplicar filtro de busca se houver
-    if (archivedSearchQuery.trim()) {
-      const query = normalizeText(archivedSearchQuery)
-      const normalizedId = normalizeText(o.id)
-      const normalizedName = normalizeText(o.customerName)
-      const normalizedPhone = o.customerPhone.replace(/\D/g, "")
-      
-      const matchId = normalizedId.includes(query)
-      const matchName = normalizedName.includes(query)
-      const matchPhone = normalizedPhone.includes(query.replace(/\D/g, ""))
-      
-      return matchId || matchName || matchPhone
-    }
-    
-    return true
-  })
-  
-  // Funcao para restaurar pedido arquivado
-  const restaurarPedido = async (orderId: string) => {
-    try {
-      const res = await fetch("/api/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          password: sessionPassword, 
-          orderId, 
-          archived: false
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, archived: false } : o))
-        showToast("Pedido restaurado!")
-      }
-    } catch (error) {
-      console.error("Erro ao restaurar pedido:", error)
-    }
-  }
-  
-  // Arquivamento automatico
-  const autoArchiveOldOrders = async () => {
-    const autoArchiveDays = config.storeHours?.autoArchiveDays || 0
-    if (autoArchiveDays === 0) return // Nunca arquivar automaticamente
-    
-    const now = Date.now()
-    const daysInMs = autoArchiveDays * 24 * 60 * 60 * 1000
-    
-    const ordersToArchive = orders.filter(o => {
-      if (o.archived) return false
-      if (o.status !== "completed" && o.status !== "cancelled") return false
-      const createdAt = new Date(o.createdAt).getTime()
-      return (now - createdAt) > daysInMs
-    })
-    
-    if (ordersToArchive.length > 0) {
-      for (const order of ordersToArchive) {
-        await fetch("/api/orders", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password: sessionPassword, orderId: order.id, archived: true }),
-        })
-      }
-      loadOrders()
-    }
-  }
-  
-  // Executar arquivamento automatico quando pedidos carregam
-  useEffect(() => {
-    if (isAuthenticated && orders.length > 0 && config.storeHours?.autoArchiveDays) {
-      autoArchiveOldOrders()
-    }
-  }, [config.storeHours?.autoArchiveDays, orders.length])
-  
-  // Funcao para calcular tempo parado
-  const getTimeSinceCreation = (createdAt: string) => {
-    const created = new Date(createdAt).getTime()
-    const now = Date.now()
-    const minutes = Math.floor((now - created) / (1000 * 60))
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const remainingMinutes = minutes % 60
-    if (hours < 24) return `${hours}h ${remainingMinutes}min`
-    const days = Math.floor(hours / 24)
-    return `${days}d ${hours % 24}h`
-  }
-  
-  // Funcao para cobrar no WhatsApp
   const chargeOnWhatsApp = (order: Order) => {
     const phone = normalizePhoneForWhatsApp(order.customerPhone)
     const message = encodeURIComponent(`Ola! Vimos que seu pedido na P.K Gostosuras ficou pendente. Deseja finalizar agora?`)
     window.open(`https://wa.me/${phone}?text=${message}`, "_blank")
   }
-  
-  // Funcao para executar busca e navegar para aba correta
-  const executeSearch = () => {
-    setSearchQuery(searchInput)
-    
-    // Se houver busca, encontrar em qual aba o primeiro resultado esta
-    if (searchInput.trim()) {
-      const query = normalizeText(searchInput)
-      
-      // Buscar em todas as ordens (sem filtro de busca anterior)
-      const matchingOrder = orders.find(o => {
-        if (o.archived) return false
-        
-        const normalizedId = normalizeText(o.id)
-        const normalizedName = normalizeText(o.customerName)
-        const normalizedPhone = o.customerPhone.replace(/\D/g, "")
-        const normalizedAddress = o.address ? normalizeText(o.address) : ""
-        const normalizedPayment = o.paymentMethod ? normalizeText(o.paymentMethod) : ""
-        
-        const matchId = normalizedId.includes(query)
-        const matchName = normalizedName.includes(query)
-        const matchPhone = normalizedPhone.includes(query.replace(/\D/g, ""))
-        const matchAddress = normalizedAddress.includes(query)
-        const matchPayment = normalizedPayment.includes(query)
-        
-        return matchId || matchName || matchPhone || matchAddress || matchPayment
-      })
-      
-      if (matchingOrder) {
-        // Determinar em qual aba esse pedido esta
-        const isPendingPayment = matchingOrder.paymentStatus !== "confirmed" && 
-          !matchingOrder.manuallyConfirmed &&
-          !matchingOrder.confirmedAutomatically &&
-          !matchingOrder.paidAt &&
-          !["preparing", "delivering", "completed", "cancelled"].includes(matchingOrder.status)
-        
-        const isPaidWaiting = (matchingOrder.paymentStatus === "confirmed" || matchingOrder.manuallyConfirmed || matchingOrder.confirmedAutomatically || matchingOrder.paidAt) &&
-          matchingOrder.status === "confirmed"
-        
-        const isPreparing = matchingOrder.status === "preparing"
-        const isDelivering = matchingOrder.status === "delivering"
-        const isCompleted = matchingOrder.status === "completed"
-        const isCancelled = matchingOrder.status === "cancelled"
-        
-        if (isPendingPayment) setActiveTab("orders-pending")
-        else if (isPaidWaiting) setActiveTab("orders-paid")
-        else if (isPreparing) setActiveTab("orders-preparing")
-        else if (isDelivering) setActiveTab("orders-delivering")
-        else if (isCompleted) setActiveTab("orders-completed")
-        else if (isCancelled) setActiveTab("orders-cancelled")
-      }
-    }
-  }
 
-  // Atualizar status de pagamento manual
-  const updatePaymentStatus = async (orderId: string, paymentStatus: Order["paymentStatus"], manuallyConfirmed: boolean) => {
-    try {
-      const res = await fetch("/api/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: sessionPassword, orderId, paymentStatus, manuallyConfirmed }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setOrders(prev => prev.map(o =>
-          o.id === orderId ? { ...o, paymentStatus, manuallyConfirmed, status: manuallyConfirmed ? "confirmed" : o.status, confirmedAt: manuallyConfirmed ? new Date().toISOString() : o.confirmedAt } : o
-        ))
-        // Recarregar do servidor apos 500ms para garantir consistencia
-        setTimeout(() => loadOrders(), 500)
-      }
-    } catch (error) {
-      console.error("Erro ao atualizar pagamento:", error)
-    }
-  }
-
-  // Arquivar todos os pedidos (limpar relatorios)
-  const archiveAllOrders = async () => {
-    try {
-      const res = await fetch("/api/orders", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: sessionPassword, action: "archive_all" }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setOrders(prev => prev.map(o => ({ ...o, archived: true })))
-        setShowArchiveConfirm(false)
-      }
-    } catch (error) {
-      console.error("Erro ao arquivar pedidos:", error)
-    }
-  }
-
-  // Limpar pedidos duplicados/bugados
-  const cleanupDuplicates = async () => {
-    try {
-      const res = await fetch("/api/orders", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: sessionPassword, action: "cleanup_duplicates" }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        showToast(`Limpeza concluida: ${data.removedCount} duplicata(s) removida(s)`)
-        loadOrders() // Recarregar lista
-      }
-    } catch (error) {
-      console.error("Erro ao limpar duplicatas:", error)
-      showToast("Erro ao limpar duplicatas")
-    }
-  }
-
-  // Copiar dados do pedido com fallback robusto
-  const copyOrderData = async (order: Order) => {
-    const text = `Pedido: ${order.id}
-Cliente: ${order.customerName}
-Telefone: ${order.customerPhone}
-Endereco: ${order.address || "N/A"}
-Bairro: ${order.neighborhood || "N/A"}
-Referencia: ${order.reference || "N/A"}
-Itens: ${order.items}
-Total: R$ ${order.total.toFixed(2)}
-Pagamento: ${order.paymentMethod}
-Status: ${getPaymentStatusLabel(order.paymentStatus)}`
-    
-    let copied = false
-    
-    // Tentar navigator.clipboard primeiro
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      try {
-        await navigator.clipboard.writeText(text)
-        copied = true
-      } catch {
-        copied = false
-      }
-    }
-    
-    // Fallback com textarea
-    if (!copied) {
-      try {
-        const textarea = document.createElement("textarea")
-        textarea.value = text
-        textarea.style.position = "fixed"
-        textarea.style.left = "-9999px"
-        textarea.style.top = "-9999px"
-        textarea.style.opacity = "0"
-        document.body.appendChild(textarea)
-        textarea.focus()
-        textarea.select()
-        const result = document.execCommand("copy")
-        document.body.removeChild(textarea)
-        copied = result
-      } catch {
-        copied = false
-      }
-    }
-    
-    if (copied) {
-      setCopiedOrderId(order.id)
-      setTimeout(() => setCopiedOrderId(null), 2000)
-    } else {
-      // Mostrar modal para copia manual
-      setManualCopyText(text)
-    }
-  }
-
-  // Abrir WhatsApp do cliente
-  const openCustomerWhatsApp = (phone: string, message?: string) => {
-    const cleanPhone = normalizePhoneForWhatsApp(phone)
-    const defaultMessage = message || "Ola, seu pedido esta em preparacao!"
-    const encodedMessage = encodeURIComponent(defaultMessage)
-    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, "_blank")
-  }
-
-  // Funcao robusta de copia que funciona em mobile e desktop
-  const copyToClipboardRobust = async (text: string, onSuccess: () => void, onFallback: (text: string) => void) => {
-    // Tentar clipboard API primeiro
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      try {
-        await navigator.clipboard.writeText(text)
-        onSuccess()
-        return
-      } catch {
-        // Fallback abaixo
-      }
-    }
-    
-    // Fallback com textarea temporario
-    try {
-      const textarea = document.createElement("textarea")
-      textarea.value = text
-      textarea.style.position = "fixed"
-      textarea.style.left = "-9999px"
-      textarea.style.top = "0"
-      document.body.appendChild(textarea)
-      textarea.focus()
-      textarea.select()
-      const success = document.execCommand("copy")
-      document.body.removeChild(textarea)
-      if (success) {
-        onSuccess()
-        return
-      }
-    } catch {
-      // Fallback manual
-    }
-    
-    // Se nada funcionou, mostrar caixa para copia manual
-    onFallback(text)
-  }
-
-  // URL base publica oficial - SEMPRE usar esta funcao para links publicos
-  const getPublicBaseUrl = () => "https://www.pkgostosuras.shop"
-
-  // Gerar link de acompanhamento do pedido (usando dominio publico oficial)
-  const getOrderTrackingLink = (orderId: string) => {
-    return `${getPublicBaseUrl()}/pedido/${orderId}`
-  }
-
-  // Gerar link do painel do entregador (usando dominio publico oficial)
-  const getEntregadorPanelLink = (token: string) => {
-    return `${getPublicBaseUrl()}/entregador/${token}`
-  }
-
-  // Copiar link de acompanhamento
-  const copyTrackingLink = async (orderId: string) => {
-    const link = getOrderTrackingLink(orderId)
-    try {
-      await navigator.clipboard.writeText(link)
-      setCopiedLinkId(orderId)
-      showToast("Link copiado!")
-      setTimeout(() => setCopiedLinkId(null), 2000)
-    } catch {
-      // Fallback para navegadores que nao suportam clipboard API
-      setManualCopyText(link)
-    }
-  }
-
-  // Enviar link de acompanhamento ao cliente via WhatsApp
   const sendTrackingLinkToCustomer = (order: Order) => {
     const link = getOrderTrackingLink(order.id)
     const phone = normalizePhoneForWhatsApp(order.customerPhone)
@@ -1520,33 +670,199 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank")
   }
 
-  // Formatar moeda
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value)
+  // ========== FUNCOES DE COPIA ==========
+  const copyOrderData = async (order: Order) => {
+    const text = `Pedido: ${order.id}\nCliente: ${order.customerName}\nTelefone: ${order.customerPhone}\nEndereco: ${order.address || "N/A"}\nBairro: ${order.neighborhood || "N/A"}\nReferencia: ${order.reference || "N/A"}\nItens: ${order.items}\nTotal: R$ ${order.total.toFixed(2)}\nPagamento: ${order.paymentMethod}\nStatus: ${getPaymentStatusLabel(order.paymentStatus)}`
+    await copyToClipboardRobust(text, () => { setCopiedOrderId(order.id); setTimeout(() => setCopiedOrderId(null), 2000) }, (t) => setManualCopyText(t))
   }
 
-  // Formatar data
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+  const copyTrackingLink = async (orderId: string) => {
+    const link = getOrderTrackingLink(orderId)
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiedLinkId(orderId)
+      showToast("Link copiado!")
+      setTimeout(() => setCopiedLinkId(null), 2000)
+    } catch { setManualCopyText(link) }
+  }
+
+  // ========== ARQUIVAMENTO AUTOMATICO ==========
+  useEffect(() => {
+    if (!isAuthenticated || orders.length === 0 || !config.storeHours?.autoArchiveDays) return
+    const autoArchiveOldOrders = async () => {
+      const autoArchiveDays = config.storeHours?.autoArchiveDays || 0
+      if (autoArchiveDays === 0) return
+      const now = Date.now()
+      const daysInMs = autoArchiveDays * 24 * 60 * 60 * 1000
+      const ordersToArchive = orders.filter(o => {
+        if (o.archived) return false
+        if (o.status !== "completed" && o.status !== "cancelled") return false
+        const createdAt = new Date(o.createdAt).getTime()
+        return (now - createdAt) > daysInMs
+      })
+      if (ordersToArchive.length > 0) {
+        for (const order of ordersToArchive) {
+          await fetch("/api/orders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, orderId: order.id, archived: true }) })
+        }
+        loadOrders()
+      }
+    }
+    autoArchiveOldOrders()
+  }, [config.storeHours?.autoArchiveDays, orders.length, isAuthenticated, orders, sessionPassword, loadOrders])
+
+  // ========== FILTRO POR DATA ==========
+  const filterByDate = (order: Order): boolean => {
+    if (dateFilter === "all") return true
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+    const weekStart = new Date(today.getTime() - today.getDay() * 24 * 60 * 60 * 1000)
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const confirmed = isOrderConfirmed(order)
+    const dateStr = confirmed && order.paidAt ? order.paidAt : order.createdAt
+    const orderDate = new Date(dateStr)
+    switch (dateFilter) {
+      case "today": return orderDate >= today
+      case "yesterday": return orderDate >= yesterday && orderDate < today
+      case "week": return orderDate >= weekStart
+      case "month": return orderDate >= monthStart
+      default: return true
+    }
+  }
+
+  // ========== FILTRO DE PEDIDOS ATIVOS ==========
+  const activeOrders = orders.filter(o => {
+    if (o.archived) return false
+    if (!filterByDate(o)) return false
+    if (searchQuery.trim()) {
+      const query = normalizeText(searchQuery)
+      const normalizedId = normalizeText(o.id)
+      const normalizedName = normalizeText(o.customerName)
+      const normalizedPhone = o.customerPhone.replace(/\D/g, "")
+      const normalizedAddress = o.address ? normalizeText(o.address) : ""
+      const normalizedPayment = o.paymentMethod ? normalizeText(o.paymentMethod) : ""
+      return normalizedId.includes(query) || normalizedName.includes(query) || normalizedPhone.includes(query.replace(/\D/g, "")) || normalizedAddress.includes(query) || normalizedPayment.includes(query)
+    }
+    return true
+  })
+
+  // ========== ESTATISTICAS ==========
+  const historicalRevenue = financialHistory.reduce((sum, h) => sum + h.total, 0)
+  const historicalPixAuto = financialHistory.filter(h => h.paymentMethod === "PIX Asaas").reduce((s, h) => s + h.total, 0)
+  const historicalPixManual = financialHistory.filter(h => h.paymentMethod === "PIX Manual" || h.paymentMethod === "PIX").reduce((s, h) => s + h.total, 0)
+  const historicalDinheiro = financialHistory.filter(h => h.paymentMethod === "Dinheiro").reduce((s, h) => s + h.total, 0)
+  const historicalCartao = financialHistory.filter(h => h.paymentMethod === "Cartao" || h.paymentMethod === "Cartão").reduce((s, h) => s + h.total, 0)
+
+  const reportStats: ReportStats = {
+    totalOrders: activeOrders.length + financialHistory.length,
+    totalRevenue: activeOrders.reduce((sum, o) => sum + o.total, 0) + historicalRevenue,
+    confirmedOrders: activeOrders.filter(isOrderConfirmed),
+    pixAutomatic: activeOrders.filter(o => (o.isPixAutomatic || o.paymentMethod === "PIX Asaas") && isOrderConfirmed(o)),
+    pixManual: activeOrders.filter(o => (o.paymentMethod === "PIX Manual" || (o.paymentMethod === "PIX" && !o.isPixAutomatic)) && isOrderConfirmed(o)),
+    dinheiro: activeOrders.filter(o => o.paymentMethod === "Dinheiro" && isOrderConfirmed(o)),
+    cartao: activeOrders.filter(o => (o.paymentMethod === "Cartao" || o.paymentMethod === "Cartão") && isOrderConfirmed(o)),
+    historicalPixAuto,
+    historicalPixManual,
+    historicalDinheiro,
+    historicalCartao,
+    historicalRevenue,
+    historicalCount: financialHistory.length,
+    confirmedRevenue: activeOrders.filter(isOrderConfirmed).reduce((sum, o) => sum + o.total, 0) + historicalRevenue,
+    pendingRevenue: activeOrders.filter(o => !isOrderConfirmed(o) && o.status !== "cancelled").reduce((sum, o) => sum + o.total, 0),
+  }
+
+  const getTopProducts = () => {
+    const productSales: Record<string, { name: string, quantity: number, revenue: number }> = {}
+    activeOrders.filter(isOrderConfirmed).forEach(order => {
+      if (order.itemsDetailed && Array.isArray(order.itemsDetailed)) {
+        order.itemsDetailed.forEach((item: { name?: string; productName?: string; quantity?: number; price?: number; subtotal?: number }) => {
+          const productName = item.name || item.productName || "Produto sem nome"
+          const qty = item.quantity || 1
+          const itemPrice = item.price || 0
+          const itemRevenue = item.subtotal || (itemPrice * qty) || 0
+          if (!productName || productName === "Produto sem nome" || typeof productName === "number") return
+          const key = productName
+          if (!productSales[key]) productSales[key] = { name: productName, quantity: 0, revenue: 0 }
+          productSales[key].quantity += qty
+          productSales[key].revenue += itemRevenue
+        })
+      }
     })
+    return Object.values(productSales).filter(p => p.name && typeof p.name === "string" && p.quantity > 0).sort((a, b) => b.quantity - a.quantity).slice(0, 10)
   }
 
-  // Tela de Login Premium
+  const getTopCustomers = () => {
+    const customerStats: Record<string, { name: string, phone: string, orders: number, revenue: number, lastOrder: string }> = {}
+    activeOrders.filter(o => o.paymentStatus === "confirmed" || o.manuallyConfirmed).forEach(order => {
+      const key = order.customerPhone || order.customerName
+      if (!customerStats[key]) customerStats[key] = { name: order.customerName, phone: order.customerPhone, orders: 0, revenue: 0, lastOrder: order.createdAt }
+      customerStats[key].orders += 1
+      customerStats[key].revenue += order.total
+      if (order.createdAt > customerStats[key].lastOrder) customerStats[key].lastOrder = order.createdAt
+    })
+    return Object.values(customerStats).sort((a, b) => b.orders - a.orders).slice(0, 10)
+  }
+
+  // ========== FILTROS DE ABAS ==========
+  const ordersPendingPayment = activeOrders.filter(o => o.paymentStatus !== "confirmed" && !o.manuallyConfirmed && !o.confirmedAutomatically && !o.paidAt && !["preparing", "delivering", "completed", "cancelled"].includes(o.status))
+  const ordersPaidWaiting = activeOrders.filter(o => (o.paymentStatus === "confirmed" || o.manuallyConfirmed || o.confirmedAutomatically || o.paidAt) && o.status === "confirmed")
+  const ordersPreparing = activeOrders.filter(o => o.status === "preparing")
+  const ordersDelivering = activeOrders.filter(o => o.status === "delivering")
+  const ordersCompleted = activeOrders.filter(o => o.status === "completed")
+  const ordersCancelled = activeOrders.filter(o => o.status === "cancelled")
+  const abandonedMinutes = config.storeHours?.abandonedOrderMinutes || 15
+  const ordersAbandoned = activeOrders.filter(o => {
+    if (o.status === "cancelled" || o.status === "completed") return false
+    if (isOrderConfirmed(o)) return false
+    const createdAt = new Date(o.createdAt).getTime()
+    const now = Date.now()
+    const minutesPassed = (now - createdAt) / (1000 * 60)
+    return minutesPassed >= abandonedMinutes
+  })
+  const ordersArchived = orders.filter(o => {
+    if (!o.archived) return false
+    if (archivedSearchQuery.trim()) {
+      const query = normalizeText(archivedSearchQuery)
+      const normalizedId = normalizeText(o.id)
+      const normalizedName = normalizeText(o.customerName)
+      const normalizedPhone = o.customerPhone.replace(/\D/g, "")
+      return normalizedId.includes(query) || normalizedName.includes(query) || normalizedPhone.includes(query.replace(/\D/g, ""))
+    }
+    return true
+  })
+
+  // ========== FUNCAO DE BUSCA ==========
+  const executeSearch = () => {
+    setSearchQuery(searchInput)
+    if (!searchInput.trim()) return
+    const query = normalizeText(searchInput)
+    const matchingOrder = orders.find(o => {
+      if (o.archived) return false
+      const normalizedId = normalizeText(o.id)
+      const normalizedName = normalizeText(o.customerName)
+      const normalizedPhone = o.customerPhone.replace(/\D/g, "")
+      const normalizedAddress = o.address ? normalizeText(o.address) : ""
+      const normalizedPayment = o.paymentMethod ? normalizeText(o.paymentMethod) : ""
+      return normalizedId.includes(query) || normalizedName.includes(query) || normalizedPhone.includes(query.replace(/\D/g, "")) || normalizedAddress.includes(query) || normalizedPayment.includes(query)
+    })
+    if (matchingOrder) {
+      const isPendingPayment = matchingOrder.paymentStatus !== "confirmed" && !matchingOrder.manuallyConfirmed && !matchingOrder.confirmedAutomatically && !matchingOrder.paidAt && !["preparing", "delivering", "completed", "cancelled"].includes(matchingOrder.status)
+      const isPaidWaiting = (matchingOrder.paymentStatus === "confirmed" || matchingOrder.manuallyConfirmed || matchingOrder.confirmedAutomatically || matchingOrder.paidAt) && matchingOrder.status === "confirmed"
+      if (isPendingPayment) setActiveTab("orders-pending")
+      else if (isPaidWaiting) setActiveTab("orders-paid")
+      else if (matchingOrder.status === "preparing") setActiveTab("orders-preparing")
+      else if (matchingOrder.status === "delivering") setActiveTab("orders-delivering")
+      else if (matchingOrder.status === "completed") setActiveTab("orders-completed")
+      else if (matchingOrder.status === "cancelled") setActiveTab("orders-cancelled")
+    }
+  }
+
+  // ========== TELA DE LOGIN ==========
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        {/* Decorative elements */}
         <div className="fixed top-20 left-10 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
         <div className="fixed bottom-20 right-10 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
-        
         <div className="w-full max-w-sm relative">
           <div className="bg-card/80 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-primary/10">
             <div className="text-center mb-6">
@@ -1556,45 +872,15 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               <h1 className="text-xl font-bold text-foreground">Area Admin</h1>
               <p className="text-sm text-muted-foreground/70 mt-1">Digite a senha para acessar</p>
             </div>
-
             <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Senha"
-                  className="w-full px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all"
-                  autoFocus
-                />
-              </div>
-
-              {authError && (
-                <p className="text-red-400 text-sm text-center bg-red-500/10 py-2 rounded-lg">{authError}</p>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading || !password}
-                className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 shadow-lg shadow-primary/20"
-              >
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    Entrar
-                  </>
-                )}
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all" autoFocus />
+              {authError && <p className="text-red-400 text-sm text-center bg-red-500/10 py-2 rounded-lg">{authError}</p>}
+              <button type="submit" disabled={loading || !password} className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 shadow-lg shadow-primary/20">
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Lock className="w-4 h-4" /> Entrar</>}
               </button>
             </form>
-
-            <Link 
-              href="/" 
-              className="flex items-center justify-center gap-2 mt-5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Voltar para a loja
+            <Link href="/" className="flex items-center justify-center gap-2 mt-5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowLeft className="w-4 h-4" /> Voltar para a loja
             </Link>
           </div>
         </div>
@@ -1602,1230 +888,275 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
     )
   }
 
-  // Painel Admin
-  const sortedProducts = [...config.products].sort((a, b) => (a.order || 0) - (b.order || 0))
-
+  // ========== PAINEL ADMIN ==========
   return (
     <div className="min-h-screen bg-background">
-      {/* Header Premium */}
-      <AdminHeader
-        storeName={config.storeName || "P.K Gostosuras"}
-        newOrdersCount={newOrdersCount}
-        soundActivated={soundActivated}
-        soundEnabled={soundEnabled}
-        saving={saving}
-        saveSuccess={saveSuccess}
-        onRefresh={() => loadOrdersWithNotification()}
-        onActivateSound={activateSound}
-        onTestSound={playTestSound}
-        onToggleSound={() => setSoundEnabled(!soundEnabled)}
-        onSave={handleSave}
-        onLogout={handleLogout}
-        onMarkAsSeen={markOrdersAsSeen}
-      />
-
-      {/* Success Banner */}
-      {saveSuccess && (
-        <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-2.5 text-center text-sm font-medium animate-in slide-in-from-top shadow-lg">
-          Alteracoes salvas com sucesso!
-        </div>
-      )}
-
+      <AdminHeader storeName={config.storeName || "P.K Gostosuras"} newOrdersCount={newOrdersCount} soundActivated={soundActivated} soundEnabled={soundEnabled} saving={saving} saveSuccess={saveSuccess} onRefresh={() => loadOrdersWithNotification()} onActivateSound={activateSound} onTestSound={playTestSound} onToggleSound={() => setSoundEnabled(!soundEnabled)} onSave={handleSave} onLogout={handleLogout} onMarkAsSeen={markOrdersAsSeen} />
+      {saveSuccess && <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-2.5 text-center text-sm font-medium animate-in slide-in-from-top shadow-lg">Alteracoes salvas com sucesso!</div>}
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
-            </div>
+            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
             <p className="text-sm text-muted-foreground">Carregando...</p>
           </div>
         ) : (
           <div className="space-y-4">
-            
-            {/* BLOCO PRINCIPAL - PEDIDOS */}
-            <AdminOrdersCard
-              activeTab={activeTab}
-              searchInput={searchInput}
-              dateFilter={dateFilter}
-              searchQuery={searchQuery}
-              activeOrdersCount={activeOrders.length}
-              ordersPendingPayment={ordersPendingPayment}
-              ordersPaidWaiting={ordersPaidWaiting}
-              ordersPreparing={ordersPreparing}
-              ordersDelivering={ordersDelivering}
-              ordersCompleted={ordersCompleted}
-              ordersCancelled={ordersCancelled}
-              ordersAbandoned={ordersAbandoned}
-              ordersArchived={ordersArchived}
-              onSearchInputChange={setSearchInput}
-              onDateFilterChange={setDateFilter}
-              onSearch={executeSearch}
-              onClearSearch={() => { setSearchInput(""); setSearchQuery(""); }}
-              onTabChange={setActiveTab}
-            />
+            <AdminOrdersCard activeTab={activeTab} searchInput={searchInput} dateFilter={dateFilter} searchQuery={searchQuery} activeOrdersCount={activeOrders.length} ordersPendingPayment={ordersPendingPayment} ordersPaidWaiting={ordersPaidWaiting} ordersPreparing={ordersPreparing} ordersDelivering={ordersDelivering} ordersCompleted={ordersCompleted} ordersCancelled={ordersCancelled} ordersAbandoned={ordersAbandoned} ordersArchived={ordersArchived} onSearchInputChange={setSearchInput} onDateFilterChange={setDateFilter} onSearch={executeSearch} onClearSearch={() => { setSearchInput(""); setSearchQuery("") }} onTabChange={setActiveTab} />
+            <AdminQuickSettings activeTab={activeTab} onTabChange={setActiveTab} />
+            <AdminRevenueReport ordersCompleted={ordersCompleted} ordersCancelled={ordersCancelled} />
+            <Link href="/" className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm font-medium"><ArrowLeft className="w-4 h-4" /> Ver Loja</Link>
 
-            {/* CONFIGURACOES RAPIDAS */}
-            <AdminQuickSettings
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            />
-
-            {/* RELATORIO DE FATURAMENTO */}
-            <AdminRevenueReport
-              ordersCompleted={ordersCompleted}
-              ordersCancelled={ordersCancelled}
-            />
-
-            {/* Link Ver Loja */}
-            <Link
-              href="/"
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm font-medium"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Ver Loja
-            </Link>
-
-            {/* CONTEUDO DA ABA SELECIONADA */}
             <div className="bg-card/80 rounded-2xl p-4 sm:p-6 border border-border/50 shadow-xl">
-              
-              {/* Loja */}
-              {activeTab === "store" && (
-                <AdminStoreSettings config={config} onConfigChange={setConfig} />
-              )}
+              {activeTab === "store" && <AdminStoreSettings config={config} onConfigChange={setConfig} />}
+              {activeTab === "products" && <AdminProductsSettings products={config.products} expandedProduct={expandedProduct} onExpandedProductChange={setExpandedProduct} onAddProduct={addProduct} onUpdateProduct={updateProduct} onRemoveProduct={removeProduct} onMoveProduct={moveProduct} />}
+              {activeTab === "banner" && <AdminBannerSettings config={config} onConfigChange={setConfig} />}
+              {activeTab === "hours" && <AdminHoursSettings config={config} onConfigChange={setConfig} />}
+              {activeTab === "delivery" && <AdminDeliverySettings config={config} onConfigChange={setConfig} onAddNeighborhoodFee={addNeighborhoodFee} onUpdateNeighborhoodFee={updateNeighborhoodFee} onRemoveNeighborhoodFee={removeNeighborhoodFee} />}
+              {activeTab === "payment" && <AdminPaymentSettings config={config} onConfigChange={setConfig} />}
+              {activeTab === "whatsapp" && <AdminWhatsappSettings config={config} onConfigChange={setConfig} />}
+              {activeTab === "coupons" && <AdminCouponsSettings coupons={config.coupons || []} onAddCoupon={addCoupon} onUpdateCoupon={updateCoupon} onRemoveCoupon={removeCoupon} />}
+              {activeTab === "entregadores" && <AdminEntregadoresSettings entregadores={config.entregadores || []} onAddEntregador={() => { const newToken = Math.random().toString(36).substring(2, 10) + Date.now().toString(36); const newEntregador: Entregador = { id: `entregador-${Date.now()}`, nome: "", whatsapp: "", status: "ativo", disponibilidade: "disponivel", horarioInicio: "08:00", horarioFim: "22:00", observacao: "", pin: "", token: newToken }; setConfig(prev => ({ ...prev, entregadores: [...(prev.entregadores || []), newEntregador] })) }} onUpdateEntregador={(id, field, value) => setConfig(prev => ({ ...prev, entregadores: (prev.entregadores || []).map(ent => ent.id === id ? { ...ent, [field]: value } : ent) }))} onRemoveEntregador={(id) => setConfig(prev => ({ ...prev, entregadores: (prev.entregadores || []).filter(ent => ent.id !== id) }))} getEntregadorPanelLink={getEntregadorPanelLink} copyToClipboard={copyToClipboardRobust} normalizePhoneForWhatsApp={normalizePhoneForWhatsApp} showToast={showToast} setManualEntregadorLink={setManualEntregadorLink} />}
+              {activeTab === "reports" && <AdminReportsSettings reportStats={reportStats} getTopProducts={getTopProducts} getTopCustomers={getTopCustomers} onCleanupDuplicates={cleanupDuplicates} onShowArchiveConfirm={() => setShowArchiveConfirm(true)} formatCurrency={formatCurrency} />}
 
-              {/* Produtos */}
-              {activeTab === "products" && (
-                <AdminProductsSettings
-                  products={config.products}
-                  expandedProduct={expandedProduct}
-                  onExpandedProductChange={setExpandedProduct}
-                  onAddProduct={addProduct}
-                  onUpdateProduct={updateProduct}
-                  onRemoveProduct={removeProduct}
-                  onMoveProduct={moveProduct}
-                />
-              )}
-
-              {/* Banner */}
-              {activeTab === "banner" && (
-                <AdminBannerSettings config={config} onConfigChange={setConfig} />
-              )}
-
-              {/* Horario */}
-              {activeTab === "hours" && (
-                <AdminHoursSettings config={config} onConfigChange={setConfig} />
-              )}
-
-              {/* Entrega */}
-              {activeTab === "delivery" && (
-                <AdminDeliverySettings
-                  config={config}
-                  onConfigChange={setConfig}
-                  onAddNeighborhoodFee={addNeighborhoodFee}
-                  onUpdateNeighborhoodFee={updateNeighborhoodFee}
-                  onRemoveNeighborhoodFee={removeNeighborhoodFee}
-                />
-              )}
-
-              {/* Pagamento */}
-              {activeTab === "payment" && (
-                <AdminPaymentSettings config={config} onConfigChange={setConfig} />
-              )}
-
-              {/* WhatsApp */}
-              {activeTab === "whatsapp" && (
-                <AdminWhatsappSettings config={config} onConfigChange={setConfig} />
-              )}
-
-              {/* Cupons */}
-              {activeTab === "coupons" && (
-                <AdminCouponsSettings
-                  coupons={config.coupons || []}
-                  onAddCoupon={addCoupon}
-                  onUpdateCoupon={updateCoupon}
-                  onRemoveCoupon={removeCoupon}
-                />
-              )}
-
-              {/* Entregadores */}
-              {activeTab === "entregadores" && (
-                <AdminEntregadoresSettings
-                  entregadores={config.entregadores || []}
-                  onAddEntregador={() => {
-                    const newToken = Math.random().toString(36).substring(2, 10) + Date.now().toString(36)
-                    const newEntregador: Entregador = {
-                      id: `entregador-${Date.now()}`,
-                      nome: "",
-                      whatsapp: "",
-                      status: "ativo",
-                      disponibilidade: "disponivel",
-                      horarioInicio: "08:00",
-                      horarioFim: "22:00",
-                      observacao: "",
-                      pin: "",
-                      token: newToken,
-                    }
-                    setConfig(prev => ({
-                      ...prev,
-                      entregadores: [...(prev.entregadores || []), newEntregador],
-                    }))
-                  }}
-                  onUpdateEntregador={(id, field, value) => {
-                    setConfig(prev => ({
-                      ...prev,
-                      entregadores: (prev.entregadores || []).map(ent =>
-                        ent.id === id ? { ...ent, [field]: value } : ent
-                      ),
-                    }))
-                  }}
-                  onRemoveEntregador={(id) => {
-                    setConfig(prev => ({
-                      ...prev,
-                      entregadores: (prev.entregadores || []).filter(ent => ent.id !== id),
-                    }))
-                  }}
-                  getEntregadorPanelLink={getEntregadorPanelLink}
-                  copyToClipboard={copyToClipboardRobust}
-                  normalizePhoneForWhatsApp={normalizePhoneForWhatsApp}
-                  showToast={showToast}
-                  setManualEntregadorLink={setManualEntregadorLink}
-                />
-              )}
-
-              {/* 1. Pedidos Pendentes de Confirmacao */}
+              {/* Abas de Pedidos - Renderizadas inline por serem complexas e especificas */}
               {activeTab === "orders-pending" && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground">Aguardando Pagamento ({ordersPendingPayment.length})</h2>
-                    <button
-                      onClick={loadOrders}
-                      className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"
-                    >
-                      <Loader2 className="w-4 h-4" />
-                      Atualizar
-                    </button>
-                  </div>
-
+                  <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-foreground">Aguardando Pagamento ({ordersPendingPayment.length})</h2><button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"><Loader2 className="w-4 h-4" /> Atualizar</button></div>
                   <div className="space-y-3">
                     {ordersPendingPayment.map((order) => (
-                      <div 
-                        key={order.id} 
-                        className={`p-4 rounded-xl border border-border bg-secondary/30 transition-all ${
-                          pulsingOrders.has(order.id) ? "ring-2 ring-red-500 animate-pulse" : ""
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <p className="font-bold text-foreground">{order.id}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {new Date(order.createdAt).toLocaleString("pt-BR")}
-                            </p>
-                          </div>
-                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-yellow-500/20 text-yellow-400">
-                            Aguardando Pagamento
-                          </span>
-                        </div>
-
-                        <div className="grid sm:grid-cols-2 gap-4 mb-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Cliente</p>
-                            <p className="text-sm text-foreground">{order.customerName}</p>
-                            <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
-                            <p className="text-xs text-muted-foreground">{order.paymentMethod}</p>
-                          </div>
-                        </div>
-
-                        <div className="mb-3">
-                          <p className="text-xs text-muted-foreground">Itens</p>
-                          <p className="text-sm text-foreground">{order.items}</p>
-                        </div>
-
-                        {order.address && (
-                          <div className="mb-3">
-                            <p className="text-xs text-muted-foreground">Endereco</p>
-                            <p className="text-sm text-foreground">{order.address}</p>
-                          </div>
-                        )}
-
-                        {/* Botoes: Confirmar manualmente, Cancelar */}
+                      <div key={order.id} className={`p-4 rounded-xl border border-border bg-secondary/30 transition-all ${pulsingOrders.has(order.id) ? "ring-2 ring-red-500 animate-pulse" : ""}`}>
+                        <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><span className="px-3 py-1 text-xs font-medium rounded-full bg-yellow-500/20 text-yellow-400">Aguardando Pagamento</span></div>
+                        <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p><p className="text-sm text-muted-foreground">{order.customerPhone}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p><p className="text-xs text-muted-foreground">{order.paymentMethod}</p></div></div>
+                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                        {order.address && <div className="mb-3"><p className="text-xs text-muted-foreground">Endereco</p><p className="text-sm text-foreground">{order.address}</p></div>}
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                          <button
-                            onClick={() => updatePaymentStatus(order.id, "confirmed", true)}
-                            className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            Confirmar Pagamento
-                          </button>
-                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>
-                            {copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}
-                          </button>
-                          <button onClick={() => sendTrackingLinkToCustomer(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2">
-                            <ExternalLink className="w-4 h-4" /> Enviar Link
-                          </button>
-                          <button
-                            onClick={() => updateOrderStatus(order.id, "cancelled")}
-                            className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"
-                          >
-                            <Ban className="w-4 h-4" />
-                            Cancelar
-                          </button>
+                          <button onClick={() => updatePaymentStatus(order.id, "confirmed", true)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Confirmar Pagamento</button>
+                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>{copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}</button>
+                          <button onClick={() => sendTrackingLinkToCustomer(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2"><ExternalLink className="w-4 h-4" /> Enviar Link</button>
+                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Ban className="w-4 h-4" /> Cancelar</button>
                         </div>
                       </div>
                     ))}
-
-                    {ordersPendingPayment.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <ClockIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Nenhum pedido aguardando pagamento</p>
-                      </div>
-                    )}
+                    {ordersPendingPayment.length === 0 && <div className="text-center py-8 text-muted-foreground"><ClockIcon className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>Nenhum pedido aguardando pagamento</p></div>}
                   </div>
                 </div>
               )}
 
-              {/* Aba de Relatorios */}
-              {activeTab === "reports" && (
-                <AdminReportsSettings
-                  reportStats={reportStats}
-                  getTopProducts={getTopProducts}
-                  getTopCustomers={getTopCustomers}
-                  onCleanupDuplicates={cleanupDuplicates}
-                  onShowArchiveConfirm={() => setShowArchiveConfirm(true)}
-                  formatCurrency={formatCurrency}
-                />
-              )}
-
-              {/* 2. Pedidos Pagos - Aguardando Preparo */}
               {activeTab === "orders-paid" && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground">Aguardando Preparo ({ordersPaidWaiting.length})</h2>
-                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                      <Loader2 className="w-4 h-4" /> Atualizar
-                    </button>
-                  </div>
-
+                  <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-foreground">Aguardando Preparo ({ordersPaidWaiting.length})</h2><button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"><Loader2 className="w-4 h-4" /> Atualizar</button></div>
                   <div className="space-y-3">
                     {ordersPaidWaiting.map((order) => (
-                      <div 
-                        key={order.id} 
-                        className={`p-4 rounded-xl border border-border bg-secondary/30 transition-all ${
-                          pulsingOrders.has(order.id) ? "ring-2 ring-green-500 animate-pulse" : ""
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <p className="font-bold text-foreground">{order.id}</p>
-                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
-                            {order.paidAt && <p className="text-xs text-green-400">Pago em: {new Date(order.paidAt).toLocaleString("pt-BR")}</p>}
-                          </div>
-                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
-                            {order.confirmedAutomatically ? "PIX Auto" : order.manuallyConfirmed ? "Manual" : "Pago"}
-                          </span>
-                        </div>
-
-                        <div className="grid sm:grid-cols-2 gap-4 mb-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Cliente</p>
-                            <p className="text-sm text-foreground">{order.customerName}</p>
-                            <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
-                          </div>
-                        </div>
-
-                        <div className="mb-3">
-                          <p className="text-xs text-muted-foreground">Itens</p>
-                          <p className="text-sm text-foreground">{order.items}</p>
-                        </div>
-
-                        {order.address && (
-                          <div className="mb-3">
-                            <p className="text-xs text-muted-foreground">Endereco</p>
-                            <p className="text-sm text-foreground">{order.address}</p>
-                          </div>
-                        )}
-
+                      <div key={order.id} className={`p-4 rounded-xl border border-border bg-secondary/30 transition-all ${pulsingOrders.has(order.id) ? "ring-2 ring-green-500 animate-pulse" : ""}`}>
+                        <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>{order.paidAt && <p className="text-xs text-green-400">Pago em: {new Date(order.paidAt).toLocaleString("pt-BR")}</p>}</div><span className="px-3 py-1 text-xs font-medium rounded-full bg-green-500/20 text-green-400">{order.confirmedAutomatically ? "PIX Auto" : order.manuallyConfirmed ? "Manual" : "Pago"}</span></div>
+                        <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p><p className="text-sm text-muted-foreground">{order.customerPhone}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p></div></div>
+                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                        {order.address && <div className="mb-3"><p className="text-xs text-muted-foreground">Endereco</p><p className="text-sm text-foreground">{order.address}</p>{order.neighborhood && <p className="text-xs text-muted-foreground">Bairro: {order.neighborhood}</p>}</div>}
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                          <button onClick={() => updateOrderStatus(order.id, "preparing")} className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-2">
-                            <ChefHat className="w-4 h-4" /> Iniciar Preparo
-                          </button>
-                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
-                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
-                          </button>
-                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>
-                            {copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}
-                          </button>
-                          <button onClick={() => sendTrackingLinkToCustomer(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2">
-                            <ExternalLink className="w-4 h-4" /> Enviar Link
-                          </button>
-                          <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
-                            <Phone className="w-4 h-4" /> WhatsApp
-                          </button>
-                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
-                            <Ban className="w-4 h-4" /> Cancelar
-                          </button>
+                          <button onClick={() => updateOrderStatus(order.id, "preparing")} className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-all flex items-center gap-2"><ChefHat className="w-4 h-4" /> Iniciar Preparo</button>
+                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>{copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}</button>
+                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>{copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}</button>
+                          <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"><Phone className="w-4 h-4" /> WhatsApp</button>
+                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Ban className="w-4 h-4" /> Cancelar</button>
                         </div>
                       </div>
                     ))}
-
-                    {ordersPaidWaiting.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Nenhum pedido aguardando preparo</p>
-                      </div>
-                    )}
+                    {ordersPaidWaiting.length === 0 && <div className="text-center py-8 text-muted-foreground"><CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>Nenhum pedido aguardando preparo</p></div>}
                   </div>
                 </div>
               )}
 
-              {/* 3. Pedidos em Preparacao */}
               {activeTab === "orders-preparing" && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground">Em Preparacao ({ordersPreparing.length})</h2>
-                    <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                      <Loader2 className="w-4 h-4" /> Atualizar
-                    </button>
-                  </div>
-
+                  <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-foreground">Em Preparacao ({ordersPreparing.length})</h2><button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"><Loader2 className="w-4 h-4" /> Atualizar</button></div>
                   <div className="space-y-3">
                     {ordersPreparing.map((order) => (
                       <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <p className="font-bold text-foreground">{order.id}</p>
-                            <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
-                          </div>
-                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-blue-500/20 text-blue-400">Em Preparacao</span>
-                        </div>
-
-                        <div className="grid sm:grid-cols-2 gap-4 mb-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Cliente</p>
-                            <p className="text-sm text-foreground">{order.customerName}</p>
-                            <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
-                          </div>
-                        </div>
-
-                        <div className="mb-3">
-                          <p className="text-xs text-muted-foreground">Itens</p>
-                          <p className="text-sm text-foreground">{order.items}</p>
-                        </div>
-
-                        {order.address && (
-                          <div className="mb-3">
-                            <p className="text-xs text-muted-foreground">Endereco</p>
-                            <p className="text-sm text-foreground">{order.address}</p>
-                          </div>
-                        )}
-
+                        <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><span className="px-3 py-1 text-xs font-medium rounded-full bg-blue-500/20 text-blue-400">Em Preparacao</span></div>
+                        <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p><p className="text-sm text-muted-foreground">{order.customerPhone}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p></div></div>
+                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                        {order.address && <div className="mb-3"><p className="text-xs text-muted-foreground">Endereco</p><p className="text-sm text-foreground">{order.address}</p></div>}
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
                           {order.deliveryType === "entrega" ? (
                             <>
-                              {/* Fluxo de entrega com entregador */}
                               {!order.entregadorId ? (
-                                // Passo 1: Selecionar entregador
                                 (() => {
-                                  const entregadoresDisponiveis = (config.entregadores || []).filter(
-                                    e => e.status === "ativo" && e.disponibilidade === "disponivel"
-                                  )
+                                  const entregadoresDisponiveis = (config.entregadores || []).filter(e => e.status === "ativo" && e.disponibilidade === "disponivel")
                                   return entregadoresDisponiveis.length > 0 ? (
-                                    <select
-                                      onChange={(e) => {
-                                        const entregador = entregadoresDisponiveis.find(ent => ent.id === e.target.value)
-                                        if (entregador) {
-                                          setConfirmEntregador({ orderId: order.id, entregador })
-                                        }
-                                      }}
-                                      defaultValue=""
-                                      className="px-3 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                    >
+                                    <select onChange={(e) => { const entregador = entregadoresDisponiveis.find(ent => ent.id === e.target.value); if (entregador) setConfirmEntregador({ orderId: order.id, entregador }) }} defaultValue="" className="px-3 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 focus:outline-none focus:ring-2 focus:ring-purple-500">
                                       <option value="" disabled>Selecionar Entregador</option>
-                                      {entregadoresDisponiveis.map(ent => (
-                                        <option key={ent.id} value={ent.id}>{ent.nome}</option>
-                                      ))}
+                                      {entregadoresDisponiveis.map(ent => <option key={ent.id} value={ent.id}>{ent.nome}</option>)}
                                     </select>
                                   ) : (
-                                    <button 
-                                      onClick={() => updateOrderStatus(order.id, "delivering")} 
-                                      className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2"
-                                    >
-                                      <Truck className="w-4 h-4" /> Saiu p/ Entrega
-                                    </button>
+                                    <button onClick={() => updateOrderStatus(order.id, "delivering")} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2"><Truck className="w-4 h-4" /> Saiu p/ Entrega</button>
                                   )
                                 })()
                               ) : (
-                                // Passo 2 e 3: Entregador selecionado - mostrar acoes
                                 <div className="flex flex-wrap gap-2 w-full">
-                                  {/* Info do entregador selecionado */}
                                   <div className="w-full mb-2 p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <Users2 className="w-4 h-4 text-blue-400" />
-                                      <span className="text-sm text-foreground font-medium">{order.entregadorNome}</span>
-                                      <span className="text-xs text-muted-foreground">({order.entregadorWhatsapp})</span>
-                                    </div>
-                                    <button
-                                      onClick={() => removeEntregador(order.id)}
-                                      className="text-xs text-muted-foreground hover:text-red-400"
-                                    >
-                                      Trocar
-                                    </button>
+                                    <div className="flex items-center gap-2"><Users2 className="w-4 h-4 text-blue-400" /><span className="text-sm text-foreground font-medium">{order.entregadorNome}</span><span className="text-xs text-muted-foreground">({order.entregadorWhatsapp})</span></div>
+                                    <button onClick={() => removeEntregador(order.id)} className="text-xs text-muted-foreground hover:text-red-400">Trocar</button>
                                   </div>
-                                  
-                                  {/* Botao enviar dados ao entregador */}
-                                  <button 
-                                    onClick={() => sendOrderToEntregador(order, order.entregadorWhatsapp!)}
-                                    className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"
-                                  >
-                                    <MessageCircle className="w-4 h-4" /> Enviar Dados ao Entregador
-                                  </button>
-                                  
-                                  {/* Botao marcar como saiu para entrega */}
-                                  <button 
-                                    onClick={() => marcarSaiuParaEntrega(order.id)}
-                                    className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2"
-                                  >
-                                    <Truck className="w-4 h-4" /> Marcar Saiu p/ Entrega
-                                  </button>
+                                  <button onClick={() => sendOrderToEntregador(order, order.entregadorWhatsapp!)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"><MessageCircle className="w-4 h-4" /> Enviar Dados ao Entregador</button>
+                                  <button onClick={() => marcarSaiuParaEntrega(order.id)} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2"><Truck className="w-4 h-4" /> Marcar Saiu p/ Entrega</button>
                                 </div>
                               )}
                             </>
                           ) : (
-                            <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2">
-                              <PackageCheck className="w-4 h-4" /> Finalizar (Retirada)
-                            </button>
+                            <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2"><PackageCheck className="w-4 h-4" /> Finalizar (Retirada)</button>
                           )}
-                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
-                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
-                          </button>
-                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>
-                            {copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}
-                          </button>
-                          <button onClick={() => sendTrackingLinkToCustomer(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2">
-                            <ExternalLink className="w-4 h-4" /> Enviar Link
-                          </button>
-                          <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
-                            <Phone className="w-4 h-4" /> WhatsApp
-                          </button>
-                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
-                            <Ban className="w-4 h-4" /> Cancelar
-                          </button>
+                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>{copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}</button>
+                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>{copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}</button>
+                          <button onClick={() => sendTrackingLinkToCustomer(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2"><ExternalLink className="w-4 h-4" /> Enviar Link</button>
+                          <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"><Phone className="w-4 h-4" /> WhatsApp</button>
+                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Ban className="w-4 h-4" /> Cancelar</button>
                         </div>
                       </div>
                     ))}
-
-                    {ordersPreparing.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Nenhum pedido em preparacao</p>
-                      </div>
-                    )}
+                    {ordersPreparing.length === 0 && <div className="text-center py-8 text-muted-foreground"><ChefHat className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>Nenhum pedido em preparacao</p></div>}
                   </div>
                 </div>
               )}
 
-              {/* 4. Saiu para Entrega */}
               {activeTab === "orders-delivering" && (
                 <div className="space-y-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <h2 className="text-xl font-bold text-foreground">Saiu para Entrega ({ordersDelivering.length})</h2>
                     <div className="flex items-center gap-2">
-                      {/* Filtro por entregador */}
-                      <select
-                        value={filtroEntregador}
-                        onChange={(e) => setFiltroEntregador(e.target.value)}
-                        className="px-3 py-2 text-sm bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                      >
+                      <select value={filtroEntregador} onChange={(e) => setFiltroEntregador(e.target.value)} className="px-3 py-2 text-sm bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
                         <option value="todos">Todos Entregadores</option>
-                        {Array.from(new Set(ordersDelivering.map(o => o.entregadorId).filter(Boolean))).map(entId => {
-                          const ent = (config.entregadores || []).find(e => e.id === entId)
-                          return ent ? <option key={ent.id} value={ent.id}>{ent.nome}</option> : null
-                        })}
+                        {Array.from(new Set(ordersDelivering.map(o => o.entregadorId).filter(Boolean))).map(entId => { const ent = (config.entregadores || []).find(e => e.id === entId); return ent ? <option key={ent.id} value={ent.id}>{ent.nome}</option> : null })}
                       </select>
-                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                        <Loader2 className="w-4 h-4" /> Atualizar
-                      </button>
+                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"><Loader2 className="w-4 h-4" /> Atualizar</button>
                     </div>
                   </div>
-
                   <div className="space-y-3">
-                    {ordersDelivering
-                      .filter(order => filtroEntregador === "todos" || order.entregadorId === filtroEntregador)
-                      .map((order) => {
-                        const tempoInfo = order.saiuParaEntregaEm ? calcularTempoEntrega(order.saiuParaEntregaEm) : null
-                        const corTempo = tempoInfo 
-                          ? tempoInfo.minutos > 40 ? "border-red-500/50 bg-red-500/5" 
-                          : tempoInfo.minutos > 20 ? "border-yellow-500/50 bg-yellow-500/5" 
-                          : "border-border bg-secondary/30"
-                          : "border-border bg-secondary/30"
-                        
-                        return (
-                          <div key={order.id} className={`p-4 rounded-xl border ${corTempo}`}>
-                            <div className="flex items-start justify-between mb-3">
-                              <div>
-                                <p className="font-bold text-foreground">{order.id}</p>
-                                <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {tempoInfo && (
-                                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                                    tempoInfo.minutos > 40 ? "bg-red-500/20 text-red-400" :
-                                    tempoInfo.minutos > 20 ? "bg-yellow-500/20 text-yellow-400" :
-                                    "bg-purple-500/20 text-purple-400"
-                                  }`}>
-                                    {tempoInfo.texto}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="grid sm:grid-cols-2 gap-4 mb-3">
-                              <div>
-                                <p className="text-xs text-muted-foreground">Cliente</p>
-                                <p className="text-sm text-foreground">{order.customerName}</p>
-                                <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Total</p>
-                                <p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p>
-                              </div>
-                            </div>
-
-                            {order.address && (
-                              <div className="mb-3 p-3 bg-purple-500/10 rounded-lg">
-                                <p className="text-xs text-muted-foreground">Endereco de Entrega</p>
-                                <p className="text-sm text-foreground font-medium">{order.address}</p>
-                                {order.neighborhood && <p className="text-xs text-muted-foreground">Bairro: {order.neighborhood}</p>}
-                                {order.reference && <p className="text-xs text-muted-foreground">Ref: {order.reference}</p>}
-                              </div>
-                            )}
-
-                            {/* Informacoes do Entregador - Melhorado */}
-                            {order.entregadorNome && (
-                              <div className="mb-3 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                      <Users2 className="w-5 h-5 text-blue-400" />
-                                    </div>
-                                    <div>
-                                      <p className="text-sm text-foreground font-medium">{order.entregadorNome}</p>
-                                      {order.entregadorWhatsapp && (
-                                        <p className="text-xs text-muted-foreground">{order.entregadorWhatsapp}</p>
-                                      )}
-                                      {order.saiuParaEntregaEm && (
-                                        <p className="text-xs text-blue-400">
-                                          Saiu as {new Date(order.saiuParaEntregaEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {order.entregadorWhatsapp && (
-                                    <button
-                                      onClick={() => sendOrderToEntregador(order, order.entregadorWhatsapp!)}
-                                      className="px-3 py-2 text-xs font-medium rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-1"
-                                    >
-                                      <MessageCircle className="w-3 h-3" />
-                                      Enviar Pedido
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Historico de problemas */}
-                            {order.historicoEntrega && order.historicoEntrega.filter(h => h.evento === "PROBLEMA").length > 0 && (
-                              <div className="mb-3 p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
-                                <p className="text-xs text-orange-400 font-medium mb-2">Problemas Registrados:</p>
-                                {order.historicoEntrega.filter(h => h.evento === "PROBLEMA").map((h, i) => (
-                                  <div key={i} className="text-xs text-muted-foreground">
-                                    <span className="text-orange-400">{new Date(h.data).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
-                                    {" - "}{h.observacao}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Area de registro de problema */}
-                            {problemaEntregaOrderId === order.id && (
-                              <div className="mb-3 p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
-                                <p className="text-xs text-orange-400 font-medium mb-2">Registrar Problema:</p>
-                                <input
-                                  type="text"
-                                  value={problemaEntregaObs}
-                                  onChange={(e) => setProblemaEntregaObs(e.target.value)}
-                                  placeholder="Descreva o problema..."
-                                  className="w-full px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 mb-2"
-                                />
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => {
-                                      if (problemaEntregaObs.trim()) {
-                                        registrarProblemaEntrega(order.id, problemaEntregaObs.trim())
-                                      }
-                                    }}
-                                    disabled={!problemaEntregaObs.trim()}
-                                    className="px-3 py-1 text-xs font-medium rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 disabled:opacity-50"
-                                  >
-                                    Salvar
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setProblemaEntregaOrderId(null)
-                                      setProblemaEntregaObs("")
-                                    }}
-                                    className="px-3 py-1 text-xs font-medium rounded-lg bg-secondary text-muted-foreground hover:bg-secondary/80"
-                                  >
-                                    Cancelar
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                              <button 
-                                onClick={() => updateOrderStatus(order.id, "completed")} 
-                                className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2"
-                              >
-                                <PackageCheck className="w-4 h-4" /> Cliente Recebeu
-                              </button>
-                              <button 
-                                onClick={() => {
-                                  setProblemaEntregaOrderId(order.id)
-                                  setProblemaEntregaObs("")
-                                }} 
-                                className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-all flex items-center gap-2"
-                              >
-                                <AlertCircle className="w-4 h-4" /> Problema
-                              </button>
-                              <button 
-                                onClick={() => voltarParaPreparo(order.id)} 
-                                className="px-4 py-2 text-sm font-medium rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all flex items-center gap-2"
-                              >
-                                <ChefHat className="w-4 h-4" /> Voltar Preparo
-                              </button>
-                              <button 
-                                onClick={() => openCustomerWhatsApp(order.customerPhone, "Ola, sua entrega esta a caminho!")} 
-                                className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"
-                              >
-                                <Phone className="w-4 h-4" /> WhatsApp Cliente
-                              </button>
-                            </div>
+                    {ordersDelivering.filter(order => filtroEntregador === "todos" || order.entregadorId === filtroEntregador).map((order) => {
+                      const tempoInfo = order.saiuParaEntregaEm ? calcularTempoEntrega(order.saiuParaEntregaEm) : null
+                      const corTempo = tempoInfo ? tempoInfo.minutos > 40 ? "border-red-500/50 bg-red-500/5" : tempoInfo.minutos > 20 ? "border-yellow-500/50 bg-yellow-500/5" : "border-border bg-secondary/30" : "border-border bg-secondary/30"
+                      return (
+                        <div key={order.id} className={`p-4 rounded-xl border ${corTempo}`}>
+                          <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><div className="flex items-center gap-2">{tempoInfo && <span className={`px-3 py-1 text-xs font-medium rounded-full ${tempoInfo.minutos > 40 ? "bg-red-500/20 text-red-400" : tempoInfo.minutos > 20 ? "bg-yellow-500/20 text-yellow-400" : "bg-purple-500/20 text-purple-400"}`}>{tempoInfo.texto}</span>}</div></div>
+                          <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p><p className="text-sm text-muted-foreground">{order.customerPhone}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p></div></div>
+                          {order.entregadorNome && <div className="mb-3 p-2 bg-purple-500/10 rounded-lg border border-purple-500/20"><p className="text-xs text-muted-foreground">Entregador</p><p className="text-sm text-foreground font-medium">{order.entregadorNome}</p></div>}
+                          <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                          {order.address && <div className="mb-3"><p className="text-xs text-muted-foreground">Endereco</p><p className="text-sm text-foreground">{order.address}</p>{order.neighborhood && <p className="text-xs text-muted-foreground">Bairro: {order.neighborhood}</p>}</div>}
+                          <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                            <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"><PackageCheck className="w-4 h-4" /> Finalizar</button>
+                            <button onClick={() => voltarParaPreparo(order.id)} className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-all flex items-center gap-2"><RotateCcw className="w-4 h-4" /> Voltar Preparo</button>
+                            <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>{copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}</button>
+                            <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"><Phone className="w-4 h-4" /> WhatsApp</button>
                           </div>
-                        )
-                      })}
-
-                    {ordersDelivering.filter(order => filtroEntregador === "todos" || order.entregadorId === filtroEntregador).length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Truck className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Nenhum pedido em entrega</p>
-                      </div>
-                    )}
+                        </div>
+                      )
+                    })}
+                    {ordersDelivering.length === 0 && <div className="text-center py-8 text-muted-foreground"><Truck className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>Nenhum pedido em entrega</p></div>}
                   </div>
                 </div>
               )}
 
-              {/* 5. Finalizados */}
               {activeTab === "orders-completed" && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <h2 className="text-xl font-bold text-foreground">Finalizados ({ordersCompleted.length})</h2>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <button 
-                        onClick={() => selectAllOrders(ordersCompleted, "orders-completed")}
-                        className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
-                      >
-                        Selecionar todos
-                      </button>
-                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-completed" && (
-                        <>
-                          <button 
-                            onClick={deselectAllOrders}
-                            className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
-                          >
-                            Desmarcar
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteMultiple(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
-                          >
-                            <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
-                          </button>
-                        </>
-                      )}
-                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                        <Loader2 className="w-4 h-4" /> Atualizar
-                      </button>
+                      <button onClick={() => selectAllOrders(ordersCompleted, "orders-completed")} className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all">Selecionar todos</button>
+                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-completed" && (<><button onClick={deselectAllOrders} className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all">Desmarcar</button><button onClick={() => setShowDeleteMultiple(true)} className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"><Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})</button></>)}
+                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"><Loader2 className="w-4 h-4" /> Atualizar</button>
                     </div>
                   </div>
-
                   <div className="space-y-3">
                     {ordersCompleted.map((order) => (
-                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
-                        <div className="flex items-start gap-3 mb-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedOrders.has(order.id)}
-                            onChange={() => toggleOrderSelection(order.id, "orders-completed")}
-                            className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <p className="font-bold text-foreground">{order.id}</p>
-                                <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
-                              </div>
-                              <span className="px-3 py-1 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400">Finalizado</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid sm:grid-cols-2 gap-3 mb-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Cliente</p>
-                            <p className="text-sm font-medium text-foreground">{order.customerName}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Telefone</p>
-                            <p className="text-sm text-foreground flex items-center gap-1">
-                              <Phone className="w-3 h-3" /> {order.customerPhone}
-                            </p>
-                          </div>
-                        </div>
-
-                        {order.address && (
-                          <div className="mb-3">
-                            <p className="text-xs text-muted-foreground">Endereco</p>
-                            <p className="text-sm text-foreground flex items-center gap-1">
-                              <MapPin className="w-3 h-3" /> {order.address}
-                              {order.neighborhood && ` - ${order.neighborhood}`}
-                            </p>
-                            {order.reference && (
-                              <p className="text-xs text-yellow-400">Ref: {order.reference}</p>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="mb-3">
-                          <p className="text-xs text-muted-foreground">Itens</p>
-                          <p className="text-sm text-foreground whitespace-pre-wrap">{order.items}</p>
-                        </div>
-
-                        {order.observation && (
-                          <div className="mb-3 p-2 bg-yellow-500/10 rounded-lg">
-                            <p className="text-xs text-yellow-400">Observacao</p>
-                            <p className="text-sm text-foreground">{order.observation}</p>
-                          </div>
-                        )}
-
-                        <div className="grid sm:grid-cols-3 gap-3 mb-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="text-lg font-bold text-primary">R$ {order.total.toFixed(2)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Pagamento</p>
-                            <p className="text-sm text-foreground">{order.paymentMethod}</p>
-                          </div>
-                          {order.entregadorNome && (
-                            <div>
-                              <p className="text-xs text-muted-foreground">Entregador</p>
-                              <p className="text-sm text-foreground">{order.entregadorNome}</p>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
-                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteConfirm(order.id)}
-                            className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"
-                          >
-                            <Trash2 className="w-4 h-4" /> Excluir
-                          </button>
-                        </div>
+                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30 opacity-80">
+                        <div className="flex items-start gap-3 mb-3"><input type="checkbox" checked={selectedOrders.has(order.id)} onChange={() => toggleOrderSelection(order.id, "orders-completed")} className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary" /><div className="flex-1"><div className="flex items-start justify-between"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><span className="px-3 py-1 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Finalizado</span></div></div></div>
+                        <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-green-400">R$ {order.total.toFixed(2)}</p></div></div>
+                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border"><button onClick={() => setShowDeleteConfirm(order.id)} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Trash2 className="w-4 h-4" /> Excluir</button></div>
                       </div>
                     ))}
-
-                    {ordersCompleted.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <PackageCheck className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Nenhum pedido finalizado</p>
-                      </div>
-                    )}
+                    {ordersCompleted.length === 0 && <div className="text-center py-8 text-muted-foreground"><PackageCheck className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>Nenhum pedido finalizado</p></div>}
                   </div>
                 </div>
               )}
 
-              {/* 6. Cancelados */}
               {activeTab === "orders-cancelled" && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <h2 className="text-xl font-bold text-foreground">Cancelados ({ordersCancelled.length})</h2>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <button 
-                        onClick={() => selectAllOrders(ordersCancelled, "orders-cancelled")}
-                        className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
-                      >
-                        Selecionar todos
-                      </button>
-                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-cancelled" && (
-                        <>
-                          <button 
-                            onClick={deselectAllOrders}
-                            className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
-                          >
-                            Desmarcar
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteMultiple(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
-                          >
-                            <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
-                          </button>
-                        </>
-                      )}
-                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                        <Loader2 className="w-4 h-4" /> Atualizar
-                      </button>
+                      <button onClick={() => selectAllOrders(ordersCancelled, "orders-cancelled")} className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all">Selecionar todos</button>
+                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-cancelled" && (<><button onClick={deselectAllOrders} className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all">Desmarcar</button><button onClick={() => setShowDeleteMultiple(true)} className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"><Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})</button></>)}
+                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"><Loader2 className="w-4 h-4" /> Atualizar</button>
                     </div>
                   </div>
-
                   <div className="space-y-3">
                     {ordersCancelled.map((order) => (
                       <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30 opacity-70">
-                        <div className="flex items-start gap-3 mb-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedOrders.has(order.id)}
-                            onChange={() => toggleOrderSelection(order.id, "orders-cancelled")}
-                            className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <p className="font-bold text-foreground">{order.id}</p>
-                                <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
-                              </div>
-                              <span className="px-3 py-1 text-xs font-medium rounded-full bg-red-500/20 text-red-400">Cancelado</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid sm:grid-cols-2 gap-4 mb-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Cliente</p>
-                            <p className="text-sm text-foreground">{order.customerName}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="text-lg font-bold text-foreground line-through">R$ {order.total.toFixed(2)}</p>
-                          </div>
-                        </div>
-
-                        <div className="mb-3">
-                          <p className="text-xs text-muted-foreground">Itens</p>
-                          <p className="text-sm text-foreground">{order.items}</p>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                          <button
-                            onClick={() => setShowDeleteConfirm(order.id)}
-                            className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"
-                          >
-                            <Trash2 className="w-4 h-4" /> Excluir
-                          </button>
-                        </div>
+                        <div className="flex items-start gap-3 mb-3"><input type="checkbox" checked={selectedOrders.has(order.id)} onChange={() => toggleOrderSelection(order.id, "orders-cancelled")} className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary" /><div className="flex-1"><div className="flex items-start justify-between"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><span className="px-3 py-1 text-xs font-medium rounded-full bg-red-500/20 text-red-400">Cancelado</span></div></div></div>
+                        <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-foreground line-through">R$ {order.total.toFixed(2)}</p></div></div>
+                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-border"><button onClick={() => setShowDeleteConfirm(order.id)} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Trash2 className="w-4 h-4" /> Excluir</button></div>
                       </div>
                     ))}
-
-                    {ordersCancelled.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Ban className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Nenhum pedido cancelado</p>
-                      </div>
-                    )}
+                    {ordersCancelled.length === 0 && <div className="text-center py-8 text-muted-foreground"><Ban className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>Nenhum pedido cancelado</p></div>}
                   </div>
                 </div>
               )}
 
-              {/* Aba Pedidos Abandonados */}
               {activeTab === "orders-abandoned" && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <h2 className="text-xl font-bold text-foreground">Abandonados ({ordersAbandoned.length})</h2>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <button 
-                        onClick={() => selectAllOrders(ordersAbandoned, "orders-abandoned")}
-                        className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
-                      >
-                        Selecionar todos
-                      </button>
-                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-abandoned" && (
-                        <>
-                          <button 
-                            onClick={deselectAllOrders}
-                            className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
-                          >
-                            Desmarcar
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteMultiple(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
-                          >
-                            <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
-                          </button>
-                        </>
-                      )}
-                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                        <Loader2 className="w-4 h-4" /> Atualizar
-                      </button>
+                      <button onClick={() => selectAllOrders(ordersAbandoned, "orders-abandoned")} className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all">Selecionar todos</button>
+                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-abandoned" && (<><button onClick={deselectAllOrders} className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all">Desmarcar</button><button onClick={() => setShowDeleteMultiple(true)} className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"><Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})</button></>)}
+                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"><Loader2 className="w-4 h-4" /> Atualizar</button>
                     </div>
                   </div>
-
-                  <div className="bg-card/50 p-4 rounded-xl border border-orange-500/30">
-                    <p className="text-sm text-muted-foreground">
-                      Pedidos iniciados pelo cliente mas nao finalizados/pagos ha mais de {abandonedMinutes} minutos.
-                    </p>
-                  </div>
-
+                  <div className="bg-card/50 p-4 rounded-xl border border-orange-500/30"><p className="text-sm text-muted-foreground">Pedidos iniciados pelo cliente mas nao finalizados/pagos ha mais de {abandonedMinutes} minutos.</p></div>
                   <div className="space-y-4">
                     {ordersAbandoned.map(order => (
                       <div key={order.id} className="bg-card p-4 rounded-xl border border-orange-500/30">
-                        <div className="flex items-start gap-3 mb-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedOrders.has(order.id)}
-                            onChange={() => toggleOrderSelection(order.id, "orders-abandoned")}
-                            className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
-                          />
-                          <div className="flex-1">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <p className="text-lg font-bold text-foreground">{order.id}</p>
-                                <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
-                              </div>
-                              <div className="text-right">
-                                <span className="px-2 py-1 text-xs rounded-full bg-orange-500/20 text-orange-400">
-                                  Parado ha {getTimeSinceCreation(order.createdAt)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-3 mb-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Cliente</p>
-                            <p className="text-sm text-foreground font-medium">{order.customerName}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Telefone</p>
-                            <p className="text-sm text-foreground">{order.customerPhone}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="mb-3">
-                          <p className="text-xs text-muted-foreground">Itens</p>
-                          <p className="text-sm text-foreground">{order.items}</p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 mb-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="text-lg font-bold text-primary">R$ {order.total.toFixed(2)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Pagamento</p>
-                            <p className="text-sm text-foreground">{order.paymentMethod}</p>
-                          </div>
-                        </div>
-
+                        <div className="flex items-start gap-3 mb-3"><input type="checkbox" checked={selectedOrders.has(order.id)} onChange={() => toggleOrderSelection(order.id, "orders-abandoned")} className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary" /><div className="flex-1"><div className="flex justify-between items-start"><div><p className="text-lg font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><div className="text-right"><span className="px-2 py-1 text-xs rounded-full bg-orange-500/20 text-orange-400">Parado ha {getTimeSinceCreation(order.createdAt)}</span></div></div></div></div>
+                        <div className="grid grid-cols-2 gap-3 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground font-medium">{order.customerName}</p></div><div><p className="text-xs text-muted-foreground">Telefone</p><p className="text-sm text-foreground">{order.customerPhone}</p></div></div>
+                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                        <div className="grid grid-cols-2 gap-3 mb-3"><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-primary">R$ {order.total.toFixed(2)}</p></div><div><p className="text-xs text-muted-foreground">Pagamento</p><p className="text-sm text-foreground">{order.paymentMethod}</p></div></div>
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                          <button onClick={() => chargeOnWhatsApp(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2">
-                            <Phone className="w-4 h-4" /> Cobrar no WhatsApp
-                          </button>
-                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
-                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
-                          </button>
-                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2">
-                            <Ban className="w-4 h-4" /> Cancelar
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteConfirm(order.id)}
-                            className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"
-                          >
-                            <Trash2 className="w-4 h-4" /> Excluir
-                          </button>
+                          <button onClick={() => chargeOnWhatsApp(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"><Phone className="w-4 h-4" /> Cobrar no WhatsApp</button>
+                          <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>{copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}</button>
+                          <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Ban className="w-4 h-4" /> Cancelar</button>
+                          <button onClick={() => setShowDeleteConfirm(order.id)} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Trash2 className="w-4 h-4" /> Excluir</button>
                         </div>
                       </div>
                     ))}
-
-                    {ordersAbandoned.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Nenhum pedido abandonado</p>
-                      </div>
-                    )}
+                    {ordersAbandoned.length === 0 && <div className="text-center py-8 text-muted-foreground"><AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>Nenhum pedido abandonado</p></div>}
                   </div>
                 </div>
               )}
 
-              {/* Aba Pedidos Arquivados */}
               {activeTab === "orders-archived" && (
                 <div className="space-y-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <h2 className="text-xl font-bold text-foreground">Arquivados ({ordersArchived.length})</h2>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <button 
-                        onClick={() => selectAllOrders(ordersArchived, "orders-archived")}
-                        className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
-                      >
-                        Selecionar todos
-                      </button>
-                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-archived" && (
-                        <>
-                          <button 
-                            onClick={deselectAllOrders}
-                            className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
-                          >
-                            Desmarcar
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteMultiple(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"
-                          >
-                            <Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})
-                          </button>
-                        </>
-                      )}
-                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80">
-                        <Loader2 className="w-4 h-4" /> Atualizar
-                      </button>
+                      <button onClick={() => selectAllOrders(ordersArchived, "orders-archived")} className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all">Selecionar todos</button>
+                      {selectedOrders.size > 0 && selectedOrdersTab === "orders-archived" && (<><button onClick={deselectAllOrders} className="px-3 py-1.5 text-sm bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all">Desmarcar</button><button onClick={() => setShowDeleteMultiple(true)} className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30"><Trash2 className="w-4 h-4" /> Excluir ({selectedOrders.size})</button></>)}
+                      <button onClick={loadOrders} className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground font-medium rounded-xl transition-all hover:bg-secondary/80"><Loader2 className="w-4 h-4" /> Atualizar</button>
                     </div>
                   </div>
-                  
-                  {/* Busca de arquivados */}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Buscar pedido arquivado..."
-                      value={archivedSearchInput}
-                      onChange={(e) => setArchivedSearchInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          setArchivedSearchQuery(archivedSearchInput)
-                        }
-                      }}
-                      className="flex-1 px-4 py-2 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    />
-                    <button
-                      onClick={() => setArchivedSearchQuery(archivedSearchInput)}
-                      className="px-4 py-2 bg-primary text-primary-foreground font-medium rounded-xl hover:brightness-110 transition-all"
-                    >
-                      <Search className="w-4 h-4" />
-                    </button>
-                    {archivedSearchQuery && (
-                      <button
-                        onClick={() => {
-                          setArchivedSearchInput("")
-                          setArchivedSearchQuery("")
-                        }}
-                        className="px-4 py-2 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-all"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                  {archivedSearchQuery && (
-                    <p className="text-sm text-muted-foreground">
-                      {ordersArchived.length} pedido(s) encontrado(s) para &quot;{archivedSearchQuery}&quot;
-                    </p>
-                  )}
-
-                  <div className="space-y-4">
+                  <div className="flex gap-2"><input type="text" placeholder="Buscar por ID, nome ou telefone..." value={archivedSearchInput} onChange={(e) => setArchivedSearchInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && setArchivedSearchQuery(archivedSearchInput)} className="flex-1 px-4 py-2 bg-secondary border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary" /><button onClick={() => setArchivedSearchQuery(archivedSearchInput)} className="px-4 py-2 bg-primary text-primary-foreground font-medium rounded-xl hover:brightness-110 transition-all"><Search className="w-4 h-4" /></button></div>
+                  <div className="space-y-3">
                     {ordersArchived.map((order) => (
-                      <div key={order.id} className="bg-card rounded-xl p-4 border border-border">
-                        <div className="flex items-start gap-3 mb-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedOrders.has(order.id)}
-                            onChange={() => toggleOrderSelection(order.id, "orders-archived")}
-                            className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <span className="font-bold text-foreground">{order.id}</span>
-                                <p className="text-sm text-muted-foreground">{order.customerName}</p>
-                                <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
-                              </div>
-                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                order.status === "completed" ? "bg-emerald-500/20 text-emerald-400" :
-                                order.status === "cancelled" ? "bg-red-500/20 text-red-400" :
-                                "bg-slate-500/20 text-slate-400"
-                              }`}>
-                                {order.status === "completed" ? "Finalizado" : order.status === "cancelled" ? "Cancelado" : order.status}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap">{order.items}</div>
-                        
-                        <div className="grid grid-cols-2 gap-3 mb-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="text-lg font-bold text-primary">R$ {order.total.toFixed(2)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Pagamento</p>
-                            <p className="text-sm text-foreground">{order.paymentMethod}</p>
-                          </div>
-                        </div>
-
+                      <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30 opacity-60">
+                        <div className="flex items-start gap-3 mb-3"><input type="checkbox" checked={selectedOrders.has(order.id)} onChange={() => toggleOrderSelection(order.id, "orders-archived")} className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary" /><div className="flex-1"><div className="flex items-start justify-between"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><span className="px-3 py-1 text-xs font-medium rounded-full bg-gray-500/20 text-gray-400">Arquivado</span></div></div></div>
+                        <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p></div></div>
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
-                          <button 
-                            onClick={() => restaurarPedido(order.id)} 
-                            className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-2"
-                          >
-                            <RotateCcw className="w-4 h-4" /> Restaurar
-                          </button>
-                          <button 
-                            onClick={() => copyOrderData(order)} 
-                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}
-                          >
-                            {copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteConfirm(order.id)}
-                            className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"
-                          >
-                            <Trash2 className="w-4 h-4" /> Excluir
-                          </button>
+                          <button onClick={() => restaurarPedido(order.id)} className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center gap-2"><RotateCcw className="w-4 h-4" /> Restaurar</button>
+                          <button onClick={() => setShowDeleteConfirm(order.id)} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Trash2 className="w-4 h-4" /> Excluir</button>
                         </div>
                       </div>
                     ))}
-
-                    {ordersArchived.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <FolderArchive className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>{archivedSearchQuery ? "Nenhum pedido arquivado encontrado" : "Nenhum pedido arquivado"}</p>
-                      </div>
-                    )}
+                    {ordersArchived.length === 0 && <div className="text-center py-8 text-muted-foreground"><FolderArchive className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>Nenhum pedido arquivado</p></div>}
                   </div>
                 </div>
               )}
@@ -2833,266 +1164,11 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
           </div>
         )}
 
-        {/* Toast de Notificacao */}
-        {toastMessage && (
-          <div className="fixed top-4 right-4 z-50 bg-primary text-primary-foreground px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-in slide-in-from-top-2 fade-in duration-300">
-            <Bell className="w-4 h-4" />
-            <span className="text-sm font-medium">{toastMessage}</span>
-          </div>
-        )}
+        {/* Toast de notificacao */}
+        {toastMessage && <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-foreground text-background rounded-xl shadow-2xl z-50 animate-in slide-in-from-bottom">{toastMessage}</div>}
 
-        {/* Modal de confirmacao de entregador */}
-        {confirmEntregador && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Truck className="w-8 h-8 text-purple-400" />
-                </div>
-                <h3 className="text-xl font-bold text-foreground">Confirmar Entregador</h3>
-              </div>
-              <div className="space-y-3 mb-6">
-                <div className="p-3 bg-secondary/50 rounded-lg">
-                  <p className="text-xs text-muted-foreground">Entregador</p>
-                  <p className="text-foreground font-medium">{confirmEntregador.entregador.nome}</p>
-                </div>
-                <div className="p-3 bg-secondary/50 rounded-lg">
-                  <p className="text-xs text-muted-foreground">Telefone</p>
-                  <p className="text-foreground">{confirmEntregador.entregador.whatsapp}</p>
-                </div>
-                <div className="p-3 bg-secondary/50 rounded-lg">
-                  <p className="text-xs text-muted-foreground">Pedido</p>
-                  <p className="text-foreground font-medium">{confirmEntregador.orderId}</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setConfirmEntregador(null)}
-                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-all"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={confirmAssignEntregador}
-                  className="flex-1 py-3 bg-purple-600 text-white font-medium rounded-xl hover:bg-purple-700 transition-all"
-                >
-                  Confirmar Entrega
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de confirmacao de exclusao individual */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Trash2 className="w-8 h-8 text-red-400" />
-                </div>
-                <h3 className="text-xl font-bold text-foreground">Excluir Pedido</h3>
-                <p className="text-muted-foreground mt-2">
-                  Tem certeza que deseja excluir o pedido <span className="font-bold text-foreground">{showDeleteConfirm}</span>?
-                </p>
-                <p className="text-sm text-red-400 mt-2">Esta acao nao pode ser desfeita.</p>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowDeleteConfirm(null)}
-                  disabled={deleteLoading}
-                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-all disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => deleteSingleOrder(showDeleteConfirm)}
-                  disabled={deleteLoading}
-                  className="flex-1 py-3 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {deleteLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Excluir"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de aviso de aba diferente */}
-        {showTabWarning && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle className="w-8 h-8 text-yellow-400" />
-                </div>
-                <h3 className="text-xl font-bold text-foreground">Selecao em outra aba</h3>
-                <p className="text-muted-foreground mt-2">
-                  Voce ja tem pedidos selecionados em outra aba. Desmarque-os antes de selecionar nesta aba.
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowTabWarning(false)}
-                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-all"
-                >
-                  Entendi
-                </button>
-                <button
-                  onClick={() => {
-                    deselectAllOrders()
-                    setShowTabWarning(false)
-                  }}
-                  className="flex-1 py-3 bg-primary text-primary-foreground font-medium rounded-xl hover:brightness-110 transition-all"
-                >
-                  Desmarcar todos
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de confirmacao de exclusao multipla */}
-        {showDeleteMultiple && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Trash2 className="w-8 h-8 text-red-400" />
-                </div>
-                <h3 className="text-xl font-bold text-foreground">Excluir Pedidos</h3>
-                <p className="text-muted-foreground mt-2">
-                  Tem certeza que deseja excluir <span className="font-bold text-foreground">{selectedOrders.size}</span> pedido(s)?
-                </p>
-                <p className="text-sm text-red-400 mt-2">Esta acao nao pode ser desfeita.</p>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowDeleteMultiple(false)}
-                  disabled={deleteLoading}
-                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-all disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={deleteMultipleOrders}
-                  disabled={deleteLoading}
-                  className="flex-1 py-3 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {deleteLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : `Excluir ${selectedOrders.size}`}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de confirmacao para arquivar relatorios */}
-        {showArchiveConfirm && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle className="w-8 h-8 text-red-400" />
-                </div>
-                <h3 className="text-xl font-bold text-foreground">Limpar Relatorios</h3>
-                <p className="text-muted-foreground mt-2">
-                  Tem certeza que deseja limpar os relatorios? Os pedidos serao arquivados e nao aparecerao mais nas estatisticas.
-                </p>
-                <p className="text-sm text-red-400 mt-2">
-                  Essa acao nao pode ser desfeita.
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowArchiveConfirm(false)}
-                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={archiveAllOrders}
-                  className="flex-1 py-3 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-colors"
-                >
-                  Limpar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de Copia Manual */}
-        {manualCopyText && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
-              <div className="text-center mb-4">
-                <h3 className="text-lg font-bold text-foreground">Copiar Pedido</h3>
-                <p className="text-sm text-muted-foreground mt-1">Selecione e copie manualmente</p>
-              </div>
-              <textarea
-                readOnly
-                value={manualCopyText}
-                className="w-full h-48 p-3 text-sm bg-secondary border border-border rounded-xl text-foreground resize-none focus:outline-none"
-                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-              />
-              <button
-                onClick={() => setManualCopyText(null)}
-                className="w-full mt-4 py-3 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-colors"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de Copia Manual do Link do Entregador */}
-        {manualEntregadorLink && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-2xl p-6 max-w-md w-full border border-border">
-              <div className="text-center mb-4">
-                <h3 className="text-lg font-bold text-foreground">Copiar Link do Entregador</h3>
-                <p className="text-sm text-muted-foreground mt-1">Nao foi possivel copiar automaticamente. Copie manualmente abaixo:</p>
-              </div>
-              <input
-                type="text"
-                readOnly
-                value={manualEntregadorLink}
-                className="w-full p-3 text-sm bg-secondary border border-border rounded-xl text-foreground focus:outline-none"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-              />
-              <button
-                onClick={() => setManualEntregadorLink(null)}
-                className="w-full mt-4 py-3 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-colors"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de Confirmacao para Excluir Produto */}
-        {deleteProductId !== null && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border">
-              <div className="text-center mb-4">
-                <h3 className="text-lg font-bold text-foreground">Excluir Produto</h3>
-                <p className="text-sm text-muted-foreground mt-2">Tem certeza que deseja excluir este produto?</p>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setDeleteProductId(null)}
-                  className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={confirmDeleteProduct}
-                  className="flex-1 py-3 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-colors"
-                >
-                  Excluir
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Modais */}
+        <AdminModals confirmEntregador={confirmEntregador} onCancelEntregador={() => setConfirmEntregador(null)} onConfirmEntregador={confirmAssignEntregador} showDeleteConfirm={showDeleteConfirm} onCancelDelete={() => setShowDeleteConfirm(null)} onConfirmDelete={deleteSingleOrder} deleteLoading={deleteLoading} showTabWarning={showTabWarning} onDismissTabWarning={() => setShowTabWarning(false)} onDeselectAllOrders={deselectAllOrders} showDeleteMultiple={showDeleteMultiple} selectedOrdersCount={selectedOrders.size} onCancelDeleteMultiple={() => setShowDeleteMultiple(false)} onConfirmDeleteMultiple={deleteMultipleOrders} showArchiveConfirm={showArchiveConfirm} onCancelArchive={() => setShowArchiveConfirm(false)} onConfirmArchive={archiveAllOrders} manualCopyText={manualCopyText} onCloseManualCopy={() => setManualCopyText(null)} manualEntregadorLink={manualEntregadorLink} onCloseEntregadorLink={() => setManualEntregadorLink(null)} deleteProductId={deleteProductId !== null ? String(deleteProductId) : null} onCancelDeleteProduct={() => setDeleteProductId(null)} onConfirmDeleteProduct={confirmDeleteProduct} />
       </div>
     </div>
   )
