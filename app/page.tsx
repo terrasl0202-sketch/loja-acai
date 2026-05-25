@@ -8,8 +8,9 @@ import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
 // Types, Constants e Utils da area do cliente
 import type { PaymentStatus, DeliveryType, OrderSnapshot, PixData, CustomerOrder, SavedOrder, Coupon, Customer, FormData } from "./(store)/types"
-import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURATION, ADD_TOAST_DURATION } from "./(store)/constants"
+import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURATION } from "./(store)/constants"
 import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode } from "./(store)/utils"
+import { useCart } from "./(store)/hooks/useCart"
 
 export default function Home() {
   // Config do site carregada da API
@@ -69,7 +70,10 @@ export default function Home() {
   // Usar isClient para evitar hydration mismatch - no servidor sempre mostra aberto
   const isStoreOpen = isClient ? (siteConfig.storeHours?.isOpen && isWithinBusinessHours()) : true
 
-  const [quantities, setQuantities] = useState<Record<number, number>>({})
+  // Hook do carrinho - gerencia quantities, showCart, toast de adicao e som
+  const cart = useCart({ products })
+  const { quantities, setQuantities, showCart, setShowCart, updateQuantity, getTotalItems, addToast, addToCartAudioRef } = cart
+  
   const [formData, setFormData] = useState<FormData>({ ...DEFAULT_FORM_DATA })
   
   // Cupom
@@ -77,7 +81,6 @@ export default function Home() {
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
   const [couponError, setCouponError] = useState("")
   const [deliveryType, setDeliveryType] = useState<DeliveryType>(DELIVERY_ENABLED ? "entrega" : "retirada")
-  const [showCart, setShowCart] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const [useSavedData, setUseSavedData] = useState<boolean | null>(null) // null = nao escolheu, true = usar salvos, false = novo endereco
   const [copied, setCopied] = useState(false)
@@ -516,7 +519,7 @@ export default function Home() {
   }
   
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const addToCartAudioRef = useRef<HTMLAudioElement | null>(null)
+  // addToCartAudioRef agora vem do useCart hook
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const pixTimerRef = useRef<NodeJS.Timeout | null>(null)
   
@@ -915,14 +918,6 @@ export default function Home() {
     loadConfig()
   }, [])
 
-  // Som ao adicionar item
-  const playAddSound = useCallback(() => {
-    if (addToCartAudioRef.current) {
-      addToCartAudioRef.current.currentTime = 0
-      addToCartAudioRef.current.play().catch(() => {})
-    }
-  }, [])
-
   // Som de confirmacao
   const playConfirmSound = useCallback(() => {
     if (audioRef.current) {
@@ -931,29 +926,7 @@ export default function Home() {
     }
   }, [])
 
-  // Estado para toast de adicao
-  const [addToast, setAddToast] = useState<{ show: boolean; productName: string }>({ show: false, productName: "" })
-  
-  const updateQuantity = (id: number, delta: number) => {
-    const newQty = Math.max(0, (quantities[id] || 0) + delta)
-    setQuantities((prev) => ({
-      ...prev,
-      [id]: newQty,
-    }))
-    if (delta > 0) {
-      playAddSound()
-      // Mostrar toast de adicao
-      const product = products.find(p => p.id === id)
-      if (product) {
-        setAddToast({ show: true, productName: product.name })
-        setTimeout(() => setAddToast({ show: false, productName: "" }), 2000)
-      }
-    }
-  }
-
-  const getTotalItems = () => {
-    return Object.values(quantities).reduce((sum, qty) => sum + qty, 0)
-  }
+  // playAddSound, addToast, updateQuantity e getTotalItems agora vem do useCart hook
 
   // formatCurrency e generateOrderId agora sao importados de utils
 
