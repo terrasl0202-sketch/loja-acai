@@ -49,7 +49,8 @@ import {
   RotateCcw,
   FolderArchive,
   RefreshCw,
-  Volume2
+  Volume2,
+  Zap
 } from "lucide-react"
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, type Entregador, defaultConfig } from "@/lib/config-types"
@@ -1710,101 +1711,58 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
             <p className="text-sm text-muted-foreground">Carregando...</p>
           </div>
         ) : (
-          <div className="grid lg:grid-cols-[260px_1fr] gap-4">
-            {/* Sidebar Premium - Menu Compacto */}
-            <nav className="space-y-1.5">
-              {/* Menu Principal */}
-              <div className="bg-card/50 rounded-2xl p-2 border border-border/50 space-y-1">
-                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider px-3 py-1 font-semibold">Configuracoes</p>
-              {[
-                { id: "store" as TabType, icon: Store, label: "Loja" },
-                { id: "products" as TabType, icon: Package, label: "Produtos" },
-                { id: "banner" as TabType, icon: ImageIcon, label: "Banner" },
-                { id: "hours" as TabType, icon: Clock, label: "Horario" },
-                { id: "delivery" as TabType, icon: Truck, label: "Entrega" },
-                { id: "payment" as TabType, icon: CreditCard, label: "Pagamento" },
-                { id: "whatsapp" as TabType, icon: MessageCircle, label: "WhatsApp" },
-                { id: "coupons" as TabType, icon: Tag, label: "Cupons" },
-                { id: "entregadores" as TabType, icon: Users2, label: "Entregadores" },
-                { id: "reports" as TabType, icon: BarChart3, label: "Relatorios" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all text-sm ${
-                    activeTab === tab.id
-                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                      : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-                  }`}
-                >
-                  <tab.icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              ))}
-              </div>
-
-              {/* Secao de Pedidos - FOCO PRINCIPAL */}
-              <div className="bg-gradient-to-br from-primary/5 via-card/80 to-card/50 rounded-2xl p-3 border border-primary/10 shadow-lg shadow-primary/5">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-7 h-7 bg-primary/15 rounded-lg flex items-center justify-center">
-                    <ShoppingBag className="w-4 h-4 text-primary" />
+          <div className="space-y-4">
+            
+            {/* BLOCO PRINCIPAL - PEDIDOS (Foco Total) */}
+            <div className="bg-gradient-to-br from-card via-card/95 to-card/90 rounded-2xl border border-primary/10 shadow-xl overflow-hidden">
+              {/* Header do bloco Pedidos */}
+              <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 border-b border-primary/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center shadow-lg shadow-primary/10">
+                      <ShoppingBag className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-foreground">Pedidos</h2>
+                      <p className="text-[10px] text-muted-foreground">Gerenciamento em tempo real</p>
+                    </div>
                   </div>
-                  <p className="text-sm font-bold text-foreground">Pedidos</p>
                   {(ordersPendingPayment.length + ordersPaidWaiting.length) > 0 && (
-                    <span className="ml-auto px-2 py-0.5 bg-red-500/20 text-red-400 text-xs font-bold rounded-full animate-pulse">
-                      {ordersPendingPayment.length + ordersPaidWaiting.length}
-                    </span>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 text-red-400 rounded-xl animate-pulse border border-red-500/20">
+                      <Bell className="w-3.5 h-3.5" />
+                      <span className="font-bold text-sm">{ordersPendingPayment.length + ordersPaidWaiting.length}</span>
+                      <span className="text-xs hidden sm:inline">novos</span>
+                    </div>
                   )}
                 </div>
+              </div>
 
-                {/* Campo de Busca Compacto */}
-                <div className="space-y-2 mb-3">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-                  <input
-                    type="text"
-                    placeholder="Buscar pedido..."
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        executeSearch()
-                      }
-                    }}
-                    className="w-full pl-8 pr-3 py-2 text-xs bg-background/50 border border-border/50 rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/30"
-                  />
+              {/* Busca e Filtros */}
+              <div className="p-4 space-y-3 border-b border-border/30">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                    <input
+                      type="text"
+                      placeholder="Buscar pedido por nome, telefone..."
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && executeSearch()}
+                      className="w-full pl-10 pr-4 py-2.5 text-sm bg-background/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
                   </div>
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={executeSearch}
-                      className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold bg-primary text-primary-foreground rounded-lg hover:brightness-110 transition-all"
-                    >
-                      Buscar
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSearchInput("")
-                        setSearchQuery("")
-                      }}
-                      className="px-2.5 py-1.5 text-[10px] font-medium bg-secondary/60 text-muted-foreground rounded-lg hover:bg-secondary transition-all"
-                    >
-                      Limpar
-                    </button>
-                  </div>
-                  {searchQuery && (
-                    <p className="text-[10px] text-center text-muted-foreground/70">
-                      {activeOrders.length > 0 
-                        ? `${activeOrders.length} encontrado(s)`
-                        : "Nenhum encontrado"
-                      }
-                    </p>
-                  )}
-
-                  {/* Filtro por Data Compacto */}
+                  <button
+                    onClick={executeSearch}
+                    className="px-4 py-2.5 bg-primary text-primary-foreground font-semibold text-sm rounded-xl hover:brightness-110 transition-all shadow-lg shadow-primary/20"
+                  >
+                    Buscar
+                  </button>
+                </div>
+                <div className="flex gap-2">
                   <select
                     value={dateFilter}
                     onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
-                    className="w-full px-2.5 py-1.5 text-xs bg-background/50 border border-border/50 rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="flex-1 px-3 py-2 text-sm bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                   >
                     <option value="all">Todos os periodos</option>
                     <option value="today">Hoje</option>
@@ -1812,59 +1770,166 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                     <option value="week">Esta semana</option>
                     <option value="month">Este mes</option>
                   </select>
+                  {searchQuery && (
+                    <button
+                      onClick={() => { setSearchInput(""); setSearchQuery(""); }}
+                      className="px-4 py-2 text-sm bg-secondary/60 text-muted-foreground rounded-xl hover:bg-secondary transition-all"
+                    >
+                      Limpar
+                    </button>
+                  )}
                 </div>
+                {searchQuery && (
+                  <p className="text-xs text-center text-muted-foreground">
+                    {activeOrders.length > 0 ? `${activeOrders.length} pedido(s) encontrado(s)` : "Nenhum pedido encontrado"}
+                  </p>
+                )}
+              </div>
 
-                {/* Status dos Pedidos - Compacto */}
-                <div className="space-y-1">
+              {/* Status dos Pedidos - Grid Mobile */}
+              <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
-                  { id: "orders-pending" as TabType, icon: ClockIcon, label: "Aguard. Pagamento", badge: ordersPendingPayment.length, color: "text-yellow-400", bgColor: "bg-yellow-500/10" },
-                  { id: "orders-paid" as TabType, icon: CheckCircle2, label: "Aguard. Preparo", badge: ordersPaidWaiting.length, color: "text-green-400", bgColor: "bg-green-500/10" },
-                  { id: "orders-preparing" as TabType, icon: ChefHat, label: "Em Preparacao", badge: ordersPreparing.length, color: "text-blue-400", bgColor: "bg-blue-500/10" },
-                  { id: "orders-delivering" as TabType, icon: Truck, label: "Saiu p/ Entrega", badge: ordersDelivering.length, color: "text-purple-400", bgColor: "bg-purple-500/10" },
-                  { id: "orders-completed" as TabType, icon: PackageCheck, label: "Finalizados", badge: ordersCompleted.length, color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
-                  { id: "orders-cancelled" as TabType, icon: Ban, label: "Cancelados", badge: ordersCancelled.length, color: "text-red-400", bgColor: "bg-red-500/10" },
-                  { id: "orders-abandoned" as TabType, icon: AlertCircle, label: "Abandonados", badge: ordersAbandoned.length, color: "text-orange-400", bgColor: "bg-orange-500/10" },
-                  { id: "orders-archived" as TabType, icon: FolderArchive, label: "Arquivados", badge: ordersArchived.length, color: "text-slate-400", bgColor: "bg-slate-500/10" },
+                  { id: "orders-pending" as TabType, icon: ClockIcon, label: "Aguard. Pagamento", badge: ordersPendingPayment.length, color: "text-yellow-400", bgColor: "bg-yellow-500/10", borderColor: "border-yellow-500/20" },
+                  { id: "orders-paid" as TabType, icon: CheckCircle2, label: "Aguard. Preparo", badge: ordersPaidWaiting.length, color: "text-green-400", bgColor: "bg-green-500/10", borderColor: "border-green-500/20" },
+                  { id: "orders-preparing" as TabType, icon: ChefHat, label: "Em Preparacao", badge: ordersPreparing.length, color: "text-blue-400", bgColor: "bg-blue-500/10", borderColor: "border-blue-500/20" },
+                  { id: "orders-delivering" as TabType, icon: Truck, label: "Saiu p/ Entrega", badge: ordersDelivering.length, color: "text-purple-400", bgColor: "bg-purple-500/10", borderColor: "border-purple-500/20" },
+                  { id: "orders-completed" as TabType, icon: PackageCheck, label: "Finalizados", badge: ordersCompleted.length, color: "text-emerald-400", bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/20" },
+                  { id: "orders-cancelled" as TabType, icon: Ban, label: "Cancelados", badge: ordersCancelled.length, color: "text-red-400", bgColor: "bg-red-500/10", borderColor: "border-red-500/20" },
+                  { id: "orders-abandoned" as TabType, icon: AlertCircle, label: "Abandonados", badge: ordersAbandoned.length, color: "text-orange-400", bgColor: "bg-orange-500/10", borderColor: "border-orange-500/20" },
+                  { id: "orders-archived" as TabType, icon: FolderArchive, label: "Arquivados", badge: ordersArchived.length, color: "text-slate-400", bgColor: "bg-slate-500/10", borderColor: "border-slate-500/20" },
                 ].map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg transition-all ${
+                    className={`relative flex flex-col items-center justify-center p-3 rounded-xl transition-all active:scale-95 ${
                       activeTab === tab.id
-                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                        : `${tab.bgColor} hover:brightness-110`
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+                        : `${tab.bgColor} border ${tab.borderColor} hover:brightness-110`
                     }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <tab.icon className={`w-3.5 h-3.5 ${activeTab === tab.id ? "" : tab.color}`} />
-                      <span className={`text-xs font-medium ${activeTab === tab.id ? "" : "text-foreground/80"}`}>{tab.label}</span>
-                    </div>
+                    <tab.icon className={`w-5 h-5 mb-1 ${activeTab === tab.id ? "" : tab.color}`} />
+                    <span className={`text-[10px] font-medium text-center leading-tight ${activeTab === tab.id ? "" : "text-foreground/80"}`}>{tab.label}</span>
                     {tab.badge > 0 && (
-                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${
-                        activeTab === tab.id 
-                          ? "bg-white/20 text-white" 
-                          : `${tab.bgColor} ${tab.color}`
+                      <span className={`absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center text-[10px] font-bold rounded-full ${
+                        activeTab === tab.id ? "bg-white text-primary" : `${tab.bgColor} ${tab.color} border ${tab.borderColor}`
                       }`}>
                         {tab.badge}
                       </span>
                     )}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* CONFIGURACOES RAPIDAS - Grid 2 colunas */}
+            <div className="bg-card/50 rounded-2xl p-4 border border-border/30">
+              <div className="flex items-center gap-2 mb-3">
+                <Zap className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold text-foreground">Configuracoes Rapidas</h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[
+                  { id: "store" as TabType, icon: Store, label: "Loja" },
+                  { id: "products" as TabType, icon: Package, label: "Produtos" },
+                  { id: "banner" as TabType, icon: ImageIcon, label: "Banner" },
+                  { id: "hours" as TabType, icon: Clock, label: "Horario" },
+                  { id: "delivery" as TabType, icon: Truck, label: "Entrega" },
+                  { id: "payment" as TabType, icon: CreditCard, label: "Pagamento" },
+                  { id: "whatsapp" as TabType, icon: MessageCircle, label: "WhatsApp" },
+                  { id: "coupons" as TabType, icon: Tag, label: "Cupons" },
+                  { id: "entregadores" as TabType, icon: Users2, label: "Entregadores" },
+                  { id: "reports" as TabType, icon: BarChart3, label: "Relatorios" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all active:scale-95 ${
+                      activeTab === tab.id
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                        : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                    }`}
+                  >
+                    <tab.icon className="w-5 h-5" />
+                    <span className="text-[10px] font-medium">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* RELATORIO DE FATURAMENTO - Metricas */}
+            <div className="bg-gradient-to-br from-card via-card/95 to-primary/5 rounded-2xl p-4 border border-primary/10 shadow-lg">
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold text-foreground">Relatorio de Faturamento</h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* Faturamento do Dia */}
+                <div className="bg-background/50 rounded-xl p-3 border border-border/30">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Faturamento Hoje</p>
+                  <p className="text-lg font-black text-green-400">
+                    R$ {ordersCompleted
+                      .filter(o => {
+                        const orderDate = new Date(o.createdAt)
+                        const today = new Date()
+                        return orderDate.toDateString() === today.toDateString()
+                      })
+                      .reduce((sum, o) => sum + (o.total || 0), 0)
+                      .toFixed(2)
+                      .replace('.', ',')}
+                  </p>
+                </div>
+                {/* Pedidos Finalizados Hoje */}
+                <div className="bg-background/50 rounded-xl p-3 border border-border/30">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Pedidos Hoje</p>
+                  <p className="text-lg font-black text-blue-400">
+                    {ordersCompleted.filter(o => {
+                      const orderDate = new Date(o.createdAt)
+                      const today = new Date()
+                      return orderDate.toDateString() === today.toDateString()
+                    }).length}
+                  </p>
+                </div>
+                {/* Ticket Medio */}
+                <div className="bg-background/50 rounded-xl p-3 border border-border/30">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Ticket Medio</p>
+                  <p className="text-lg font-black text-purple-400">
+                    R$ {(() => {
+                      const todayOrders = ordersCompleted.filter(o => {
+                        const orderDate = new Date(o.createdAt)
+                        const today = new Date()
+                        return orderDate.toDateString() === today.toDateString()
+                      })
+                      if (todayOrders.length === 0) return "0,00"
+                      const total = todayOrders.reduce((sum, o) => sum + (o.total || 0), 0)
+                      return (total / todayOrders.length).toFixed(2).replace('.', ',')
+                    })()}
+                  </p>
+                </div>
+                {/* Cancelados Hoje */}
+                <div className="bg-background/50 rounded-xl p-3 border border-border/30">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Cancelados</p>
+                  <p className="text-lg font-black text-red-400">
+                    {ordersCancelled.filter(o => {
+                      const orderDate = new Date(o.createdAt)
+                      const today = new Date()
+                      return orderDate.toDateString() === today.toDateString()
+                    }).length}
+                  </p>
                 </div>
               </div>
+            </div>
 
-              {/* Link Ver Loja */}
-              <Link
-                href="/"
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Ver Loja
-              </Link>
-            </nav>
+            {/* Link Ver Loja */}
+            <Link
+              href="/"
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm font-medium"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Ver Loja
+            </Link>
 
-            {/* Content Premium */}
-            <div className="bg-card/80 rounded-2xl p-4 sm:p-6 border border-border/50 min-h-[500px] shadow-xl shadow-black/5">
+            {/* CONTEUDO DA ABA SELECIONADA */}
+            <div className="bg-card/80 rounded-2xl p-4 sm:p-6 border border-border/50 shadow-xl">
               
               {/* Loja */}
               {activeTab === "store" && (
