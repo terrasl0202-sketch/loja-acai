@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import Image from "next/image"
-import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock, Star, LogOut, ChevronRight, Package, Heart, Zap, Snowflake, Award, Sparkles } from "lucide-react"
+import { Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock, Star, ChevronRight, Package, Heart, Zap } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
@@ -11,6 +10,7 @@ import type { PaymentStatus, DeliveryType, OrderSnapshot, PixData, CustomerOrder
 import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURATION } from "./(store)/constants"
 import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode } from "./(store)/utils"
 import { useCart } from "./(store)/hooks/useCart"
+import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader } from "./(store)/components"
 
 export default function Home() {
   // Config do site carregada da API
@@ -1500,354 +1500,65 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       </audio>
 
       {/* Header Premium */}
-      <header className="sticky top-0 z-50 glass border-b border-white/5 shadow-xl shadow-black/10">
-        <div className="max-w-lg mx-auto px-4 py-3.5">
-          <div className="flex items-center justify-between">
-            <div className="relative">
-              <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary to-purple-400 drop-shadow-sm">{STORE_NAME}</h1>
-              <p className="text-[10px] text-muted-foreground/70 font-medium tracking-widest uppercase">Paulo e Karina</p>
-              <div className="absolute -bottom-1 left-0 w-12 h-0.5 bg-gradient-to-r from-primary to-transparent rounded-full" />
-            </div>
-            <div className="flex items-center gap-2.5">
-              {/* Icone de Perfil/Conta */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className={`p-2.5 rounded-xl transition-all duration-300 ${
-                    customer 
-                      ? "bg-primary/15 text-primary hover:bg-primary/25 shadow-lg shadow-primary/20 ring-1 ring-primary/30" 
-                      : "bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground hover:shadow-lg hover:shadow-primary/10"
-                  }`}
-                >
-                  <User className="w-5 h-5" />
-                  {customer?.isVip && (
-                    <Star className="absolute -top-0.5 -right-0.5 w-3 h-3 text-yellow-500 fill-yellow-500" />
-                  )}
-                </button>
-                
-                {/* Menu dropdown */}
-                {showProfileMenu && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-40" 
-                      onClick={() => setShowProfileMenu(false)}
-                    />
-                    <div className="absolute right-0 mt-2 w-56 bg-card rounded-xl border border-border shadow-xl z-50 overflow-hidden">
-                      {customer ? (
-                        <>
-                          <div className="p-3 border-b border-border bg-secondary/30">
-                            <p className="font-medium text-foreground flex items-center gap-2">
-                              {customer.name}
-                              {customer.isVip && (
-                                <span className="text-xs bg-yellow-500/20 text-yellow-600 px-1.5 py-0.5 rounded">VIP</span>
-                              )}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{customer.phone}</p>
-                          </div>
-                          <div className="py-1">
-                            <button
-                              onClick={() => {
-                                setShowProfileMenu(false)
-                                setShowMyAccountModal(true)
-                              }}
-                              className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-secondary/50 flex items-center gap-3"
-                            >
-                              <User className="w-4 h-4" />
-                              Minha Conta
-                            </button>
-                            <button
-                              onClick={() => {
-                                setShowProfileMenu(false)
-                                setShowMyOrdersModal(true)
-                                loadCustomerOrders()
-                              }}
-                              className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-secondary/50 flex items-center gap-3"
-                            >
-                              <Package className="w-4 h-4" />
-                              Meus Pedidos
-                            </button>
-                            <button
-                              onClick={handleCustomerLogout}
-                              className="w-full px-4 py-2.5 text-left text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-3"
-                            >
-                              <LogOut className="w-4 h-4" />
-                              Sair
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="py-1">
-                          <button
-                            onClick={() => {
-                              setShowProfileMenu(false)
-                              setShowLoginModal(true)
-                            }}
-                            className="w-full px-4 py-3 text-left text-sm text-foreground hover:bg-secondary/50 flex items-center gap-3"
-                          >
-                            <User className="w-4 h-4" />
-                            Entrar / Criar Conta
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-              
-              {/* Carrinho */}
-              <button
-                onClick={() => setShowCart(!showCart)}
-                className="relative p-2 bg-gradient-to-br from-primary to-primary/80 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-primary/40 active:scale-95 shadow-md shadow-primary/30"
-              >
-                <ShoppingCart className="w-5 h-5 text-primary-foreground" />
-                {getTotalItems() > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-white text-primary text-[10px] font-black min-w-[20px] h-[20px] px-1 rounded-full flex items-center justify-center shadow-md ring-2 ring-primary/20 animate-[pulse_2s_ease-in-out_infinite]">
-                    {getTotalItems()}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <StoreHeader
+        storeName={STORE_NAME}
+        customer={customer}
+        showProfileMenu={showProfileMenu}
+        cartItemsCount={getTotalItems()}
+        onToggleProfileMenu={() => setShowProfileMenu(!showProfileMenu)}
+        onCloseProfileMenu={() => setShowProfileMenu(false)}
+        onToggleCart={() => setShowCart(!showCart)}
+        onOpenMyAccount={() => {
+          setShowProfileMenu(false)
+          setShowMyAccountModal(true)
+        }}
+        onOpenMyOrders={() => {
+          setShowProfileMenu(false)
+          setShowMyOrdersModal(true)
+          loadCustomerOrders()
+        }}
+        onLogout={handleCustomerLogout}
+        onOpenLogin={() => {
+          setShowProfileMenu(false)
+          setShowLoginModal(true)
+        }}
+      />
 
       {/* Hero - Cinematografico Premium */}
-      <section className="relative h-48 sm:h-56 overflow-hidden">
-        <Image
-          src="/acai-bowl.jpg"
-          alt="Acai delicioso"
-          fill
-          className="object-cover scale-110 animate-fade-in"
-          priority
-        />
-        {/* Multi-layer Premium Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/15 via-transparent to-primary/10" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-transparent" />
-        
-        {/* Decorative glow elements */}
-        <div className="absolute top-6 right-6 w-40 h-40 bg-primary/15 rounded-full blur-3xl animate-pulse-slow" />
-        <div className="absolute bottom-0 left-0 w-56 h-32 bg-primary/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl" />
-        
-        <div className="absolute bottom-6 left-4 right-4">
-          <h2 className="text-2xl sm:text-3xl font-black text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.9)] tracking-tight leading-tight">
-            Acai artesanal<br/>entregue geladinho
-          </h2>
-          <p className="text-white/50 text-xs mt-2 font-medium tracking-wide">Feito na hora com muito carinho</p>
-          
-          {/* Trust Badges Glass Premium */}
-          <div className="flex flex-wrap items-center gap-2 mt-4">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/95 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-              <Zap className="w-3 h-3 text-amber-400 drop-shadow-glow" />
-              Entrega rapida
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/95 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-              <Snowflake className="w-3 h-3 text-cyan-400 drop-shadow-glow" />
-              Geladinho
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/95 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-              <Award className="w-3 h-3 text-primary drop-shadow-glow" />
-              Premium
-            </span>
-          </div>
-        </div>
-      </section>
+      <HeroBanner />
 
       {/* Aviso Loja Fechada Premium */}
-      {!isStoreOpen && (
-        <div className="mx-4 mt-5 p-5 bg-gradient-to-br from-orange-500/10 via-red-500/5 to-purple-500/5 border border-orange-500/20 rounded-2xl backdrop-blur-sm shadow-xl shadow-red-500/5">
-          <div className="text-center space-y-3">
-            <div className="flex justify-center">
-              <div className="w-14 h-14 bg-gradient-to-br from-orange-500/20 to-red-500/10 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/10 ring-1 ring-orange-500/20">
-                <Clock className="w-7 h-7 text-orange-400" />
-              </div>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-orange-400">
-                Estamos fechados no momento
-              </h3>
-              <p className="text-sm text-muted-foreground/80 mt-1">
-                Voltaremos em breve
-              </p>
-            </div>
-            {siteConfig.storeHours.closedMessage && (
-              <p className="text-sm text-muted-foreground">
-                {siteConfig.storeHours.closedMessage}
-              </p>
-            )}
-            <div className="pt-3 border-t border-orange-500/10">
-              <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">Horario de funcionamento</p>
-              <p className="text-sm font-semibold text-foreground/90">
-                {siteConfig.storeHours.openTime || "18:00"} as {siteConfig.storeHours.closeTime || "23:30"}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {!isStoreOpen && <StoreClosedBanner siteConfig={siteConfig} />}
 
       {/* Products */}
-      <section className="mt-6 space-y-3 px-3">
-          <h3 className="text-lg font-black text-foreground flex items-center gap-2 mb-2">
-            <span className="w-1 h-5 bg-gradient-to-b from-primary to-primary/40 rounded-full"></span>
-            Cardapio
-            <Sparkles className="w-4 h-4 text-primary/50" />
-          </h3>
-          
-          {/* Produtos - Cards Premium */}
-          {products.map((product, index) => (
-            <div
-              key={product.id}
-              className="product-card p-4"
-            >
-              {/* Badge Premium - canto superior esquerdo */}
-              {index === 0 && (
-                <span className="absolute -top-0.5 left-3 premium-badge bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-amber-500/30 flex items-center gap-1 z-10">
-                  <Star className="w-2.5 h-2.5 fill-white" />
-                  Mais vendido
-                </span>
-              )}
-              {product.price < 20 && index !== 0 && (
-                <span className="absolute -top-0.5 left-3 premium-badge bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-emerald-500/30 z-10">
-                  Otimo preco
-                </span>
-              )}
-              
-              <div className="flex justify-between items-start gap-4 relative z-[1]">
-                <div className="flex-1 pr-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="font-bold text-foreground text-base">{product.name}</h4>
-                      <p className="text-[10px] text-muted-foreground/60 font-medium mt-0.5">Serve 1 pessoa</p>
-                    </div>
-                    <button
-                      onClick={() => toggleFavorite(product.id)}
-                      className={`p-1.5 rounded-xl transition-all duration-300 ${
-                        customer?.favorites.includes(product.id)
-                          ? "text-red-500 bg-red-500/15"
-                          : "text-muted-foreground/50 hover:text-red-400 hover:bg-red-500/10"
-                      }`}
-                      aria-label={customer?.favorites.includes(product.id) ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                    >
-                      <Heart 
-                        className={`w-4 h-4 transition-all duration-300 ${customer?.favorites.includes(product.id) ? "fill-red-500 scale-110" : "hover:scale-110"}`} 
-                      />
-                    </button>
-                  </div>
-                  <p className="text-sm text-muted-foreground/80 mt-2 leading-relaxed">
-                    {product.description}
-                  </p>
-                  <p className="text-xl font-black text-primary mt-3">
-                    {formatCurrency(product.price)}
-                  </p>
-                </div>
-                
-                <div className="flex items-center gap-1.5 bg-secondary/40 backdrop-blur-sm rounded-2xl p-1.5">
-                  <button
-                    onClick={() => updateQuantity(product.id, -1)}
-                    className="qty-btn w-10 h-10 bg-card/90 text-foreground hover:bg-primary/15 active:bg-primary active:text-primary-foreground"
-                    aria-label={`Diminuir quantidade de ${product.name}`}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <span className="w-9 text-center font-black text-foreground tabular-nums text-lg">
-                    {quantities[product.id] || 0}
-                  </span>
-                  <button
-                    onClick={() => updateQuantity(product.id, 1)}
-                    className="qty-btn w-10 h-10 bg-primary text-primary-foreground hover:brightness-110 hover:scale-105 shadow-md shadow-primary/20"
-                    aria-label={`Aumentar quantidade de ${product.name}`}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </section>
+      <ProductList
+        products={products}
+        quantities={quantities}
+        onUpdateQuantity={updateQuantity}
+        customerFavorites={customer?.favorites || []}
+        onToggleFavorite={toggleFavorite}
+      />
 
         {/* Cart Summary */}
-        {getTotalItems() > 0 && (
-          <section id="checkout-section" className="mt-8 bg-card rounded-2xl p-4 border border-primary/30 shadow-lg shadow-primary/10">
-            <div className="flex items-center gap-2 mb-4">
-              <ShoppingCart className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-semibold text-foreground">Seu Pedido</h3>
-            </div>
-            
-            <div className="space-y-2">
-              {products.map((product) => {
-                const qty = quantities[product.id] || 0
-                if (qty === 0) return null
-                return (
-                  <div key={product.id} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {qty}x {product.name}
-                    </span>
-                    <span className="text-foreground font-medium">
-                      {formatCurrency(product.price * qty)}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-            
-            <div className="border-t border-border mt-4 pt-4 flex justify-between items-center">
-              <span className="text-foreground font-semibold">Total</span>
-              <span className="text-xl font-bold text-primary">
-                {formatCurrency(getTotal())}
-              </span>
-            </div>
-          </section>
-        )}
+        <CartSummary 
+          products={products} 
+          quantities={quantities} 
+          total={getTotal()} 
+        />
 
         {/* Spacer for fixed button - altura suficiente para nao sobrepor */}
         <div className="h-24" />
 
         {/* Footer */}
-        <footer className="text-center py-6 border-t border-border mt-8">
-          <p className="text-xs text-muted-foreground tracking-wider">
-            DEVELOPED BY <span className="font-semibold text-foreground/80">AILTON</span>
-          </p>
-        </footer>
+        <StoreFooter />
 
       {/* Fixed Bottom Button */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-white/5 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(0,0,0,0.2)]">
-        <div className="max-w-lg mx-auto">
-            {!isStoreOpen ? (
-            <div className="w-full py-3 bg-gradient-to-r from-red-500/10 to-red-500/5 text-red-400 font-bold text-base rounded-xl flex items-center justify-center gap-2 border border-red-500/20">
-              <X className="w-4 h-4" />
-              Loja Fechada
-            </div>
-          ) : (
-            <button
-              onClick={openCheckout}
-              disabled={getTotalItems() === 0}
-              className="premium-btn w-full py-3.5 bg-primary text-primary-foreground font-bold text-sm rounded-2xl flex items-center justify-between px-4 transition-all duration-300 hover:brightness-110 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
-            >
-              {getTotalItems() > 0 ? (
-                <>
-                  <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-xl text-xs font-bold tabular-nums">
-                    {getTotalItems()} {getTotalItems() === 1 ? "item" : "itens"}
-                  </span>
-                  <span className="font-bold tracking-wide text-base">Finalizar Pedido</span>
-                  <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-xl text-xs font-bold tabular-nums">
-                    {formatCurrency(getTotal())}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span></span>
-                  <span className="flex items-center gap-2 font-bold">
-                    <ShoppingCart className="w-4 h-4" />
-                    Finalizar Pedido
-                  </span>
-                  <span></span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
+      <FloatingCartButton
+        isStoreOpen={isStoreOpen}
+        totalItems={getTotalItems()}
+        total={getTotal()}
+        onOpenCheckout={openCheckout}
+      />
 
       {/* Checkout Modal */}
       {showCheckout && (
