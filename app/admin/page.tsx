@@ -1518,18 +1518,22 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
     })
   }
 
-  // Tela de Login
+  // Tela de Login Premium
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-card rounded-2xl p-8 shadow-xl border border-border">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-8 h-8 text-primary" />
+        {/* Decorative elements */}
+        <div className="fixed top-20 left-10 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
+        <div className="fixed bottom-20 right-10 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
+        
+        <div className="w-full max-w-sm relative">
+          <div className="bg-card/80 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-primary/10">
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 bg-gradient-to-br from-primary/30 to-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/20 ring-1 ring-primary/20">
+                <Lock className="w-7 h-7 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold text-foreground">Area Admin</h1>
-              <p className="text-muted-foreground mt-2">Digite a senha para acessar</p>
+              <h1 className="text-xl font-bold text-foreground">Area Admin</h1>
+              <p className="text-sm text-muted-foreground/70 mt-1">Digite a senha para acessar</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -1539,25 +1543,25 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Senha"
-                  className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all"
                   autoFocus
                 />
               </div>
 
               {authError && (
-                <p className="text-destructive text-sm text-center">{authError}</p>
+                <p className="text-red-400 text-sm text-center bg-red-500/10 py-2 rounded-lg">{authError}</p>
               )}
 
               <button
                 type="submit"
                 disabled={loading || !password}
-                className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 disabled:opacity-50"
+                className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 shadow-lg shadow-primary/20"
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    <Lock className="w-5 h-5" />
+                    <Lock className="w-4 h-4" />
                     Entrar
                   </>
                 )}
@@ -1566,7 +1570,7 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
 
             <Link 
               href="/" 
-              className="flex items-center justify-center gap-2 mt-6 text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center justify-center gap-2 mt-5 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               Voltar para a loja
@@ -1582,25 +1586,26 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-card border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
-              <Lock className="w-5 h-5 text-primary" />
+      {/* Header Premium */}
+      <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-xl border-b border-primary/10 shadow-xl shadow-black/10">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-primary/30 to-primary/10 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 ring-1 ring-primary/20 flex-shrink-0">
+                <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="font-bold text-sm sm:text-base text-transparent bg-clip-text bg-gradient-to-r from-foreground to-foreground/80">Painel Admin</h1>
+                <p className="text-[10px] sm:text-xs text-muted-foreground/70 truncate">{config.storeName || "P.K Gostosuras"}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-bold text-foreground">Painel Admin</h1>
-              <p className="text-xs text-muted-foreground">{config.storeName || "P.K Gostosuras"}</p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             {/* Badge de pedidos novos */}
             {newOrdersCount > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/20 text-red-400 rounded-xl animate-pulse">
-                <Bell className="w-4 h-4" />
-                <span className="font-bold">{newOrdersCount} novo{newOrdersCount > 1 ? "s" : ""}</span>
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 bg-red-500/15 text-red-400 rounded-xl animate-pulse border border-red-500/20">
+                <Bell className="w-3.5 h-3.5" />
+                <span className="font-bold text-xs">{newOrdersCount}</span>
               </div>
             )}
             
@@ -1608,36 +1613,36 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
             {newOrdersCount > 0 && (
               <button
                 onClick={markOrdersAsSeen}
-                className="px-3 py-1.5 text-sm bg-blue-500/20 text-blue-400 rounded-xl hover:bg-blue-500/30 transition-all"
+                className="hidden sm:flex px-2.5 py-1.5 text-xs bg-blue-500/15 text-blue-400 rounded-xl hover:bg-blue-500/25 transition-all border border-blue-500/20"
               >
-                Marcar visto
+                Visto
               </button>
             )}
             
             {/* Botao Atualizar */}
             <button
               onClick={() => loadOrdersWithNotification()}
-              className="p-2 rounded-xl bg-secondary text-foreground hover:bg-secondary/80 transition-all"
+              className="p-2 rounded-xl bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground transition-all hover:shadow-lg"
               title="Atualizar pedidos"
             >
-              <RefreshCw className="w-5 h-5" />
+              <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             
-            {/* Botao ATIVAR SOM - Aparece destacado se nao ativado */}
+            {/* Botao ATIVAR SOM */}
             {!soundActivated ? (
               <button
                 onClick={activateSound}
-                className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-black font-bold rounded-xl hover:bg-yellow-400 transition-all animate-pulse"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-xs rounded-xl hover:brightness-110 transition-all animate-pulse shadow-lg shadow-amber-500/20"
               >
-                <Volume2 className="w-5 h-5" />
-                <span className="hidden sm:inline">Ativar Som</span>
+                <Volume2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Som</span>
               </button>
             ) : (
               <>
                 {/* Botao Testar Som */}
                 <button
                   onClick={playTestSound}
-                  className="px-3 py-1.5 text-sm bg-purple-500/20 text-purple-400 rounded-xl hover:bg-purple-500/30 transition-all"
+                  className="hidden sm:flex px-2.5 py-1.5 text-xs bg-purple-500/15 text-purple-400 rounded-xl hover:bg-purple-500/25 transition-all border border-purple-500/20"
                   title="Testar som"
                 >
                   Testar
@@ -1648,25 +1653,12 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                   onClick={() => setSoundEnabled(!soundEnabled)}
                   className={`p-2 rounded-xl transition-all ${
                     soundEnabled
-                      ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                      ? "bg-green-500/15 text-green-400 hover:bg-green-500/25 ring-1 ring-green-500/20"
+                      : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
                   }`}
-                  title={soundEnabled ? "Som ATIVADO - clique para desativar" : "Som desativado - clique para ativar"}
+                  title={soundEnabled ? "Som ATIVADO" : "Som desativado"}
                 >
-                  {soundEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
-                </button>
-                
-                {/* Toggle Notificacao Forte */}
-                <button
-                  onClick={() => setStrongNotification(!strongNotification)}
-                  className={`p-2 rounded-xl transition-all ${
-                    strongNotification
-                      ? "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30"
-                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                  }`}
-                  title={strongNotification ? "Modo Forte ATIVADO (som longo)" : "Modo Forte desativado"}
-                >
-                  <Volume2 className="w-5 h-5" />
+                  {soundEnabled ? <Bell className="w-4 h-4 sm:w-5 sm:h-5" /> : <BellOff className="w-4 h-4 sm:w-5 sm:h-5" />}
                 </button>
               </>
             )}
@@ -1674,10 +1666,10 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
             <button
               onClick={handleSave}
               disabled={saving}
-              className={`flex items-center gap-2 px-4 py-2 font-medium rounded-xl transition-all disabled:opacity-50 ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 font-semibold text-xs sm:text-sm rounded-xl transition-all disabled:opacity-50 shadow-lg ${
                 saveSuccess
-                  ? "bg-green-600 text-white"
-                  : "bg-primary text-primary-foreground hover:brightness-110"
+                  ? "bg-green-500 text-white shadow-green-500/20"
+                  : "bg-primary text-primary-foreground hover:brightness-110 shadow-primary/20"
               }`}
             >
               {saving ? (
@@ -1687,36 +1679,43 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              {saving ? "Salvando..." : saveSuccess ? "MUDANCAS SALVAS COM SUCESSO" : "Salvar"}
+              <span className="hidden sm:inline">{saving ? "..." : saveSuccess ? "Salvo!" : "Salvar"}</span>
             </button>
 
             <button
               onClick={handleLogout}
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="p-2 rounded-xl text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all"
               title="Sair"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
+          </div>
           </div>
         </div>
       </header>
 
       {/* Success Banner */}
       {saveSuccess && (
-        <div className="bg-green-600 text-white py-3 text-center font-medium animate-in slide-in-from-top">
-          MUDANCAS SALVAS COM SUCESSO
+        <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-2.5 text-center text-sm font-medium animate-in slide-in-from-top shadow-lg">
+          Alteracoes salvas com sucesso!
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+            <p className="text-sm text-muted-foreground">Carregando...</p>
           </div>
         ) : (
-          <div className="grid lg:grid-cols-[280px_1fr] gap-6">
-            {/* Sidebar - Tabs */}
-            <nav className="space-y-2">
+          <div className="grid lg:grid-cols-[260px_1fr] gap-4">
+            {/* Sidebar Premium - Menu Compacto */}
+            <nav className="space-y-1.5">
+              {/* Menu Principal */}
+              <div className="bg-card/50 rounded-2xl p-2 border border-border/50 space-y-1">
+                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider px-3 py-1 font-semibold">Configuracoes</p>
               {[
                 { id: "store" as TabType, icon: Store, label: "Loja" },
                 { id: "products" as TabType, icon: Package, label: "Produtos" },
@@ -1732,28 +1731,39 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all text-sm ${
                     activeTab === tab.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-card hover:bg-secondary text-foreground"
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                      : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <tab.icon className="w-5 h-5" />
-                    {tab.label}
-                  </div>
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
                 </button>
               ))}
+              </div>
 
-              {/* Secao de Pedidos */}
-              <div className="pt-4 mt-4 border-t border-border">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide px-4 mb-2">Pedidos</p>
+              {/* Secao de Pedidos - FOCO PRINCIPAL */}
+              <div className="bg-gradient-to-br from-primary/5 via-card/80 to-card/50 rounded-2xl p-3 border border-primary/10 shadow-lg shadow-primary/5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 bg-primary/15 rounded-lg flex items-center justify-center">
+                    <ShoppingBag className="w-4 h-4 text-primary" />
+                  </div>
+                  <p className="text-sm font-bold text-foreground">Pedidos</p>
+                  {(ordersPendingPayment.length + ordersPaidWaiting.length) > 0 && (
+                    <span className="ml-auto px-2 py-0.5 bg-red-500/20 text-red-400 text-xs font-bold rounded-full animate-pulse">
+                      {ordersPendingPayment.length + ordersPaidWaiting.length}
+                    </span>
+                  )}
+                </div>
 
-                {/* Campo de Busca de Pedidos */}
-                <div className="px-4 mb-3 space-y-2">
+                {/* Campo de Busca Compacto */}
+                <div className="space-y-2 mb-3">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
                   <input
                     type="text"
-                    placeholder="Pesquisar pedido..."
+                    placeholder="Buscar pedido..."
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -1761,14 +1771,14 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         executeSearch()
                       }
                     }}
-                    className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="w-full pl-8 pr-3 py-2 text-xs bg-background/50 border border-border/50 rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/30"
                   />
-                  <div className="flex gap-2">
+                  </div>
+                  <div className="flex gap-1.5">
                     <button
                       onClick={executeSearch}
-                      className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all"
+                      className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold bg-primary text-primary-foreground rounded-lg hover:brightness-110 transition-all"
                     >
-                      <Search className="w-3 h-3" />
                       Buscar
                     </button>
                     <button
@@ -1776,107 +1786,114 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                         setSearchInput("")
                         setSearchQuery("")
                       }}
-                      className="px-3 py-1.5 text-xs font-medium bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-all"
+                      className="px-2.5 py-1.5 text-[10px] font-medium bg-secondary/60 text-muted-foreground rounded-lg hover:bg-secondary transition-all"
                     >
                       Limpar
                     </button>
                   </div>
                   {searchQuery && (
-                    <p className="text-xs text-center text-muted-foreground">
+                    <p className="text-[10px] text-center text-muted-foreground/70">
                       {activeOrders.length > 0 
-                        ? `${activeOrders.length} pedido(s) encontrado(s)`
-                        : "Nenhum pedido encontrado"
+                        ? `${activeOrders.length} encontrado(s)`
+                        : "Nenhum encontrado"
                       }
                     </p>
                   )}
 
-                  {/* Filtro por Data */}
-                  <div className="pt-2 border-t border-border/50">
-                    <p className="text-xs text-muted-foreground mb-1">Filtrar por periodo:</p>
-                    <select
-                      value={dateFilter}
-                      onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
-                      className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    >
-                      <option value="all">Todos</option>
-                      <option value="today">Hoje</option>
-                      <option value="yesterday">Ontem</option>
-                      <option value="week">Esta semana</option>
-                      <option value="month">Este mes</option>
-                    </select>
-                  </div>
+                  {/* Filtro por Data Compacto */}
+                  <select
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
+                    className="w-full px-2.5 py-1.5 text-xs bg-background/50 border border-border/50 rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    <option value="all">Todos os periodos</option>
+                    <option value="today">Hoje</option>
+                    <option value="yesterday">Ontem</option>
+                    <option value="week">Esta semana</option>
+                    <option value="month">Este mes</option>
+                  </select>
                 </div>
 
+                {/* Status dos Pedidos - Compacto */}
+                <div className="space-y-1">
                 {[
-                  { id: "orders-pending" as TabType, icon: ClockIcon, label: "Aguardando Pagamento", badge: ordersPendingPayment.length, color: "text-yellow-400" },
-                  { id: "orders-paid" as TabType, icon: CheckCircle2, label: "Aguardando Preparo", badge: ordersPaidWaiting.length, color: "text-green-400" },
-                  { id: "orders-preparing" as TabType, icon: ChefHat, label: "Em Preparacao", badge: ordersPreparing.length, color: "text-blue-400" },
-                  { id: "orders-delivering" as TabType, icon: Truck, label: "Saiu p/ Entrega", badge: ordersDelivering.length, color: "text-purple-400" },
-  { id: "orders-completed" as TabType, icon: PackageCheck, label: "Finalizados", badge: ordersCompleted.length, color: "text-emerald-400" },
-  { id: "orders-cancelled" as TabType, icon: Ban, label: "Cancelados", badge: ordersCancelled.length, color: "text-red-400" },
-  { id: "orders-abandoned" as TabType, icon: AlertCircle, label: "Abandonados", badge: ordersAbandoned.length, color: "text-orange-400" },
-  { id: "orders-archived" as TabType, icon: FolderArchive, label: "Arquivados", badge: ordersArchived.length, color: "text-slate-400" },
+                  { id: "orders-pending" as TabType, icon: ClockIcon, label: "Aguard. Pagamento", badge: ordersPendingPayment.length, color: "text-yellow-400", bgColor: "bg-yellow-500/10" },
+                  { id: "orders-paid" as TabType, icon: CheckCircle2, label: "Aguard. Preparo", badge: ordersPaidWaiting.length, color: "text-green-400", bgColor: "bg-green-500/10" },
+                  { id: "orders-preparing" as TabType, icon: ChefHat, label: "Em Preparacao", badge: ordersPreparing.length, color: "text-blue-400", bgColor: "bg-blue-500/10" },
+                  { id: "orders-delivering" as TabType, icon: Truck, label: "Saiu p/ Entrega", badge: ordersDelivering.length, color: "text-purple-400", bgColor: "bg-purple-500/10" },
+                  { id: "orders-completed" as TabType, icon: PackageCheck, label: "Finalizados", badge: ordersCompleted.length, color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
+                  { id: "orders-cancelled" as TabType, icon: Ban, label: "Cancelados", badge: ordersCancelled.length, color: "text-red-400", bgColor: "bg-red-500/10" },
+                  { id: "orders-abandoned" as TabType, icon: AlertCircle, label: "Abandonados", badge: ordersAbandoned.length, color: "text-orange-400", bgColor: "bg-orange-500/10" },
+                  { id: "orders-archived" as TabType, icon: FolderArchive, label: "Arquivados", badge: ordersArchived.length, color: "text-slate-400", bgColor: "bg-slate-500/10" },
                 ].map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all mb-1 ${
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg transition-all ${
                       activeTab === tab.id
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-card hover:bg-secondary text-foreground"
+                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                        : `${tab.bgColor} hover:brightness-110`
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? "" : tab.color}`} />
-                      <span className="text-sm">{tab.label}</span>
+                    <div className="flex items-center gap-2">
+                      <tab.icon className={`w-3.5 h-3.5 ${activeTab === tab.id ? "" : tab.color}`} />
+                      <span className={`text-xs font-medium ${activeTab === tab.id ? "" : "text-foreground/80"}`}>{tab.label}</span>
                     </div>
                     {tab.badge > 0 && (
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${
                         activeTab === tab.id 
-                          ? "bg-primary-foreground/20 text-primary-foreground" 
-                          : "bg-primary/20 text-primary"
+                          ? "bg-white/20 text-white" 
+                          : `${tab.bgColor} ${tab.color}`
                       }`}>
                         {tab.badge}
                       </span>
                     )}
                   </button>
                 ))}
+                </div>
               </div>
 
-              <div className="pt-4 border-t border-border">
-                <Link
-                  href="/"
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-card hover:bg-secondary text-foreground transition-all"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                  Ver Loja
-                </Link>
-              </div>
+              {/* Link Ver Loja */}
+              <Link
+                href="/"
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Ver Loja
+              </Link>
             </nav>
 
-            {/* Content */}
-            <div className="bg-card rounded-2xl p-6 border border-border min-h-[600px]">
+            {/* Content Premium */}
+            <div className="bg-card/80 rounded-2xl p-4 sm:p-6 border border-border/50 min-h-[500px] shadow-xl shadow-black/5">
               
               {/* Loja */}
               {activeTab === "store" && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-bold text-foreground">Configuracoes da Loja</h2>
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                      <Store className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-foreground">Configuracoes da Loja</h2>
+                      <p className="text-xs text-muted-foreground">Gerencie as informacoes principais</p>
+                    </div>
+                  </div>
 
                   <div className="space-y-4">
                     <div>
-                      <label className="text-sm text-muted-foreground">Nome da Loja</label>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nome da Loja</label>
                       <input
                         type="text"
                         value={config.storeName || ""}
                         onChange={(e) => setConfig(prev => ({ ...prev, storeName: e.target.value }))}
-                        className="w-full mt-1 px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all"
                       />
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl">
+                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-secondary/30 to-secondary/10 rounded-xl border border-border/30">
                       <div>
-                        <p className="font-medium text-foreground">Status da Loja</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="font-semibold text-foreground text-sm">Status da Loja</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           {config.storeHours?.isOpen ? "Loja esta ABERTA" : "Loja esta FECHADA"}
                         </p>
                       </div>
@@ -1885,35 +1902,35 @@ Status: ${getPaymentStatusLabel(order.paymentStatus)}`
                           ...prev,
                           storeHours: { ...prev.storeHours, isOpen: !prev.storeHours?.isOpen }
                         }))}
-                        className={`w-14 h-8 rounded-full transition-all ${
-                          config.storeHours?.isOpen ? "bg-green-600" : "bg-destructive"
+                        className={`w-14 h-7 rounded-full transition-all shadow-inner ${
+                          config.storeHours?.isOpen ? "bg-green-500 shadow-green-600/30" : "bg-red-500/80 shadow-red-600/30"
                         }`}
                       >
                         <div
-                          className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${
-                            config.storeHours?.isOpen ? "translate-x-7" : "translate-x-1"
+                          className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
+                            config.storeHours?.isOpen ? "translate-x-8" : "translate-x-1"
                           }`}
                         />
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl">
+                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-secondary/30 to-secondary/10 rounded-xl border border-border/30">
                       <div>
-                        <p className="font-medium text-foreground">Controle Manual</p>
-                        <p className="text-sm text-muted-foreground">Ignorar horario automatico</p>
+                        <p className="font-semibold text-foreground text-sm">Controle Manual</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Ignorar horario automatico</p>
                       </div>
                       <button
                         onClick={() => setConfig(prev => ({
                           ...prev,
                           storeHours: { ...prev.storeHours, manualControl: !prev.storeHours?.manualControl }
                         }))}
-                        className={`w-14 h-8 rounded-full transition-all ${
-                          config.storeHours?.manualControl ? "bg-primary" : "bg-secondary"
+                        className={`w-14 h-7 rounded-full transition-all shadow-inner ${
+                          config.storeHours?.manualControl ? "bg-primary shadow-primary/30" : "bg-secondary shadow-black/20"
                         }`}
                       >
                         <div
-                          className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${
-                            config.storeHours?.manualControl ? "translate-x-7" : "translate-x-1"
+                          className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
+                            config.storeHours?.manualControl ? "translate-x-8" : "translate-x-1"
                           }`}
                         />
                       </button>
