@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock, Star, ChevronRight, Package, Heart, Zap } from "lucide-react"
+import { Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock, ChevronRight, Package, Zap } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
@@ -11,6 +11,7 @@ import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURAT
 import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode } from "./(store)/utils"
 import { useCart } from "./(store)/hooks/useCart"
 import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader } from "./(store)/components"
+import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./(store)/components/modals"
 
 export default function Home() {
   // Config do site carregada da API
@@ -2734,460 +2735,90 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       )}
 
       {/* Modal de confirmacao para fechar com PIX ativo */}
+      {/* Modal de aviso PIX ativo */}
       {showCloseConfirmModal && (
-        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
-            <div className="text-center">
-              <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-foreground mb-2">PIX Ativo</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Existe um PIX ativo para este pedido. Para alterar algo, voce precisa iniciar um novo pedido.
-              </p>
-              
-              <div className="space-y-3">
-                <button
-                  onClick={() => setShowCloseConfirmModal(false)}
-                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
-                >
-                  Continuar neste pedido
-                </button>
-                <button
-                  onClick={() => {
-                    setShowCloseConfirmModal(false)
-                    setShowNewOrderModal(true)
-                  }}
-                  className="w-full py-3 bg-secondary text-secondary-foreground rounded-xl font-medium hover:bg-secondary/80 transition-colors"
-                >
-                  Fazer novo pedido
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ConfirmPixActiveModal
+          onClose={() => setShowCloseConfirmModal(false)}
+          onNewOrder={() => {
+            setShowCloseConfirmModal(false)
+            setShowNewOrderModal(true)
+          }}
+        />
       )}
 
       {/* Modal de opcoes para novo pedido */}
       {showNewOrderModal && (
-        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
-            <div className="text-center">
-              <ShoppingCart className="w-12 h-12 text-primary mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-foreground mb-2">Novo Pedido</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Como voce deseja comecar seu novo pedido?
-              </p>
-              
-              <div className="space-y-3">
-                <button
-                  onClick={startNewOrderFromScratch}
-                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
-                >
-                  Novo pedido do zero
-                </button>
-                <button
-                  onClick={startNewOrderKeepingData}
-                  className="w-full py-3 bg-secondary text-secondary-foreground rounded-xl font-medium hover:bg-secondary/80 transition-colors"
-                >
-                  Manter dados de entrega
-                </button>
-                <button
-                  onClick={() => setShowNewOrderModal(false)}
-                  className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <NewOrderOptionsModal
+          onStartFromScratch={startNewOrderFromScratch}
+          onKeepData={startNewOrderKeepingData}
+          onCancel={() => setShowNewOrderModal(false)}
+        />
       )}
 
       {/* Modal de Login */}
       {showLoginModal && (
-        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-foreground">
-                {loginStep === "phone" && "Entrar ou Criar Conta"}
-                {loginStep === "pin" && "Digite seu PIN"}
-                {loginStep === "register" && "Criar Conta"}
-              </h3>
-              <button
-                onClick={() => {
-                  setShowLoginModal(false)
-                  resetLoginForm()
-                }}
-                className="p-1 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            {loginStep === "phone" && (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm text-muted-foreground mb-1 block">Telefone</label>
-                  <input
-                    type="tel"
-                    value={loginPhone}
-                    onChange={(e) => setLoginPhone(e.target.value)}
-                    placeholder="(11) 99999-9999"
-                    className="w-full px-4 py-3 bg-secondary rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                {loginError && (
-                  <p className="text-sm text-red-500">{loginError}</p>
-                )}
-                <button
-                  onClick={handleLoginNext}
-                  disabled={loginLoading}
-                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {loginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Continuar
-                </button>
-              </div>
-            )}
-            
-            {loginStep === "pin" && (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm text-muted-foreground mb-1 block">PIN de 4 digitos</label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={loginPin}
-                    onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, ""))}
-                    placeholder="****"
-                    className="w-full px-4 py-3 bg-secondary rounded-xl text-foreground text-center text-2xl tracking-widest placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                {loginError && (
-                  <p className="text-sm text-red-500">{loginError}</p>
-                )}
-                <button
-                  onClick={handleLogin}
-                  disabled={loginLoading || loginPin.length !== 4}
-                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {loginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Entrar
-                </button>
-                <button
-                  onClick={() => {
-                    setLoginStep("phone")
-                    setLoginPin("")
-                    setLoginError("")
-                  }}
-                  className="w-full py-2 text-sm text-muted-foreground hover:text-foreground"
-                >
-                  Voltar
-                </button>
-              </div>
-            )}
-            
-            {loginStep === "register" && (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Telefone nao encontrado. Crie sua conta:
-                </p>
-                <div>
-                  <label className="text-sm text-muted-foreground mb-1 block">Seu nome</label>
-                  <input
-                    type="text"
-                    value={loginName}
-                    onChange={(e) => setLoginName(e.target.value)}
-                    placeholder="Digite seu nome"
-                    className="w-full px-4 py-3 bg-secondary rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground mb-1 block">Crie um PIN de 4 digitos</label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={loginPin}
-                    onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, ""))}
-                    placeholder="****"
-                    className="w-full px-4 py-3 bg-secondary rounded-xl text-foreground text-center text-2xl tracking-widest placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Use este PIN para acessar sua conta</p>
-                </div>
-                {loginError && (
-                  <p className="text-sm text-red-500">{loginError}</p>
-                )}
-                <button
-                  onClick={handleRegister}
-                  disabled={loginLoading || loginPin.length !== 4 || !loginName.trim()}
-                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {loginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Criar Conta
-                </button>
-                <button
-                  onClick={() => {
-                    setLoginStep("phone")
-                    setLoginName("")
-                    setLoginPin("")
-                    setLoginError("")
-                  }}
-                  className="w-full py-2 text-sm text-muted-foreground hover:text-foreground"
-                >
-                  Voltar
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <CustomerLoginModal
+          loginStep={loginStep}
+          loginPhone={loginPhone}
+          loginPin={loginPin}
+          loginName={loginName}
+          loginError={loginError}
+          loginLoading={loginLoading}
+          onPhoneChange={setLoginPhone}
+          onPinChange={setLoginPin}
+          onNameChange={setLoginName}
+          onLoginNext={handleLoginNext}
+          onLogin={handleLogin}
+          onRegister={handleRegister}
+          onBack={() => {
+            setLoginStep("phone")
+            setLoginPin("")
+            setLoginName("")
+            setLoginError("")
+          }}
+          onClose={() => {
+            setShowLoginModal(false)
+            resetLoginForm()
+          }}
+        />
       )}
 
       {/* Modal Minha Conta */}
       {showMyAccountModal && customer && (
-        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200 max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <h3 className="text-lg font-bold text-foreground">Minha Conta</h3>
-              <button
-                onClick={() => setShowMyAccountModal(false)}
-                className="p-1 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Info do cliente */}
-              <div className="bg-secondary/30 rounded-xl p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                    <User className="w-6 h-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground flex items-center gap-2">
-                      {customer.name}
-                      {customer.isVip && (
-                        <span className="text-xs bg-yellow-500/20 text-yellow-600 px-1.5 py-0.5 rounded flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-yellow-500" /> VIP
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{customer.phone}</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Estatisticas */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-secondary/30 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-bold text-primary">{customer.totalOrders}</p>
-                  <p className="text-xs text-muted-foreground">Pedidos</p>
-                </div>
-                <div className="bg-secondary/30 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-bold text-green-500">
-                    R$ {customer.totalSpent.toFixed(2).replace(".", ",")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Total gasto</p>
-                </div>
-              </div>
-              
-              {/* Favoritos */}
-              <div>
-                <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
-                  <Heart className="w-4 h-4 text-red-500" />
-                  Favoritos ({customer.favorites.length})
-                </h4>
-                {customer.favorites.length > 0 ? (
-                  <div className="space-y-2">
-                    {customer.favorites.map(favId => {
-                      const product = products.find(p => p.id === favId)
-                      return product ? (
-                        <div key={favId} className="flex items-center justify-between bg-secondary/30 rounded-lg p-2">
-                          <span className="text-sm text-foreground">{product.name}</span>
-                          <span className="text-sm text-primary font-medium">
-                            R$ {product.price.toFixed(2).replace(".", ",")}
-                          </span>
-                        </div>
-                      ) : null
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Nenhum favorito ainda</p>
-                )}
-              </div>
-              
-              {/* Endereco salvo */}
-              {customer.savedAddress && (
-                <div>
-                  <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-primary" />
-                    Endereco salvo
-                  </h4>
-                  <div className="bg-secondary/30 rounded-xl p-3">
-                    <p className="text-sm text-foreground">
-                      {customer.savedAddress.endereco}, {customer.savedAddress.numero}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {customer.savedAddress.bairro}
-                      {customer.savedAddress.referencia && ` - ${customer.savedAddress.referencia}`}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <MyAccountModal
+          customer={customer}
+          products={products}
+          onClose={() => setShowMyAccountModal(false)}
+        />
       )}
 
       {/* Modal Meus Pedidos */}
       {showMyOrdersModal && customer && (
-        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200 max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <h3 className="text-lg font-bold text-foreground">Meus Pedidos</h3>
-              <button
-                onClick={() => setShowMyOrdersModal(false)}
-                className="p-1 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4">
-              {loadingOrders ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                </div>
-              ) : customerOrders.length > 0 ? (
-                <div className="space-y-3">
-                  {customerOrders.map(order => (
-                    <div key={order.id} className="bg-secondary/30 rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono text-muted-foreground">
-                          #{order.id.slice(-6).toUpperCase()}
-                        </span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          order.status === "completed" ? "bg-green-500/20 text-green-500" :
-                          order.status === "cancelled" ? "bg-red-500/20 text-red-500" :
-                          order.status === "delivering" ? "bg-blue-500/20 text-blue-500" :
-                          "bg-yellow-500/20 text-yellow-600"
-                        }`}>
-                          {order.status === "completed" ? "Entregue" :
-                           order.status === "cancelled" ? "Cancelado" :
-                           order.status === "delivering" ? "Em entrega" :
-                           order.status === "preparing" ? "Preparando" :
-                           order.status === "confirmed" ? "Confirmado" :
-                           "Pendente"}
-                        </span>
-                      </div>
-                      <p className="text-sm text-foreground line-clamp-2">{order.items}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(order.createdAt).toLocaleDateString("pt-BR")}
-                        </span>
-                        <span className="text-sm font-bold text-primary">
-                          R$ {order.total.toFixed(2).replace(".", ",")}
-                        </span>
-                      </div>
-                      <div className="flex gap-2 pt-1">
-                        {order.itemsDetailed && (
-                          <button
-                            onClick={() => repeatOrder(order)}
-                            className="flex-1 py-2 text-xs bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors font-medium"
-                          >
-                            Pedir novamente
-                          </button>
-                        )}
-                        {(order.status === "pending" || order.status === "confirmed" || order.status === "preparing" || order.status === "delivering") && (
-                          <a
-                            href={`/pedido/${order.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 py-2 text-xs bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors font-medium text-center"
-                          >
-                            Acompanhar
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Package className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">Voce ainda nao fez nenhum pedido</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <MyOrdersModal
+          orders={customerOrders}
+          loadingOrders={loadingOrders}
+          onClose={() => setShowMyOrdersModal(false)}
+          onRepeatOrder={repeatOrder}
+        />
       )}
 
       {/* Modal Confirmar Repetir Pedido */}
       {showRepeatConfirm && orderToRepeat && (
-        <div className="fixed inset-0 z-[120] bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
-            <div className="p-4 border-b border-border">
-              <h3 className="text-lg font-bold text-foreground">Deseja repetir este pedido?</h3>
-            </div>
-            
-            <div className="p-4 space-y-3 max-h-60 overflow-y-auto">
-              {orderToRepeat.itemsDetailed?.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between text-sm">
-                  <span className="text-foreground">
-                    {item.quantity}x {item.productName}
-                  </span>
-                  <span className="text-muted-foreground">
-                    R$ {(item.price * item.quantity).toFixed(2).replace(".", ",")}
-                  </span>
-                </div>
-              ))}
-              <div className="pt-2 border-t border-border flex items-center justify-between">
-                <span className="font-medium text-foreground">Total</span>
-                <span className="font-bold text-primary text-lg">
-                  R$ {orderToRepeat.total.toFixed(2).replace(".", ",")}
-                </span>
-              </div>
-            </div>
-            
-            <div className="p-4 border-t border-border flex gap-2">
-              <button
-                onClick={() => {
-                  setShowRepeatConfirm(false)
-                  setOrderToRepeat(null)
-                }}
-                className="flex-1 py-3 text-sm bg-secondary text-foreground rounded-xl hover:bg-secondary/80 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmRepeatOrder}
-                className="flex-1 py-3 text-sm bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors font-medium"
-              >
-                Sim, pedir novamente
-              </button>
-            </div>
-          </div>
-        </div>
+        <RepeatOrderModal
+          order={orderToRepeat}
+          onConfirm={confirmRepeatOrder}
+          onCancel={() => {
+            setShowRepeatConfirm(false)
+            setOrderToRepeat(null)
+          }}
+        />
       )}
 
       {/* Toast de Notificacao */}
-      {toastMessage && (
-        <div className="toast animate-toast-in">
-          <span className="text-sm font-medium text-foreground">{toastMessage}</span>
-        </div>
-      )}
+      {toastMessage && <Toast message={toastMessage} />}
       
       {/* Toast de Adicao ao Carrinho */}
-      {addToast.show && (
-        <div className="toast animate-toast-in flex items-center gap-2">
-          <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center">
-            <Check className="w-3.5 h-3.5 text-primary" />
-          </div>
-          <span className="text-sm font-medium text-foreground">+1 adicionado</span>
-        </div>
-      )}
+      {addToast.show && <AddToCartToast />}
     </main>
   )
 }
