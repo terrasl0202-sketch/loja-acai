@@ -1,0 +1,342 @@
+// Utils da area do cliente/loja
+import { type Product } from "@/lib/config-types"
+
+/**
+ * Formata valor monetario em BRL
+ */
+export const formatCurrency = (value: number): string => {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  })
+}
+
+/**
+ * Gera ID do pedido
+ */
+export const generateOrderId = (): string => {
+  const now = new Date()
+  return `PK${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`
+}
+
+/**
+ * Normaliza nome de produto para comparacao
+ */
+export const normalizeProductName = (name: string): string => {
+  return name
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+}
+
+/**
+ * Formata telefone para display
+ */
+export const formatPhone = (phone: string): string => {
+  const clean = phone.replace(/\D/g, "")
+  if (clean.length === 11) {
+    return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`
+  }
+  if (clean.length === 10) {
+    return `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6)}`
+  }
+  return phone
+}
+
+/**
+ * Valida telefone
+ */
+export const isValidPhone = (phone: string): boolean => {
+  const clean = phone.replace(/\D/g, "")
+  return clean.length >= 10 && clean.length <= 11
+}
+
+/**
+ * Calcula subtotal do carrinho
+ */
+export const calculateSubtotal = (
+  products: Product[],
+  quantities: Record<number, number>
+): number => {
+  return products.reduce((total, product) => {
+    const price = Number(product.price) || 0
+    return total + price * (quantities[product.id] || 0)
+  }, 0)
+}
+
+/**
+ * Calcula total de itens no carrinho
+ */
+export const calculateTotalItems = (quantities: Record<number, number>): number => {
+  return Object.values(quantities).reduce((sum, qty) => sum + qty, 0)
+}
+
+/**
+ * Gera codigo PIX EMV para pagamento manual
+ */
+export const generatePixCode = (amount: number, pixKey: string): string => {
+  const merchantName = "CARINA KAREN DA SILVA"
+  const merchantCity = "SAO PAULO"
+  const amountStr = amount.toFixed(2)
+
+  const crc16 = (str: string): string => {
+    let crc = 0xffff
+    for (let i = 0; i < str.length; i++) {
+      crc ^= str.charCodeAt(i) << 8
+      for (let j = 0; j < 8; j++) {
+        if (crc & 0x8000) {
+          crc = (crc << 1) ^ 0x1021
+        } else {
+          crc <<= 1
+        }
+        crc &= 0xffff
+      }
+    }
+    return crc.toString(16).toUpperCase().padStart(4, "0")
+  }
+
+  const tlv = (tag: string, value: string): string => {
+    return tag + value.length.toString().padStart(2, "0") + value
+  }
+
+  const gui = tlv("00", "br.gov.bcb.pix")
+  const chave = tlv("01", pixKey)
+  const merchantAccountInfo = tlv("26", gui + chave)
+
+  let payload = ""
+  payload += tlv("00", "01")
+  payload += merchantAccountInfo
+  payload += tlv("52", "0000")
+  payload += tlv("53", "986")
+  payload += tlv("54", amountStr)
+  payload += tlv("58", "BR")
+  payload += tlv("59", merchantName)
+  payload += tlv("60", merchantCity)
+  payload += tlv("62", tlv("05", "***"))
+  payload += "6304"
+
+  const crcValue = crc16(payload)
+  return payload + crcValue
+}
+
+/**
+ * Copia texto para clipboard com fallback
+ */
+export const copyToClipboard = async (
+  text: string,
+  onSuccess?: () => void,
+  onError?: () => void
+): Promise<boolean> => {
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(text)
+      onSuccess?.()
+      return true
+    }
+  } catch {
+    // Fallback
+  }
+
+  try {
+    const textarea = document.createElement("textarea")
+    textarea.value = text
+    textarea.style.position = "fixed"
+    textarea.style.left = "-9999px"
+    textarea.style.top = "0"
+    textarea.setAttribute("readonly", "")
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+    document.execCommand("copy")
+    document.body.removeChild(textarea)
+    onSuccess?.()
+    return true
+  } catch {
+    onError?.()
+    return false
+  }
+}
+
+/**
+ * Formata tempo restante do PIX
+ */
+export const formatPixTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}:${secs.toString().padStart(2, "0")}`
+}
+
+/**
+ * Verifica se esta dentro do horario de funcionamento
+ */
+export const isWithinBusinessHours = (openTime: string, closeTime: string): boolean => {
+  const now = new Date()
+  const currentHour = now.getHours()
+  const currentMinute = now.getMinutes()
+  const currentMinutes = currentHour * 60 + currentMinute
+
+  const [openHour, openMin] = openTime.split(":").map(Number)
+  const [closeHour, closeMin] = closeTime.split(":").map(Number)
+  const openMinutes = openHour * 60 + openMin
+  const closeMinutes = closeHour * 60 + closeMin
+
+  // Se horario de fechamento e menor que abertura (passa da meia-noite)
+  if (closeMinutes < openMinutes) {
+    return currentMinutes >= openMinutes || currentMinutes < closeMinutes
+  } else {
+    return currentMinutes >= openMinutes && currentMinutes < closeMinutes
+  }
+}
+
+/**
+ * Gera URL de rastreamento do pedido
+ */
+export const getOrderTrackingUrl = (orderId: string): string => {
+  return `https://www.pkgostosuras.shop/pedido/${orderId}`
+}
+
+/**
+ * Gera mensagem do WhatsApp para pedido confirmado
+ */
+export const buildConfirmedOrderMessage = (params: {
+  orderId: string
+  customerName: string
+  customerPhone: string
+  items: string
+  totalItems: number
+  subtotal: number
+  discount: number
+  deliveryFee: number
+  total: number
+  couponCode: string | null
+  deliveryType: "entrega" | "retirada"
+  address: string
+  reference: string
+  location: string
+  bairro: string
+  paymentTime: string
+}): string => {
+  const {
+    orderId,
+    customerName,
+    customerPhone,
+    items,
+    totalItems,
+    subtotal,
+    discount,
+    deliveryFee,
+    total,
+    couponCode,
+    deliveryType,
+    address,
+    reference,
+    location,
+    bairro,
+    paymentTime,
+  } = params
+
+  const deliveryInfo =
+    deliveryType === "entrega"
+      ? `Endereco: ${address}${bairro ? ` - ${bairro}` : ""}\nReferencia: ${reference}${location ? `\nLocalizacao: ${location}` : ""}`
+      : "Retirada no local"
+
+  let discountLine = ""
+  if (couponCode && discount > 0) {
+    discountLine = `\nCupom: ${couponCode} (-${formatCurrency(discount)})`
+  }
+
+  let deliveryFeeLine = ""
+  if (deliveryFee > 0 && deliveryType === "entrega") {
+    deliveryFeeLine = `\nTaxa de entrega: ${formatCurrency(deliveryFee)}`
+  }
+
+  return `━━━━━━━━━━━━━━━━━━
+PEDIDO PAGO
+━━━━━━━━━━━━━━━━━━
+
+Pedido No: ${orderId}
+
+Cliente:
+${customerName}
+Tel: ${customerPhone}
+
+Itens:
+${items}
+
+Quantidade:
+${totalItems} item(s)
+
+Subtotal: ${formatCurrency(subtotal)}${discountLine}${deliveryFeeLine}
+Total: ${formatCurrency(total)}
+
+Pagamento:
+PIX CONFIRMADO
+
+${deliveryType === "entrega" ? "Entrega:" : "Retirada:"}
+${deliveryInfo}
+
+Horario:
+${paymentTime}
+
+Acompanhe seu pedido:
+${getOrderTrackingUrl(orderId)}
+
+━━━━━━━━━━━━━━━━━━`
+}
+
+/**
+ * Gera mensagem do WhatsApp para PIX manual
+ */
+export const buildManualPixMessage = (params: {
+  orderId: string
+  customerName: string
+  customerPhone: string
+  items: string
+  total: number
+  deliveryType: "entrega" | "retirada"
+  address: string
+  reference: string
+  location: string
+  bairro: string
+  observation: string
+}): string => {
+  const {
+    orderId,
+    customerName,
+    customerPhone,
+    items,
+    total,
+    deliveryType,
+    address,
+    reference,
+    location,
+    bairro,
+    observation,
+  } = params
+
+  const deliveryInfo =
+    deliveryType === "entrega"
+      ? `Endereco: ${address}${bairro ? ` - ${bairro}` : ""}\nReferencia: ${reference}${location ? `\nLocalizacao: ${location}` : ""}`
+      : "Retirada no local"
+
+  return `Ola! Quero pagar meu pedido pelo PIX manual.
+
+Pedido: ${orderId}
+
+Nome: ${customerName}
+Tel: ${customerPhone}
+
+Itens:
+${items}
+
+Valor: ${formatCurrency(total)}
+
+${deliveryType === "entrega" ? "Entrega:" : "Retirada:"}
+${deliveryInfo}
+
+Observacao: ${observation || "Nenhuma"}
+
+Acompanhe seu pedido:
+${getOrderTrackingUrl(orderId)}`
+}
