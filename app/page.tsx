@@ -7,7 +7,7 @@ import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
 // Types, Constants e Utils da area do cliente
 import type { PaymentStatus, DeliveryType, OrderSnapshot, PixData, CustomerOrder, SavedOrder, Coupon, Customer, FormData } from "./(store)/types"
-import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURATION } from "./(store)/constants"
+import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURATION, FALLBACK_NEIGHBORHOOD_FEES } from "./(store)/constants"
 import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode } from "./(store)/utils"
 import { useCart } from "./(store)/hooks/useCart"
 import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer } from "./(store)/components"
@@ -612,11 +612,20 @@ export default function Home() {
     }
   }, [quantities, formData, deliveryType, showCheckout, paymentStatus, pixData, orderSnapshot, orderId, pixTimeLeft, pixExpired, pixCooldownEnd, appliedCoupon, couponCode])
 
+  // Retorna bairros reais ou fallback se vazios
+  const getNeighborhoodFees = () => {
+    const realFees = siteConfig.delivery?.neighborhoodFees || []
+    if (realFees.length > 0) {
+      return { fees: realFees, isFallback: false }
+    }
+    return { fees: [...FALLBACK_NEIGHBORHOOD_FEES], isFallback: true }
+  }
+
   // Calcula taxa de entrega baseado no bairro
   const getDeliveryFee = () => {
     if (deliveryType === "retirada") return 0
-    const neighborhoodFees = siteConfig.delivery?.neighborhoodFees || []
-    const fee = neighborhoodFees.find(f => 
+    const { fees } = getNeighborhoodFees()
+    const fee = fees.find(f => 
       f.name.toLowerCase() === formData.bairro.toLowerCase()
     )
     return fee ? fee.fee : DELIVERY_FEE
@@ -2046,14 +2055,23 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center', backgroundSize: '18px' }}
                           >
                             <option value="">Selecione seu bairro</option>
-                            {(siteConfig.delivery?.neighborhoodFees || [])
-                              .filter(n => n.active !== false)
-                              .map((neighborhood) => (
-                                <option key={neighborhood.name} value={neighborhood.name}>
-                                  {neighborhood.name} - R$ {neighborhood.fee.toFixed(2)}
-                                </option>
-                              ))}
+                            {(() => {
+                              const { fees, isFallback } = getNeighborhoodFees()
+                              return fees
+                                .filter(n => n.active !== false)
+                                .map((neighborhood) => (
+                                  <option key={neighborhood.name} value={neighborhood.name}>
+                                    {neighborhood.name} - R$ {neighborhood.fee.toFixed(2)}{isFallback ? " (teste)" : ""}
+                                  </option>
+                                ))
+                            })()}
                           </select>
+                          {getNeighborhoodFees().isFallback && (
+                            <p className="text-xs text-amber-400 mt-2 flex items-center gap-1.5">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              Modo teste: bairros de exemplo (Blob indisponivel)
+                            </p>
+                          )}
                           {formData.bairro && (
                             <div className="mt-3 p-4 bg-gradient-to-r from-primary/15 to-primary/5 border border-primary/25 rounded-xl">
                               <div className="flex items-center justify-between">
@@ -2067,7 +2085,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               </div>
                             </div>
                           )}
-                          {!formData.bairro && !isOrderBlocked && (
+                          {!formData.bairro && !isOrderBlocked && !getNeighborhoodFees().isFallback && (
                             <p className="text-xs text-amber-400 mt-2 flex items-center gap-1.5">
                               <AlertCircle className="w-3.5 h-3.5" />
                               Selecione seu bairro para calcular a entrega.

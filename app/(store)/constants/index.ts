@@ -26,6 +26,15 @@ export const DEFAULT_FORM_DATA = {
   bairro: "",
 }
 
+// Bairros fallback para quando o Blob nao estiver disponivel
+// Usados APENAS quando a lista real de bairros estiver vazia
+export const FALLBACK_NEIGHBORHOOD_FEES = [
+  { name: "Centro", fee: 5.00, active: true },
+  { name: "Bairro Norte", fee: 6.00, active: true },
+  { name: "Bairro Sul", fee: 6.00, active: true },
+  { name: "Bairro Teste", fee: 5.00, active: true },
+] as const
+
 export const PIX_CHECK_INTERVAL = 3000 // 3 segundos
 export const PIX_COOLDOWN_DURATION = 5 * 60 * 1000 // 5 minutos
 export const PIX_EXPIRATION_MINUTES = 15
