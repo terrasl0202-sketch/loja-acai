@@ -72,6 +72,7 @@ export interface UseAdminOrdersReturn {
   clearEntregador: (orderId: string) => Promise<boolean>
   startDelivery: (orderId: string) => Promise<boolean>
   returnToPreparing: (orderId: string, entregador: Entregador) => Promise<boolean>
+  registerDeliveryProblem: (orderId: string, observacao: string) => Promise<boolean>
   archiveOrder: (orderId: string) => Promise<boolean>
   unarchiveOrder: (orderId: string) => Promise<boolean>
   deleteOrder: (orderId: string) => Promise<boolean>
@@ -342,6 +343,22 @@ export function useAdminOrders(options: UseAdminOrdersOptions): UseAdminOrdersRe
     })
   }, [apiPatch, orders])
   
+  const registerDeliveryProblem = useCallback(async (orderId: string, observacao: string) => {
+    const order = orders.find(o => o.id === orderId)
+    if (!order) return false
+    
+    const novoHistorico = [
+      ...(order.historicoEntrega || []),
+      {
+        data: new Date().toISOString(),
+        evento: 'PROBLEMA',
+        observacao
+      }
+    ]
+    
+    return apiPatch({ orderId, historicoEntrega: novoHistorico })
+  }, [apiPatch, orders])
+  
   const archiveOrder = useCallback(async (orderId: string) => {
     return apiPatch({ orderId, archived: true })
   }, [apiPatch])
@@ -435,6 +452,7 @@ export function useAdminOrders(options: UseAdminOrdersOptions): UseAdminOrdersRe
     clearEntregador,
     startDelivery,
     returnToPreparing,
+    registerDeliveryProblem,
     archiveOrder,
     unarchiveOrder,
     deleteOrder,

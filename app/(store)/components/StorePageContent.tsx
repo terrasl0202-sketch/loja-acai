@@ -196,14 +196,15 @@ export function StorePageContent() {
   
   // Carregar pedidos do cliente
   const loadCustomerOrders = async () => {
-    if (!customer?.id) return
+    if (!customer?.phone) return
     
     setLoadingOrders(true)
     try {
-      const response = await fetch(`/api/customers/${customer.id}/orders`)
+      // Usa API correta com telefone como parametro
+      const response = await fetch(`/api/customers/orders?phone=${encodeURIComponent(customer.phone)}`)
       if (response.ok) {
-        const orders = await response.json()
-        setCustomerOrders(orders)
+        const data = await response.json()
+        setCustomerOrders(data.orders || [])
       }
     } catch (error) {
       console.error("Erro ao carregar pedidos:", error)
