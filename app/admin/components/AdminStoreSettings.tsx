@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Store, AlertCircle, Loader2, Check, WifiOff, Clock } from "lucide-react"
+import { Store, AlertCircle, Loader2, Check, WifiOff, Clock, Phone, Instagram, MapPin } from "lucide-react"
 
 // ============================================================
 // ADMIN STORE SETTINGS
@@ -13,12 +13,24 @@ import { Store, AlertCircle, Loader2, Check, WifiOff, Clock } from "lucide-react
 const LOCAL_KEY = 'pk-store-status'
 
 interface StoreStatus {
+  // Identificacao
   storeOpen: boolean
   manualControl: boolean
   storeName: string
+  subtitle: string
+  slogan: string
+  
+  // Horarios
   openTime: string
   closeTime: string
   closedMessage: string
+  
+  // Contato
+  whatsapp: string
+  instagram: string
+  address: string
+  
+  // Meta
   updatedAt: string
 }
 
@@ -26,9 +38,14 @@ const DEFAULT_STATUS: StoreStatus = {
   storeOpen: true,
   manualControl: false,
   storeName: 'Acai da Terra',
+  subtitle: 'Delivery de Acai',
+  slogan: 'O melhor acai da cidade',
   openTime: '14:00',
   closeTime: '22:00',
   closedMessage: 'Estamos fechados no momento. Volte em breve!',
+  whatsapp: '',
+  instagram: '',
+  address: '',
   updatedAt: new Date().toISOString()
 }
 
@@ -114,6 +131,35 @@ export function AdminStoreSettings() {
             onChange={(e) => setStatus(prev => ({ ...prev, storeName: e.target.value }))}
             onBlur={(e) => handleSave({ ...status, storeName: e.target.value })}
             disabled={loading}
+            placeholder="Ex: Acai da Terra"
+            className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
+          />
+        </div>
+
+        {/* Subtitulo */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Subtitulo</label>
+          <input
+            type="text"
+            value={status.subtitle}
+            onChange={(e) => setStatus(prev => ({ ...prev, subtitle: e.target.value }))}
+            onBlur={(e) => handleSave({ ...status, subtitle: e.target.value })}
+            disabled={loading}
+            placeholder="Ex: Delivery de Acai"
+            className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
+          />
+        </div>
+
+        {/* Slogan */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Slogan</label>
+          <input
+            type="text"
+            value={status.slogan}
+            onChange={(e) => setStatus(prev => ({ ...prev, slogan: e.target.value }))}
+            onBlur={(e) => handleSave({ ...status, slogan: e.target.value })}
+            disabled={loading}
+            placeholder="Ex: O melhor acai da cidade"
             className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
           />
         </div>
@@ -220,6 +266,55 @@ export function AdminStoreSettings() {
           />
         </div>
 
+        {/* Contato - WhatsApp */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <Phone className="w-3 h-3" /> WhatsApp
+          </label>
+          <input
+            type="text"
+            value={status.whatsapp}
+            onChange={(e) => setStatus(prev => ({ ...prev, whatsapp: e.target.value }))}
+            onBlur={(e) => handleSave({ ...status, whatsapp: e.target.value })}
+            disabled={loading}
+            placeholder="5511999999999"
+            className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
+          />
+          <p className="text-xs text-muted-foreground mt-1">Formato: 5511999999999 (com codigo do pais)</p>
+        </div>
+
+        {/* Contato - Instagram */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <Instagram className="w-3 h-3" /> Instagram
+          </label>
+          <input
+            type="text"
+            value={status.instagram}
+            onChange={(e) => setStatus(prev => ({ ...prev, instagram: e.target.value }))}
+            onBlur={(e) => handleSave({ ...status, instagram: e.target.value })}
+            disabled={loading}
+            placeholder="@suaacai"
+            className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
+          />
+        </div>
+
+        {/* Contato - Endereco */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <MapPin className="w-3 h-3" /> Endereco
+          </label>
+          <input
+            type="text"
+            value={status.address}
+            onChange={(e) => setStatus(prev => ({ ...prev, address: e.target.value }))}
+            onBlur={(e) => handleSave({ ...status, address: e.target.value })}
+            disabled={loading}
+            placeholder="Rua Principal, 123 - Centro"
+            className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
+          />
+        </div>
+
         {/* Indicador de armazenamento */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <WifiOff className="w-3.5 h-3.5 text-yellow-400" />
@@ -232,7 +327,7 @@ export function AdminStoreSettings() {
             <div>
               <p className="font-medium text-foreground">Dica</p>
               <p className="text-sm text-muted-foreground">
-                Com controle manual ativado, a loja fica aberta/fechada conforme o botao acima, independente do horario configurado.
+                Todas as informacoes salvas aqui aparecem automaticamente na loja publica.
               </p>
             </div>
           </div>

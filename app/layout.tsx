@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Poppins } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
-import { brandConfig } from '@/lib/brand-config'
 import './globals.css'
 
 const poppins = Poppins({ 
@@ -10,10 +9,11 @@ const poppins = Poppins({
   variable: "--font-sans"
 });
 
+// Metadados estaticos - nome da loja eh carregado dinamicamente nos componentes
 export const metadata: Metadata = {
-  title: brandConfig.seo.title,
-  description: brandConfig.seo.description,
-  keywords: brandConfig.seo.keywords,
+  title: 'Acai da Terra | Delivery de Acai Premium',
+  description: 'Peca o melhor acai da cidade! Cremoso, fresquinho e com entrega rapida.',
+  keywords: ['acai', 'delivery', 'acai cremoso', 'acai delivery'],
   generator: 'v0.app',
   icons: {
     icon: [
@@ -33,9 +33,9 @@ export const metadata: Metadata = {
     apple: '/apple-icon.png',
   },
   openGraph: {
-    title: brandConfig.seo.title,
-    description: brandConfig.seo.description,
-    siteName: brandConfig.name,
+    title: 'Acai da Terra | Delivery de Acai Premium',
+    description: 'Peca o melhor acai da cidade! Cremoso, fresquinho e com entrega rapida.',
+    siteName: 'Acai da Terra',
     type: 'website',
   },
 }

@@ -1,8 +1,18 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { ShoppingCart, User, Star, Package, LogOut } from "lucide-react"
 import type { Customer } from "@/lib/config-types"
-import { brandConfig } from "@/lib/brand-config"
+
+// Le dados do localStorage (mesma fonte do AdminStoreSettings)
+function loadLocalStatus() {
+  if (typeof window === 'undefined') return null
+  try {
+    const saved = localStorage.getItem('pk-store-status')
+    if (saved) return JSON.parse(saved)
+  } catch { /* ignore */ }
+  return null
+}
 
 interface StoreHeaderProps {
   customer: Customer | null
@@ -29,16 +39,36 @@ export function StoreHeader({
   onLogout,
   onOpenLogin
 }: StoreHeaderProps) {
+  const [storeData, setStoreData] = useState<{ storeName: string; subtitle: string } | null>(null)
+
+  useEffect(() => {
+    const loadData = () => {
+      const data = loadLocalStatus()
+      if (data) {
+        setStoreData({
+          storeName: data.storeName || 'Acai da Terra',
+          subtitle: data.subtitle || 'Delivery de Acai'
+        })
+      }
+    }
+    loadData()
+    const interval = setInterval(loadData, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const displayName = storeData?.storeName || 'Acai da Terra'
+  const displaySubtitle = storeData?.subtitle || 'Delivery de Acai'
+
   return (
     <header className="sticky top-0 z-50 glass border-b border-white/5 shadow-xl shadow-black/10">
       <div className="max-w-lg mx-auto px-4 py-3.5">
         <div className="flex items-center justify-between">
           <div className="relative">
             <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary to-purple-400 drop-shadow-sm">
-              {brandConfig.name}
+              {displayName}
             </h1>
             <p className="text-[10px] text-muted-foreground/70 font-medium tracking-widest uppercase">
-              {brandConfig.subtitle}
+              {displaySubtitle}
             </p>
             <div className="absolute -bottom-1 left-0 w-12 h-0.5 bg-gradient-to-r from-primary to-transparent rounded-full" />
           </div>

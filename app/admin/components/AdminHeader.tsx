@@ -1,7 +1,17 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Lock, Bell, BellOff, RefreshCw, Volume2, Save, Loader2, Check, LogOut } from "lucide-react"
-import { brandConfig } from "@/lib/brand-config"
+
+// Le dados do localStorage
+function loadLocalStatus() {
+  if (typeof window === 'undefined') return null
+  try {
+    const saved = localStorage.getItem('pk-store-status')
+    if (saved) return JSON.parse(saved)
+  } catch { /* ignore */ }
+  return null
+}
 
 interface AdminHeaderProps {
   newOrdersCount: number
@@ -32,6 +42,20 @@ export function AdminHeader({
   onLogout,
   onMarkAsSeen,
 }: AdminHeaderProps) {
+  const [storeName, setStoreName] = useState('Acai da Terra')
+
+  useEffect(() => {
+    const loadData = () => {
+      const data = loadLocalStatus()
+      if (data?.storeName) {
+        setStoreName(data.storeName)
+      }
+    }
+    loadData()
+    const interval = setInterval(loadData, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
   return (
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-xl border-b border-primary/10 shadow-xl shadow-black/10">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3">
@@ -42,7 +66,7 @@ export function AdminHeader({
             </div>
             <div className="min-w-0">
               <h1 className="font-bold text-sm sm:text-base text-transparent bg-clip-text bg-gradient-to-r from-foreground to-foreground/80">Painel Admin</h1>
-              <p className="text-[10px] sm:text-xs text-muted-foreground/70 truncate">{brandConfig.name}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground/70 truncate">{storeName}</p>
             </div>
           </div>
 

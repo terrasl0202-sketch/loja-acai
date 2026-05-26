@@ -1,17 +1,48 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Image from "next/image"
-import { Zap, Snowflake, Award, Clock } from "lucide-react"
-import { brandConfig } from "@/lib/brand-config"
+import { Snowflake, Award, Clock } from "lucide-react"
+
+// Le dados do localStorage (mesma fonte do AdminStoreSettings)
+function loadLocalStatus() {
+  if (typeof window === 'undefined') return null
+  try {
+    const saved = localStorage.getItem('pk-store-status')
+    if (saved) return JSON.parse(saved)
+  } catch { /* ignore */ }
+  return null
+}
 
 export function HeroBanner() {
-  const { hero, business, images } = brandConfig
+  const [storeData, setStoreData] = useState<{
+    storeName: string
+    slogan: string
+  } | null>(null)
+
+  useEffect(() => {
+    const loadData = () => {
+      const data = loadLocalStatus()
+      if (data) {
+        setStoreData({
+          storeName: data.storeName || 'Acai da Terra',
+          slogan: data.slogan || 'O melhor acai da cidade'
+        })
+      }
+    }
+    loadData()
+    const interval = setInterval(loadData, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const displayName = storeData?.storeName || 'Acai da Terra'
+  const displaySlogan = storeData?.slogan || 'O melhor acai da cidade'
   
   return (
     <section className="relative h-48 sm:h-56 overflow-hidden">
       <Image
-        src={images.banner || "/acai-bowl.jpg"}
-        alt={brandConfig.name}
+        src="/acai-bowl.jpg"
+        alt={displayName}
         fill
         className="object-cover scale-110 animate-fade-in"
         priority
@@ -28,15 +59,15 @@ export function HeroBanner() {
       
       <div className="absolute bottom-6 left-4 right-4">
         <h2 className="text-2xl sm:text-3xl font-black text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.9)] tracking-tight leading-tight">
-          {hero.title}<br/>{hero.subtitle}
+          Acai Premium<br/>Cremoso e Saboroso
         </h2>
-        <p className="text-white/50 text-xs mt-2 font-medium tracking-wide">{brandConfig.slogan}</p>
+        <p className="text-white/50 text-xs mt-2 font-medium tracking-wide">{displaySlogan}</p>
         
         {/* Trust Badges Glass Premium */}
         <div className="flex flex-wrap items-center gap-2 mt-4">
           <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/95 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
             <Clock className="w-3 h-3 text-amber-400 drop-shadow-glow" />
-            {business.estimatedTime}
+            30-45 min
           </span>
           <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/95 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
             <Snowflake className="w-3 h-3 text-cyan-400 drop-shadow-glow" />
