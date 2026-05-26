@@ -17,7 +17,7 @@
  * 3. O sistema continua funcionando mesmo se Supabase falhar
  */
 
-import { createClient } from '@/lib/supabase/client'
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client'
 import type { DbOrder, CreateOrderInput, UpdateOrderInput, OrderStatus } from './types'
 
 // Chave do localStorage para fallback
@@ -37,11 +37,32 @@ export interface OrdersListResult {
 
 /**
  * Salva um pedido no Supabase
- * NAO interrompe o fluxo se falhar - apenas loga o erro
+ * NAO interrompe o fluxo se falhar - apenas loga o erro e salva localmente
  */
 export async function saveOrderToSupabase(order: CreateOrderInput): Promise<OrderResult> {
+  // Verifica se Supabase esta configurado
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Orders] Supabase nao configurado, salvando localmente')
+    }
+    saveOrderLocally(order)
+    return {
+      data: null,
+      error: null,
+      savedToSupabase: false
+    }
+  }
+
   try {
-    const supabase = createClient()
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      saveOrderLocally(order)
+      return {
+        data: null,
+        error: 'Cliente Supabase nao disponivel',
+        savedToSupabase: false
+      }
+    }
     
     const { data, error } = await supabase
       .from('orders')
@@ -65,6 +86,10 @@ export async function saveOrderToSupabase(order: CreateOrderInput): Promise<Orde
       }
     }
     
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Orders] Pedido salvo no Supabase:', data.id)
+    }
+    
     return {
       data: data as DbOrder,
       error: null,
@@ -86,6 +111,8 @@ export async function saveOrderToSupabase(order: CreateOrderInput): Promise<Orde
  */
 function saveOrderLocally(order: CreateOrderInput): void {
   try {
+    if (typeof window === 'undefined') return
+    
     const existing = localStorage.getItem(LOCAL_ORDERS_KEY)
     const orders = existing ? JSON.parse(existing) : []
     orders.unshift({
@@ -96,6 +123,10 @@ function saveOrderLocally(order: CreateOrderInput): void {
     })
     // Mantem apenas os ultimos 50 pedidos locais
     localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders.slice(0, 50)))
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Orders] Pedido salvo localmente como fallback')
+    }
   } catch (err) {
     console.error('[Local] Erro ao salvar pedido localmente:', err)
   }
@@ -105,8 +136,24 @@ function saveOrderLocally(order: CreateOrderInput): void {
  * Busca pedidos por telefone do cliente
  */
 export async function fetchOrdersByPhone(phone: string): Promise<OrdersListResult> {
+  // Verifica se Supabase esta configurado
+  if (!isSupabaseConfigured()) {
+    return {
+      data: getLocalOrders(phone),
+      error: null,
+      source: 'local'
+    }
+  }
+
   try {
-    const supabase = createClient()
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      return {
+        data: getLocalOrders(phone),
+        error: 'Cliente nao disponivel',
+        source: 'local'
+      }
+    }
     
     // Normaliza telefone (remove caracteres especiais)
     const normalizedPhone = phone.replace(/\D/g, '')
@@ -147,6 +194,8 @@ export async function fetchOrdersByPhone(phone: string): Promise<OrdersListResul
  */
 function getLocalOrders(phone: string): DbOrder[] {
   try {
+    if (typeof window === 'undefined') return []
+    
     const existing = localStorage.getItem(LOCAL_ORDERS_KEY)
     if (!existing) return []
     
@@ -166,8 +215,23 @@ function getLocalOrders(phone: string): DbOrder[] {
  * Busca todos os pedidos (para admin)
  */
 export async function fetchAllOrders(limit = 100): Promise<OrdersListResult> {
+  if (!isSupabaseConfigured()) {
+    return {
+      data: [],
+      error: 'Supabase nao configurado',
+      source: 'local'
+    }
+  }
+
   try {
-    const supabase = createClient()
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      return {
+        data: [],
+        error: 'Cliente nao disponivel',
+        source: 'local'
+      }
+    }
     
     const { data, error } = await supabase
       .from('orders')
@@ -206,8 +270,13 @@ export async function updateOrderStatus(
   orderId: string, 
   status: OrderStatus
 ): Promise<boolean> {
+  if (!isSupabaseConfigured()) {
+    return false
+  }
+
   try {
-    const supabase = createClient()
+    const supabase = getSupabaseClient()
+    if (!supabase) return false
     
     const { error } = await supabase
       .from('orders')
@@ -236,8 +305,13 @@ export async function updateOrder(
   orderId: string, 
   updates: UpdateOrderInput
 ): Promise<boolean> {
+  if (!isSupabaseConfigured()) {
+    return false
+  }
+
   try {
-    const supabase = createClient()
+    const supabase = getSupabaseClient()
+    if (!supabase) return false
     
     const { error } = await supabase
       .from('orders')
@@ -263,8 +337,13 @@ export async function updateOrder(
  * Busca pedido por ID
  */
 export async function fetchOrderById(orderId: string): Promise<DbOrder | null> {
+  if (!isSupabaseConfigured()) {
+    return null
+  }
+
   try {
-    const supabase = createClient()
+    const supabase = getSupabaseClient()
+    if (!supabase) return null
     
     const { data, error } = await supabase
       .from('orders')

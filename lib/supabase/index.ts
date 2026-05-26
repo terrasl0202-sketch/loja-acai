@@ -73,7 +73,7 @@
  */
 
 // Clientes Supabase
-export { createClient } from './client'
+export { createClient, getSupabaseClient, isSupabaseConfigured } from './client'
 
 // Tipos
 export type { 

@@ -13,10 +13,10 @@
  * 3. Altere getNeighborhoodFees() no page.tsx para usar fetchNeighborhoods()
  */
 
-import { createClient } from '@/lib/supabase/client'
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client'
 import type { DbNeighborhood } from './types'
 
-// Bairros fallback - usados quando Supabase falha
+// Bairros fallback - usados quando Supabase falha ou nao esta configurado
 // Mantenha sincronizado com FALLBACK_NEIGHBORHOOD_FEES em constants
 const FALLBACK_NEIGHBORHOODS: DbNeighborhood[] = [
   { id: '1', name: 'Centro', fee: 5.00, active: true, created_at: '', updated_at: '' },
@@ -33,11 +33,30 @@ export interface NeighborhoodResult {
 
 /**
  * Busca todos os bairros ativos do Supabase
- * Retorna fallback local se houver erro
+ * Retorna fallback local se houver erro ou Supabase nao configurado
  */
 export async function fetchNeighborhoods(): Promise<NeighborhoodResult> {
+  // Verifica se Supabase esta configurado
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Neighborhoods] Supabase nao configurado, usando fallback')
+    }
+    return {
+      data: FALLBACK_NEIGHBORHOODS,
+      isFallback: true,
+      error: null
+    }
+  }
+
   try {
-    const supabase = createClient()
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      return {
+        data: FALLBACK_NEIGHBORHOODS,
+        isFallback: true,
+        error: 'Cliente Supabase nao disponivel'
+      }
+    }
     
     const { data, error } = await supabase
       .from('neighborhoods')
@@ -63,6 +82,10 @@ export async function fetchNeighborhoods(): Promise<NeighborhoodResult> {
       }
     }
     
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Neighborhoods] Carregados', data.length, 'bairros do Supabase')
+    }
+    
     return {
       data: data as DbNeighborhood[],
       isFallback: false,
@@ -82,8 +105,22 @@ export async function fetchNeighborhoods(): Promise<NeighborhoodResult> {
  * Busca um bairro especifico pelo nome
  */
 export async function fetchNeighborhoodByName(name: string): Promise<DbNeighborhood | null> {
+  // Verifica se Supabase esta configurado
+  if (!isSupabaseConfigured()) {
+    const fallback = FALLBACK_NEIGHBORHOODS.find(
+      n => n.name.toLowerCase() === name.toLowerCase()
+    )
+    return fallback || null
+  }
+
   try {
-    const supabase = createClient()
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      const fallback = FALLBACK_NEIGHBORHOODS.find(
+        n => n.name.toLowerCase() === name.toLowerCase()
+      )
+      return fallback || null
+    }
     
     const { data, error } = await supabase
       .from('neighborhoods')
@@ -110,8 +147,16 @@ export async function fetchNeighborhoodByName(name: string): Promise<DbNeighborh
  * Usado para migrar dados do Blob
  */
 export async function saveNeighborhoods(neighborhoods: Omit<DbNeighborhood, 'id' | 'created_at' | 'updated_at'>[]): Promise<boolean> {
+  if (!isSupabaseConfigured()) {
+    console.warn('[Neighborhoods] Supabase nao configurado, nao foi possivel salvar')
+    return false
+  }
+
   try {
-    const supabase = createClient()
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      return false
+    }
     
     const { error } = await supabase
       .from('neighborhoods')
