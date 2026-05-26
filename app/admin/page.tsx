@@ -128,6 +128,11 @@ export default function AdminPage() {
   // Valores pendentes do formulario (header NAO muda enquanto digita)
   const pendingStoreSettingsRef = useRef(storeSettings)
   
+  // Callback estavel para receber mudancas do formulario AdminStoreSettings
+  const handlePendingSettingsChange = useCallback((_hasChanges: boolean, pending: typeof storeSettings) => {
+    pendingStoreSettingsRef.current = pending
+  }, [])
+  
   // ========== ESTADOS DE UI/MODAIS ==========
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null)
@@ -1106,7 +1111,7 @@ export default function AdminPage() {
             <Link href="/" className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm font-medium"><ArrowLeft className="w-4 h-4" /> Ver Loja</Link>
 
             <div className="bg-card/80 rounded-2xl p-4 sm:p-6 border border-border/50 shadow-xl">
-              {activeTab === "store" && <AdminStoreSettings settings={storeSettings} isLoading={loading} onSettingsChange={() => {}} onPendingChanges={(_, pending) => { pendingStoreSettingsRef.current = pending }} />}
+              {activeTab === "store" && <AdminStoreSettings settings={storeSettings} isLoading={loading} onSettingsChange={() => {}} onPendingChanges={handlePendingSettingsChange} />}
               {activeTab === "products" && <AdminProductsSettings products={config.products} expandedProduct={expandedProduct} onExpandedProductChange={setExpandedProduct} onAddProduct={addProduct} onUpdateProduct={updateProduct} onRemoveProduct={removeProduct} onMoveProduct={moveProduct} />}
               {activeTab === "banner" && <AdminBannerSettings config={config} onConfigChange={setConfig} />}
               {activeTab === "hours" && <AdminHoursSettings config={config} onConfigChange={setConfig} />}
