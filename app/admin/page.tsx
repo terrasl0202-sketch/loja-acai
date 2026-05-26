@@ -350,6 +350,7 @@ export default function AdminPage() {
   // ========== SALVAR CONFIGURACOES ==========
   // NOTA: Agora salva no Supabase via /api/config (NAO usa mais Blob)
   // O status da loja (aberta/fechada) tambem e salvo no AdminStoreSettings
+  // Produtos tambem sao sincronizados em pk-products para nova arquitetura
   const handleSave = async () => {
     setSaving(true)
     setSaveSuccess(false)
@@ -357,6 +358,8 @@ export default function AdminPage() {
     // Salvar localmente primeiro (sempre funciona como fallback)
     try {
       localStorage.setItem('pk-admin-config', JSON.stringify(config))
+      // Sincronizar produtos para nova arquitetura SaaS (pk-products)
+      localStorage.setItem('pk-products', JSON.stringify(config.products))
     } catch {
       // Ignorar erro de localStorage
     }

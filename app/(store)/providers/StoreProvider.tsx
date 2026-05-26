@@ -1,57 +1,29 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
-import { type SiteConfig, defaultConfig } from "@/lib/config-types"
+import { type SiteConfig, type Product, defaultConfig } from "@/lib/config-types"
+import { useStoreSettings } from "@/hooks/useStoreSettings"
+import { usePublicProducts } from "@/hooks/usePublicProducts"
 
 // ============================================================
-// STORE PROVIDER
+// STORE PROVIDER (MIGRADO PARA NOVA ARQUITETURA SaaS)
 // Gerencia: config da loja, estados visuais, horario de funcionamento
-// FONTE UNICA DE VERDADE: localStorage (pk-store-status)
-// NAO usa Vercel Blob, NAO usa valores hardcoded para status
+// FONTE DE VERDADE:
+//   - Status/Settings: useStoreSettings hook (storage adapter)
+//   - Produtos: usePublicProducts hook (storage adapter)
+//   - Outras configs: /api/config (Blob)
 // ============================================================
-
-const LOCAL_KEY = 'pk-store-status'
-
-interface StoreStatusData {
-  storeOpen: boolean
-  manualControl: boolean
-  storeName: string
-  openTime: string
-  closeTime: string
-  closedMessage: string
-}
-
-const DEFAULT_STATUS: StoreStatusData = {
-  storeOpen: true,
-  manualControl: false,
-  storeName: 'Acai da Terra',
-  openTime: '14:00',
-  closeTime: '22:00',
-  closedMessage: 'Estamos fechados no momento. Volte em breve!'
-}
-
-function loadLocalStatus(): StoreStatusData {
-  if (typeof window === 'undefined') return DEFAULT_STATUS
-  try {
-    const saved = localStorage.getItem(LOCAL_KEY)
-    if (saved) {
-      return { ...DEFAULT_STATUS, ...JSON.parse(saved) }
-    }
-  } catch {
-    // Ignora erro
-  }
-  return DEFAULT_STATUS
-}
 
 interface StoreContextValue {
-  // Config da loja
+  // Config da loja (inclui produtos ja filtrados)
   siteConfig: SiteConfig
   isLoading: boolean
   
-  // Status da loja (FONTE UNICA: localStorage)
-  storeStatus: StoreStatusData
+  // Produtos via nova arquitetura
+  products: Product[]
+  productsLoading: boolean
   
-  // Horario de funcionamento
+  // Status da loja (via useStoreSettings)
   isStoreOpen: boolean
   isWithinBusinessHours: () => boolean
   
@@ -80,9 +52,28 @@ interface StoreProviderProps {
 const TOAST_DURATION = 4000
 
 export function StoreProvider({ children }: StoreProviderProps) {
+  // ============================================================
+  // NOVA ARQUITETURA: Hooks centralizados
+  // ============================================================
+  
+  // Status e configuracoes da loja via hook
+  const { 
+    settings: storeSettings, 
+    isOpen: isStoreOpenFromHook,
+    isLoading: settingsLoading 
+  } = useStoreSettings()
+  
+  // Produtos via hook (ja filtrados: ativos e disponiveis)
+  const { 
+    products: productsFromHook, 
+    isLoading: productsLoading 
+  } = usePublicProducts()
+  
+  // ============================================================
+  // CONFIG LEGACY (para outras configs como pagamento, delivery, etc)
+  // ============================================================
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultConfig)
-  const [storeStatus, setStoreStatus] = useState<StoreStatusData>(DEFAULT_STATUS)
-  const [isLoading, setIsLoading] = useState(true)
+  const [configLoading, setConfigLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
@@ -91,8 +82,8 @@ export function StoreProvider({ children }: StoreProviderProps) {
     setIsClient(true)
   }, [])
 
-  // Carregar config (Blob) - apenas para produtos, etc
-  // NOTA: Se o Blob falhar, usa defaultConfig sem erro
+  // Carregar config (Blob) - para pagamento, delivery, etc
+  // Produtos agora vem do hook usePublicProducts
   useEffect(() => {
     const loadConfig = async () => {
       try {
@@ -106,35 +97,22 @@ export function StoreProvider({ children }: StoreProviderProps) {
       } catch (error) {
         console.warn("Config do Blob indisponivel, usando defaults")
       } finally {
-        setIsLoading(false)
+        setConfigLoading(false)
       }
     }
     loadConfig()
   }, [])
 
-  // Carregar status da loja do localStorage (pk-store-status)
-  // FONTE UNICA DE VERDADE para status, horarios, nome da loja
-  useEffect(() => {
-    if (!isClient) return
-    
-    const loadStoreStatus = () => {
-      const data = loadLocalStatus()
-      setStoreStatus(data)
-    }
-    
-    loadStoreStatus()
-    // Atualiza a cada 2 segundos para capturar mudancas do admin IMEDIATAMENTE
-    const interval = setInterval(loadStoreStatus, 2000)
-    return () => clearInterval(interval)
-  }, [isClient])
-
-  // Verifica horario de funcionamento usando dados do localStorage
+  // Verifica horario de funcionamento
   const isWithinBusinessHours = useCallback(() => {
     const now = new Date()
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
     
-    const [openH, openM] = storeStatus.openTime.split(":").map(Number)
-    const [closeH, closeM] = storeStatus.closeTime.split(":").map(Number)
+    const openTime = storeSettings.openTime || '14:00'
+    const closeTime = storeSettings.closeTime || '22:00'
+    
+    const [openH, openM] = openTime.split(":").map(Number)
+    const [closeH, closeM] = closeTime.split(":").map(Number)
     const openMinutes = openH * 60 + openM
     const closeMinutes = closeH * 60 + closeM
     
@@ -145,14 +123,12 @@ export function StoreProvider({ children }: StoreProviderProps) {
       // Horario que cruza meia-noite
       return currentMinutes >= openMinutes || currentMinutes < closeMinutes
     }
-  }, [storeStatus.openTime, storeStatus.closeTime])
+  }, [storeSettings.openTime, storeSettings.closeTime])
 
-  // Loja esta aberta = controle manual OU horario automatico
-  // Se manualControl === true, usa storeOpen diretamente (IGNORA horarios)
-  // Se manualControl === false, verifica horario de funcionamento
+  // Status da loja: usa hook ou fallback para horario
   const isStoreOpen = isClient ? (
-    storeStatus.manualControl 
-      ? storeStatus.storeOpen 
+    storeSettings.manualControl 
+      ? isStoreOpenFromHook 
       : isWithinBusinessHours()
   ) : true
 
@@ -162,10 +138,25 @@ export function StoreProvider({ children }: StoreProviderProps) {
     setTimeout(() => setToastMessage(null), TOAST_DURATION)
   }, [])
 
+  // ============================================================
+  // MERGE: siteConfig com produtos do hook
+  // Para manter compatibilidade com componentes que usam siteConfig.products
+  // ============================================================
+  const mergedConfig: SiteConfig = {
+    ...siteConfig,
+    // Produtos vem do hook agora (ja filtrados e ordenados)
+    products: productsFromHook.length > 0 ? productsFromHook : siteConfig.products,
+    // Nome da loja vem do settings
+    storeName: storeSettings.storeName || siteConfig.storeName,
+  }
+
+  const isLoading = configLoading || settingsLoading
+
   const value: StoreContextValue = {
-    siteConfig,
+    siteConfig: mergedConfig,
     isLoading,
-    storeStatus,
+    products: productsFromHook.length > 0 ? productsFromHook : siteConfig.products.filter(p => p.active !== false && !p.outOfStock),
+    productsLoading,
     isStoreOpen,
     isWithinBusinessHours,
     toastMessage,
