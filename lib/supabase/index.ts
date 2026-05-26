@@ -104,3 +104,15 @@ export {
   type OrderResult,
   type OrdersListResult
 } from './orders'
+
+// Servico de Status da Loja
+export {
+  fetchStoreStatus,
+  updateStoreStatus,
+  openStore,
+  closeStore,
+  setAutoControl,
+  clearLocalStoreStatus,
+  type StoreStatus,
+  type StoreStatusResult
+} from './store-status'

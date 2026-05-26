@@ -12,6 +12,7 @@ import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode 
 import { useCart } from "./(store)/hooks/useCart"
 import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer } from "./(store)/components"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./(store)/components/modals"
+import { fetchStoreStatus, type StoreStatus } from "@/lib/supabase"
 
 export default function Home() {
   // Config do site carregada da API
@@ -67,9 +68,35 @@ export default function Home() {
     setIsClient(true)
   }, [])
 
-  // Loja esta realmente aberta = status manual E dentro do horario
-  // Usar isClient para evitar hydration mismatch - no servidor sempre mostra aberto
-  const isStoreOpen = isClient ? (siteConfig.storeHours?.isOpen && isWithinBusinessHours()) : true
+  // Status da loja via Supabase/localStorage (independente do Blob)
+  const [storeStatusData, setStoreStatusData] = useState<StoreStatus | null>(null)
+  
+  // Carrega status da loja do Supabase/localStorage
+  useEffect(() => {
+    if (!isClient) return
+    
+    async function loadStoreStatus() {
+      try {
+        const { data } = await fetchStoreStatus()
+        setStoreStatusData(data)
+      } catch (err) {
+        console.error('[Store] Erro ao carregar status:', err)
+      }
+    }
+    
+    loadStoreStatus()
+    // Recarrega a cada 30 segundos para capturar mudancas do admin
+    const interval = setInterval(loadStoreStatus, 30000)
+    return () => clearInterval(interval)
+  }, [isClient])
+
+  // Loja esta realmente aberta
+  // Prioridade: storeStatusData (Supabase/local) > siteConfig (Blob) > horario automatico
+  const isStoreOpen = isClient ? (
+    storeStatusData 
+      ? (storeStatusData.manualControl ? storeStatusData.storeOpen : isWithinBusinessHours())
+      : (siteConfig.storeHours?.isOpen && isWithinBusinessHours())
+  ) : true
 
   // Hook do carrinho - gerencia quantities, showCart, toast de adicao e som
   const cart = useCart({ products })
