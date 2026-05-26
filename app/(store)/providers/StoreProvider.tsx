@@ -6,8 +6,8 @@ import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 // ============================================================
 // STORE PROVIDER
 // Gerencia: config da loja, estados visuais, horario de funcionamento
-// Status da loja (aberta/fechada) vem do localStorage (pk-store-status)
-// NAO usa Vercel Blob, NAO usa Supabase para status
+// FONTE UNICA DE VERDADE: localStorage (pk-store-status)
+// NAO usa Vercel Blob, NAO usa valores hardcoded para status
 // ============================================================
 
 const LOCAL_KEY = 'pk-store-status'
@@ -15,25 +15,41 @@ const LOCAL_KEY = 'pk-store-status'
 interface StoreStatusData {
   storeOpen: boolean
   manualControl: boolean
+  storeName: string
+  openTime: string
+  closeTime: string
+  closedMessage: string
 }
 
-function loadLocalStatus(): StoreStatusData | null {
-  if (typeof window === 'undefined') return null
+const DEFAULT_STATUS: StoreStatusData = {
+  storeOpen: true,
+  manualControl: false,
+  storeName: 'Acai da Terra',
+  openTime: '14:00',
+  closeTime: '22:00',
+  closedMessage: 'Estamos fechados no momento. Volte em breve!'
+}
+
+function loadLocalStatus(): StoreStatusData {
+  if (typeof window === 'undefined') return DEFAULT_STATUS
   try {
     const saved = localStorage.getItem(LOCAL_KEY)
     if (saved) {
-      return JSON.parse(saved)
+      return { ...DEFAULT_STATUS, ...JSON.parse(saved) }
     }
   } catch {
     // Ignora erro
   }
-  return null
+  return DEFAULT_STATUS
 }
 
 interface StoreContextValue {
   // Config da loja
   siteConfig: SiteConfig
   isLoading: boolean
+  
+  // Status da loja (FONTE UNICA: localStorage)
+  storeStatus: StoreStatusData
   
   // Horario de funcionamento
   isStoreOpen: boolean
@@ -65,7 +81,7 @@ const TOAST_DURATION = 4000
 
 export function StoreProvider({ children }: StoreProviderProps) {
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultConfig)
-  const [storeStatus, setStoreStatus] = useState<StoreStatusData | null>(null)
+  const [storeStatus, setStoreStatus] = useState<StoreStatusData>(DEFAULT_STATUS)
   const [isLoading, setIsLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -75,7 +91,7 @@ export function StoreProvider({ children }: StoreProviderProps) {
     setIsClient(true)
   }, [])
 
-  // Carregar config (Blob) - apenas para produtos, horarios, etc
+  // Carregar config (Blob) - apenas para produtos, etc
   // NOTA: Se o Blob falhar, usa defaultConfig sem erro
   useEffect(() => {
     const loadConfig = async () => {
@@ -97,34 +113,28 @@ export function StoreProvider({ children }: StoreProviderProps) {
   }, [])
 
   // Carregar status da loja do localStorage (pk-store-status)
-  // NAO usa Supabase, NAO usa fetch, NAO usa Blob
+  // FONTE UNICA DE VERDADE para status, horarios, nome da loja
   useEffect(() => {
     if (!isClient) return
     
     const loadStoreStatus = () => {
       const data = loadLocalStatus()
-      if (data) {
-        setStoreStatus(data)
-      }
+      setStoreStatus(data)
     }
     
     loadStoreStatus()
-    // Atualiza a cada 5 segundos para capturar mudancas do admin
-    const interval = setInterval(loadStoreStatus, 5000)
+    // Atualiza a cada 2 segundos para capturar mudancas do admin IMEDIATAMENTE
+    const interval = setInterval(loadStoreStatus, 2000)
     return () => clearInterval(interval)
   }, [isClient])
 
-  // Verifica horario de funcionamento
+  // Verifica horario de funcionamento usando dados do localStorage
   const isWithinBusinessHours = useCallback(() => {
-    if (!siteConfig.storeHours?.openTime || !siteConfig.storeHours?.closeTime) {
-      return true
-    }
-    
     const now = new Date()
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
     
-    const [openH, openM] = siteConfig.storeHours.openTime.split(":").map(Number)
-    const [closeH, closeM] = siteConfig.storeHours.closeTime.split(":").map(Number)
+    const [openH, openM] = storeStatus.openTime.split(":").map(Number)
+    const [closeH, closeM] = storeStatus.closeTime.split(":").map(Number)
     const openMinutes = openH * 60 + openM
     const closeMinutes = closeH * 60 + closeM
     
@@ -135,14 +145,15 @@ export function StoreProvider({ children }: StoreProviderProps) {
       // Horario que cruza meia-noite
       return currentMinutes >= openMinutes || currentMinutes < closeMinutes
     }
-  }, [siteConfig.storeHours])
+  }, [storeStatus.openTime, storeStatus.closeTime])
 
-  // Loja esta aberta = status do Supabase/localStorage + horario
-  // NAO depende mais do Blob (siteConfig.storeHours?.isOpen)
+  // Loja esta aberta = controle manual OU horario automatico
+  // Se manualControl === true, usa storeOpen diretamente (IGNORA horarios)
+  // Se manualControl === false, verifica horario de funcionamento
   const isStoreOpen = isClient ? (
-    storeStatus
-      ? (storeStatus.manualControl ? storeStatus.storeOpen : isWithinBusinessHours())
-      : isWithinBusinessHours() // Fallback: apenas horario automatico
+    storeStatus.manualControl 
+      ? storeStatus.storeOpen 
+      : isWithinBusinessHours()
   ) : true
 
   // Toast global
@@ -154,6 +165,7 @@ export function StoreProvider({ children }: StoreProviderProps) {
   const value: StoreContextValue = {
     siteConfig,
     isLoading,
+    storeStatus,
     isStoreOpen,
     isWithinBusinessHours,
     toastMessage,

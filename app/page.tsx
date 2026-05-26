@@ -12,7 +12,6 @@ import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode 
 import { useCart } from "./(store)/hooks/useCart"
 import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer } from "./(store)/components"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./(store)/components/modals"
-import { fetchStoreOpenStatus } from "@/lib/supabase"
 
 export default function Home() {
   // Config do site carregada da API
@@ -68,41 +67,81 @@ export default function Home() {
     setIsClient(true)
   }, [])
 
-  // Status da loja via Supabase/localStorage (independente do Blob)
+  // Status da loja via localStorage (FONTE UNICA DE VERDADE)
+  // Chave: pk-store-status (mesma do AdminStoreSettings)
   const [storeStatusData, setStoreStatusData] = useState<{
     storeOpen: boolean
     manualControl: boolean
-    openingTime: string
-    closingTime: string
-    source: 'supabase' | 'local' | 'default'
+    openTime: string
+    closeTime: string
+    closedMessage: string
   } | null>(null)
   
-  // Carrega status da loja do Supabase (admin_settings)
+  // Carrega status da loja do localStorage
   useEffect(() => {
     if (!isClient) return
     
-    async function loadStoreStatus() {
+    function loadStoreStatus() {
       try {
-        const data = await fetchStoreOpenStatus()
-        setStoreStatusData(data)
+        const saved = localStorage.getItem('pk-store-status')
+        if (saved) {
+          const data = JSON.parse(saved)
+          setStoreStatusData({
+            storeOpen: data.storeOpen ?? true,
+            manualControl: data.manualControl ?? false,
+            openTime: data.openTime || '14:00',
+            closeTime: data.closeTime || '22:00',
+            closedMessage: data.closedMessage || 'Estamos fechados no momento.'
+          })
+        } else {
+          // Default se nao houver nada salvo
+          setStoreStatusData({
+            storeOpen: true,
+            manualControl: false,
+            openTime: '14:00',
+            closeTime: '22:00',
+            closedMessage: 'Estamos fechados no momento.'
+          })
+        }
       } catch (err) {
         console.error('[Store] Erro ao carregar status:', err)
       }
     }
     
     loadStoreStatus()
-    // Recarrega a cada 30 segundos para capturar mudancas do admin
-    const interval = setInterval(loadStoreStatus, 30000)
+    // Recarrega a cada 2 segundos para capturar mudancas do admin IMEDIATAMENTE
+    const interval = setInterval(loadStoreStatus, 2000)
     return () => clearInterval(interval)
   }, [isClient])
 
+  // Verifica horario de funcionamento usando dados do localStorage
+  const isWithinBusinessHoursLocal = useCallback(() => {
+    if (!storeStatusData) return true
+    
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    
+    const [openH, openM] = storeStatusData.openTime.split(":").map(Number)
+    const [closeH, closeM] = storeStatusData.closeTime.split(":").map(Number)
+    const openMinutes = openH * 60 + openM
+    const closeMinutes = closeH * 60 + closeM
+    
+    // Horario normal (abre e fecha no mesmo dia)
+    if (openMinutes < closeMinutes) {
+      return currentMinutes >= openMinutes && currentMinutes < closeMinutes
+    } else {
+      // Horario que cruza meia-noite
+      return currentMinutes >= openMinutes || currentMinutes < closeMinutes
+    }
+  }, [storeStatusData])
+
   // Loja esta realmente aberta
-  // Prioridade: storeStatusData (Supabase/local) > horario automatico
-  // NAO depende mais do Blob (siteConfig.storeHours)
+  // Se manualControl === true, IGNORA COMPLETAMENTE os horarios
+  // Se manualControl === false, verifica horario de funcionamento
   const isStoreOpen = isClient ? (
     storeStatusData 
-      ? (storeStatusData.manualControl ? storeStatusData.storeOpen : isWithinBusinessHours())
-      : isWithinBusinessHours() // Fallback: apenas horario automatico
+      ? (storeStatusData.manualControl ? storeStatusData.storeOpen : isWithinBusinessHoursLocal())
+      : true // Fallback: aberta ate carregar
   ) : true
 
   // Hook do carrinho - gerencia quantities, showCart, toast de adicao e som
@@ -1571,7 +1610,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       <HeroBanner />
 
       {/* Aviso Loja Fechada Premium */}
-      {!isStoreOpen && <StoreClosedBanner siteConfig={siteConfig} />}
+      {!isStoreOpen && <StoreClosedBanner />}
 
       {/* Products */}
       <ProductList

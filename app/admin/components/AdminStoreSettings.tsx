@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Store, AlertCircle, Loader2, Check, WifiOff } from "lucide-react"
+import { Store, AlertCircle, Loader2, Check, WifiOff, Clock } from "lucide-react"
 
 // ============================================================
 // ADMIN STORE SETTINGS
-// Gerencia status da loja APENAS via localStorage
+// Gerencia TODAS as configuracoes da loja via localStorage
+// Fonte unica de verdade: pk-store-status
 // NAO usa Vercel Blob, NAO usa Supabase, NAO usa fetch
 // ============================================================
 
@@ -15,6 +16,9 @@ interface StoreStatus {
   storeOpen: boolean
   manualControl: boolean
   storeName: string
+  openTime: string
+  closeTime: string
+  closedMessage: string
   updatedAt: string
 }
 
@@ -22,6 +26,9 @@ const DEFAULT_STATUS: StoreStatus = {
   storeOpen: true,
   manualControl: false,
   storeName: 'Acai da Terra',
+  openTime: '14:00',
+  closeTime: '22:00',
+  closedMessage: 'Estamos fechados no momento. Volte em breve!',
   updatedAt: new Date().toISOString()
 }
 
@@ -59,44 +66,23 @@ export function AdminStoreSettings() {
     setLoading(false)
   }, [])
 
-  // Toggle status da loja (aberta/fechada)
-  function handleToggleOpen() {
-    const newStatus: StoreStatus = {
-      ...status,
-      storeOpen: !status.storeOpen,
-      manualControl: true,
-      updatedAt: new Date().toISOString()
-    }
-    setStatus(newStatus)
-    saveStatus(newStatus)
+  // Salvar qualquer alteracao
+  function handleSave(newStatus: StoreStatus) {
+    const updated = { ...newStatus, updatedAt: new Date().toISOString() }
+    setStatus(updated)
+    saveStatus(updated)
     setSaveSuccess(true)
     setTimeout(() => setSaveSuccess(false), 2000)
+  }
+
+  // Toggle status da loja (aberta/fechada)
+  function handleToggleOpen() {
+    handleSave({ ...status, storeOpen: !status.storeOpen, manualControl: true })
   }
 
   // Toggle controle manual
   function handleToggleManual() {
-    const newStatus: StoreStatus = {
-      ...status,
-      manualControl: !status.manualControl,
-      updatedAt: new Date().toISOString()
-    }
-    setStatus(newStatus)
-    saveStatus(newStatus)
-    setSaveSuccess(true)
-    setTimeout(() => setSaveSuccess(false), 2000)
-  }
-
-  // Salvar nome da loja
-  function handleSaveStoreName(name: string) {
-    const newStatus: StoreStatus = {
-      ...status,
-      storeName: name,
-      updatedAt: new Date().toISOString()
-    }
-    setStatus(newStatus)
-    saveStatus(newStatus)
-    setSaveSuccess(true)
-    setTimeout(() => setSaveSuccess(false), 2000)
+    handleSave({ ...status, manualControl: !status.manualControl })
   }
 
   return (
@@ -126,7 +112,7 @@ export function AdminStoreSettings() {
             type="text"
             value={status.storeName}
             onChange={(e) => setStatus(prev => ({ ...prev, storeName: e.target.value }))}
-            onBlur={(e) => handleSaveStoreName(e.target.value)}
+            onBlur={(e) => handleSave({ ...status, storeName: e.target.value })}
             disabled={loading}
             className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
           />
@@ -178,6 +164,60 @@ export function AdminStoreSettings() {
               }`}
             />
           </button>
+        </div>
+
+        {/* Horarios de Funcionamento */}
+        <div className="p-4 bg-gradient-to-r from-secondary/30 to-secondary/10 rounded-xl border border-border/30 space-y-3">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-primary" />
+            <p className="font-semibold text-foreground text-sm">Horario de Funcionamento</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Abertura</label>
+              <input
+                type="time"
+                value={status.openTime}
+                onChange={(e) => {
+                  const newStatus = { ...status, openTime: e.target.value }
+                  setStatus(newStatus)
+                  handleSave(newStatus)
+                }}
+                disabled={loading}
+                className="w-full mt-1 px-3 py-2 bg-background/50 border border-border/50 rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Fechamento</label>
+              <input
+                type="time"
+                value={status.closeTime}
+                onChange={(e) => {
+                  const newStatus = { ...status, closeTime: e.target.value }
+                  setStatus(newStatus)
+                  handleSave(newStatus)
+                }}
+                disabled={loading}
+                className="w-full mt-1 px-3 py-2 bg-background/50 border border-border/50 rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Horario atual: {status.openTime} as {status.closeTime}
+          </p>
+        </div>
+
+        {/* Mensagem quando fechado */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Mensagem quando Fechado</label>
+          <textarea
+            value={status.closedMessage}
+            onChange={(e) => setStatus(prev => ({ ...prev, closedMessage: e.target.value }))}
+            onBlur={(e) => handleSave({ ...status, closedMessage: e.target.value })}
+            disabled={loading}
+            rows={2}
+            className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50 resize-none"
+          />
         </div>
 
         {/* Indicador de armazenamento */}

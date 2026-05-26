@@ -529,7 +529,7 @@ export function StorePageContent() {
       <HeroBanner />
 
       {/* Aviso Loja Fechada Premium */}
-      {!isStoreOpen && <StoreClosedBanner siteConfig={siteConfig} />}
+      {!isStoreOpen && <StoreClosedBanner />}
 
       {/* Products */}
       <ProductList
