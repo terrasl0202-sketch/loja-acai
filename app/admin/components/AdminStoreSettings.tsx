@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Store, AlertCircle, Loader2, Check, WifiOff, Clock, Phone, Instagram, MapPin } from "lucide-react"
 import { useStoreSettings } from "@/hooks/useStoreSettings"
 
@@ -8,6 +9,9 @@ import { useStoreSettings } from "@/hooks/useStoreSettings"
 // Gerencia TODAS as configuracoes da loja via useStoreSettings hook
 // Hook usa storage adapter -> localStorage (preparado para Supabase)
 // ============================================================
+
+// Debounce delay em ms
+const DEBOUNCE_DELAY = 800
 
 export function AdminStoreSettings() {
   const { 
@@ -19,6 +23,73 @@ export function AdminStoreSettings() {
     toggleManualControl,
     lastSaved 
   } = useStoreSettings()
+
+  // ========================================
+  // ESTADO LOCAL PARA INPUTS (evita loop)
+  // ========================================
+  const [localValues, setLocalValues] = useState({
+    storeName: '',
+    subtitle: '',
+    slogan: '',
+    closedMessage: '',
+    whatsapp: '',
+    instagram: '',
+    address: '',
+    openTime: '',
+    closeTime: '',
+  })
+  
+  // Flag para saber se usuario esta digitando
+  const isTypingRef = useRef(false)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Sincroniza estado local com settings do hook APENAS quando nao esta digitando
+  useEffect(() => {
+    if (!isTypingRef.current && !isLoading) {
+      setLocalValues({
+        storeName: settings.storeName || '',
+        subtitle: settings.subtitle || '',
+        slogan: settings.slogan || '',
+        closedMessage: settings.closedMessage || '',
+        whatsapp: settings.whatsapp || '',
+        instagram: settings.instagram || '',
+        address: settings.address || '',
+        openTime: settings.openTime || '',
+        closeTime: settings.closeTime || '',
+      })
+    }
+  }, [settings, isLoading])
+  
+  // Limpa timer no unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [])
+
+  // ========================================
+  // HANDLER COM DEBOUNCE
+  // ========================================
+  const handleFieldChange = useCallback((field: keyof typeof localValues, value: string) => {
+    // Marca que esta digitando
+    isTypingRef.current = true
+    
+    // Atualiza estado local imediatamente (UX responsiva)
+    setLocalValues(prev => ({ ...prev, [field]: value }))
+    
+    // Limpa debounce anterior
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+    
+    // Agenda salvamento com debounce
+    debounceTimerRef.current = setTimeout(() => {
+      isTypingRef.current = false
+      updateSettings({ [field]: value })
+    }, DEBOUNCE_DELAY)
+  }, [updateSettings])
 
   // Feedback visual de salvamento
   const showSaveSuccess = lastSaved && (Date.now() - new Date(lastSaved).getTime()) < 2000
@@ -48,8 +119,8 @@ export function AdminStoreSettings() {
           <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nome da Loja</label>
           <input
             type="text"
-            value={settings.storeName}
-            onChange={(e) => updateSettings({ storeName: e.target.value })}
+            value={localValues.storeName}
+            onChange={(e) => handleFieldChange('storeName', e.target.value)}
             disabled={isLoading}
             placeholder="Ex: Acai da Terra"
             className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
@@ -61,8 +132,8 @@ export function AdminStoreSettings() {
           <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Subtitulo</label>
           <input
             type="text"
-            value={settings.subtitle}
-            onChange={(e) => updateSettings({ subtitle: e.target.value })}
+            value={localValues.subtitle}
+            onChange={(e) => handleFieldChange('subtitle', e.target.value)}
             disabled={isLoading}
             placeholder="Ex: Delivery de Acai"
             className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
@@ -74,8 +145,8 @@ export function AdminStoreSettings() {
           <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Slogan</label>
           <input
             type="text"
-            value={settings.slogan}
-            onChange={(e) => updateSettings({ slogan: e.target.value })}
+            value={localValues.slogan}
+            onChange={(e) => handleFieldChange('slogan', e.target.value)}
             disabled={isLoading}
             placeholder="Ex: O melhor acai da cidade"
             className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
@@ -141,8 +212,8 @@ export function AdminStoreSettings() {
               <label className="text-xs text-muted-foreground">Abertura</label>
               <input
                 type="time"
-                value={settings.openTime}
-                onChange={(e) => updateSettings({ openTime: e.target.value })}
+                value={localValues.openTime}
+                onChange={(e) => handleFieldChange('openTime', e.target.value)}
                 disabled={isLoading}
                 className="w-full mt-1 px-3 py-2 bg-background/50 border border-border/50 rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
@@ -151,15 +222,15 @@ export function AdminStoreSettings() {
               <label className="text-xs text-muted-foreground">Fechamento</label>
               <input
                 type="time"
-                value={settings.closeTime}
-                onChange={(e) => updateSettings({ closeTime: e.target.value })}
+                value={localValues.closeTime}
+                onChange={(e) => handleFieldChange('closeTime', e.target.value)}
                 disabled={isLoading}
                 className="w-full mt-1 px-3 py-2 bg-background/50 border border-border/50 rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Horario atual: {settings.openTime} as {settings.closeTime}
+            Horario atual: {localValues.openTime || '--:--'} as {localValues.closeTime || '--:--'}
           </p>
         </div>
 
@@ -167,8 +238,8 @@ export function AdminStoreSettings() {
         <div>
           <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Mensagem quando Fechado</label>
           <textarea
-            value={settings.closedMessage}
-            onChange={(e) => updateSettings({ closedMessage: e.target.value })}
+            value={localValues.closedMessage}
+            onChange={(e) => handleFieldChange('closedMessage', e.target.value)}
             disabled={isLoading}
             rows={2}
             className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50 resize-none"
@@ -182,8 +253,8 @@ export function AdminStoreSettings() {
           </label>
           <input
             type="text"
-            value={settings.whatsapp}
-            onChange={(e) => updateSettings({ whatsapp: e.target.value })}
+            value={localValues.whatsapp}
+            onChange={(e) => handleFieldChange('whatsapp', e.target.value)}
             disabled={isLoading}
             placeholder="5511999999999"
             className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
@@ -198,8 +269,8 @@ export function AdminStoreSettings() {
           </label>
           <input
             type="text"
-            value={settings.instagram}
-            onChange={(e) => updateSettings({ instagram: e.target.value })}
+            value={localValues.instagram}
+            onChange={(e) => handleFieldChange('instagram', e.target.value)}
             disabled={isLoading}
             placeholder="@suaacai"
             className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
@@ -213,8 +284,8 @@ export function AdminStoreSettings() {
           </label>
           <input
             type="text"
-            value={settings.address}
-            onChange={(e) => updateSettings({ address: e.target.value })}
+            value={localValues.address}
+            onChange={(e) => handleFieldChange('address', e.target.value)}
             disabled={isLoading}
             placeholder="Rua Principal, 123 - Centro"
             className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
