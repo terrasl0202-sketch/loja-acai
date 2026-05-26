@@ -12,7 +12,7 @@ import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode 
 import { useCart } from "./(store)/hooks/useCart"
 import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer } from "./(store)/components"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./(store)/components/modals"
-import { fetchStoreStatus, type StoreStatus } from "@/lib/supabase"
+import { fetchStoreOpenStatus } from "@/lib/supabase"
 
 export default function Home() {
   // Config do site carregada da API
@@ -69,15 +69,21 @@ export default function Home() {
   }, [])
 
   // Status da loja via Supabase/localStorage (independente do Blob)
-  const [storeStatusData, setStoreStatusData] = useState<StoreStatus | null>(null)
+  const [storeStatusData, setStoreStatusData] = useState<{
+    storeOpen: boolean
+    manualControl: boolean
+    openingTime: string
+    closingTime: string
+    source: 'supabase' | 'local' | 'default'
+  } | null>(null)
   
-  // Carrega status da loja do Supabase/localStorage
+  // Carrega status da loja do Supabase (admin_settings)
   useEffect(() => {
     if (!isClient) return
     
     async function loadStoreStatus() {
       try {
-        const { data } = await fetchStoreStatus()
+        const data = await fetchStoreOpenStatus()
         setStoreStatusData(data)
       } catch (err) {
         console.error('[Store] Erro ao carregar status:', err)

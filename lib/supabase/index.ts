@@ -105,7 +105,7 @@ export {
   type OrdersListResult
 } from './orders'
 
-// Servico de Status da Loja
+// Servico de Status da Loja (LEGADO - usar admin-settings)
 export {
   fetchStoreStatus,
   updateStoreStatus,
@@ -116,3 +116,15 @@ export {
   type StoreStatus,
   type StoreStatusResult
 } from './store-status'
+
+// Servico de Configuracoes do Admin (PRINCIPAL)
+// Substitui completamente o Vercel Blob para configs do admin
+export {
+  fetchAdminSettings,
+  saveAdminSettings,
+  updateStoreOpenStatus,
+  fetchStoreOpenStatus,
+  DEFAULT_SETTINGS,
+  type AdminSettings,
+  type AdminSettingsResult
+} from './admin-settings'

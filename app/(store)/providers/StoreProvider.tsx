@@ -2,13 +2,22 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
-import { fetchStoreStatus, type StoreStatus } from "@/lib/supabase"
+import { fetchStoreOpenStatus } from "@/lib/supabase"
 
 // ============================================================
 // STORE PROVIDER
 // Gerencia: config da loja, estados visuais, horario de funcionamento
-// Status da loja (aberta/fechada) vem do Supabase, NAO do Blob
+// Status da loja (aberta/fechada) vem do Supabase (admin_settings)
+// NAO usa Vercel Blob para status
 // ============================================================
+
+interface StoreStatusData {
+  storeOpen: boolean
+  manualControl: boolean
+  openingTime: string
+  closingTime: string
+  source: 'supabase' | 'local' | 'default'
+}
 
 interface StoreContextValue {
   // Config da loja
@@ -45,7 +54,7 @@ const TOAST_DURATION = 4000
 
 export function StoreProvider({ children }: StoreProviderProps) {
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultConfig)
-  const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null)
+  const [storeStatus, setStoreStatus] = useState<StoreStatusData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -56,6 +65,7 @@ export function StoreProvider({ children }: StoreProviderProps) {
   }, [])
 
   // Carregar config (Blob) - apenas para produtos, horarios, etc
+  // NOTA: Se o Blob falhar, usa defaultConfig sem erro
   useEffect(() => {
     const loadConfig = async () => {
       try {
@@ -67,7 +77,7 @@ export function StoreProvider({ children }: StoreProviderProps) {
           }
         }
       } catch (error) {
-        console.error("Erro ao carregar config:", error)
+        console.warn("Config do Blob indisponivel, usando defaults")
       } finally {
         setIsLoading(false)
       }
@@ -75,13 +85,13 @@ export function StoreProvider({ children }: StoreProviderProps) {
     loadConfig()
   }, [])
 
-  // Carregar status da loja do Supabase (NAO do Blob)
+  // Carregar status da loja do Supabase (admin_settings)
   useEffect(() => {
     if (!isClient) return
     
     const loadStoreStatus = async () => {
       try {
-        const { data } = await fetchStoreStatus()
+        const data = await fetchStoreOpenStatus()
         setStoreStatus(data)
       } catch (error) {
         console.error("Erro ao carregar status da loja:", error)

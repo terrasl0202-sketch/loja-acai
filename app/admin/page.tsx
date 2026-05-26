@@ -930,7 +930,7 @@ export default function AdminPage() {
             <Link href="/" className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm font-medium"><ArrowLeft className="w-4 h-4" /> Ver Loja</Link>
 
             <div className="bg-card/80 rounded-2xl p-4 sm:p-6 border border-border/50 shadow-xl">
-              {activeTab === "store" && <AdminStoreSettings config={config} onConfigChange={setConfig} />}
+              {activeTab === "store" && <AdminStoreSettings />}
               {activeTab === "products" && <AdminProductsSettings products={config.products} expandedProduct={expandedProduct} onExpandedProductChange={setExpandedProduct} onAddProduct={addProduct} onUpdateProduct={updateProduct} onRemoveProduct={removeProduct} onMoveProduct={moveProduct} />}
               {activeTab === "banner" && <AdminBannerSettings config={config} onConfigChange={setConfig} />}
               {activeTab === "hours" && <AdminHoursSettings config={config} onConfigChange={setConfig} />}
