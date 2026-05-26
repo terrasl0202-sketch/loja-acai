@@ -2,9 +2,9 @@
 
 import { ShoppingCart, User, Star, Package, LogOut } from "lucide-react"
 import type { Customer } from "@/lib/config-types"
+import { brandConfig } from "@/lib/brand-config"
 
 interface StoreHeaderProps {
-  storeName: string
   customer: Customer | null
   showProfileMenu: boolean
   cartItemsCount: number
@@ -18,7 +18,6 @@ interface StoreHeaderProps {
 }
 
 export function StoreHeader({
-  storeName,
   customer,
   showProfileMenu,
   cartItemsCount,
@@ -35,8 +34,12 @@ export function StoreHeader({
       <div className="max-w-lg mx-auto px-4 py-3.5">
         <div className="flex items-center justify-between">
           <div className="relative">
-            <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary to-purple-400 drop-shadow-sm">{storeName}</h1>
-            <p className="text-[10px] text-muted-foreground/70 font-medium tracking-widest uppercase">Paulo e Karina</p>
+            <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary to-purple-400 drop-shadow-sm">
+              {brandConfig.name}
+            </h1>
+            <p className="text-[10px] text-muted-foreground/70 font-medium tracking-widest uppercase">
+              {brandConfig.subtitle}
+            </p>
             <div className="absolute -bottom-1 left-0 w-12 h-0.5 bg-gradient-to-r from-primary to-transparent rounded-full" />
           </div>
           <div className="flex items-center gap-2.5">

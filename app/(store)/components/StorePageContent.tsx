@@ -503,7 +503,6 @@ export function StorePageContent() {
 
       {/* Header Premium */}
       <StoreHeader
-        storeName={STORE_NAME}
         customer={customer}
         showProfileMenu={showProfileMenu}
         cartItemsCount={getTotalItems()}

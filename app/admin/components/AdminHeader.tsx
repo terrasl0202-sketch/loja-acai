@@ -1,9 +1,9 @@
 "use client"
 
 import { Lock, Bell, BellOff, RefreshCw, Volume2, Save, Loader2, Check, LogOut } from "lucide-react"
+import { brandConfig } from "@/lib/brand-config"
 
 interface AdminHeaderProps {
-  storeName: string
   newOrdersCount: number
   soundActivated: boolean
   soundEnabled: boolean
@@ -19,7 +19,6 @@ interface AdminHeaderProps {
 }
 
 export function AdminHeader({
-  storeName,
   newOrdersCount,
   soundActivated,
   soundEnabled,
@@ -43,7 +42,7 @@ export function AdminHeader({
             </div>
             <div className="min-w-0">
               <h1 className="font-bold text-sm sm:text-base text-transparent bg-clip-text bg-gradient-to-r from-foreground to-foreground/80">Painel Admin</h1>
-              <p className="text-[10px] sm:text-xs text-muted-foreground/70 truncate">{storeName || "P.K Gostosuras"}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground/70 truncate">{brandConfig.name}</p>
             </div>
           </div>
 

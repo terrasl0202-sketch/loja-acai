@@ -1,14 +1,17 @@
 "use client"
 
 import Image from "next/image"
-import { Zap, Snowflake, Award } from "lucide-react"
+import { Zap, Snowflake, Award, Clock } from "lucide-react"
+import { brandConfig } from "@/lib/brand-config"
 
 export function HeroBanner() {
+  const { hero, business, images } = brandConfig
+  
   return (
     <section className="relative h-48 sm:h-56 overflow-hidden">
       <Image
-        src="/acai-bowl.jpg"
-        alt="Acai delicioso"
+        src={images.banner || "/acai-bowl.jpg"}
+        alt={brandConfig.name}
         fill
         className="object-cover scale-110 animate-fade-in"
         priority
@@ -25,15 +28,15 @@ export function HeroBanner() {
       
       <div className="absolute bottom-6 left-4 right-4">
         <h2 className="text-2xl sm:text-3xl font-black text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.9)] tracking-tight leading-tight">
-          Acai artesanal<br/>entregue geladinho
+          {hero.title}<br/>{hero.subtitle}
         </h2>
-        <p className="text-white/50 text-xs mt-2 font-medium tracking-wide">Feito na hora com muito carinho</p>
+        <p className="text-white/50 text-xs mt-2 font-medium tracking-wide">{brandConfig.slogan}</p>
         
         {/* Trust Badges Glass Premium */}
         <div className="flex flex-wrap items-center gap-2 mt-4">
           <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/95 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-            <Zap className="w-3 h-3 text-amber-400 drop-shadow-glow" />
-            Entrega rapida
+            <Clock className="w-3 h-3 text-amber-400 drop-shadow-glow" />
+            {business.estimatedTime}
           </span>
           <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/95 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
             <Snowflake className="w-3 h-3 text-cyan-400 drop-shadow-glow" />
