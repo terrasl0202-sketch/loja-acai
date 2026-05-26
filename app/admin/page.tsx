@@ -348,48 +348,43 @@ export default function AdminPage() {
   }
 
   // ========== SALVAR CONFIGURACOES ==========
-  // NOTA: O status da loja (aberta/fechada) é salvo separadamente no Supabase
-  // pelo AdminStoreSettings. Aqui salvamos apenas produtos, cupons, horarios, etc.
-  // Se o Blob estiver suspenso, salva apenas localmente sem mostrar erro.
+  // NOTA: Agora salva no Supabase via /api/config (NAO usa mais Blob)
+  // O status da loja (aberta/fechada) tambem e salvo no AdminStoreSettings
   const handleSave = async () => {
     setSaving(true)
     setSaveSuccess(false)
     
-    // Remove storeHours.isOpen e manualControl - status da loja usa Supabase agora
-    // Mas mantemos openTime, closeTime, closedMessage, etc no config
-    const configToSave = { ...config }
-    if (configToSave.storeHours) {
-      // Mantemos apenas configs de horario, nao o status aberta/fechada
-      const { isOpen, manualControl, ...restHours } = configToSave.storeHours
-      configToSave.storeHours = restHours as typeof configToSave.storeHours
-    }
-    
-    // Salvar localmente primeiro (sempre funciona)
+    // Salvar localmente primeiro (sempre funciona como fallback)
     try {
-      localStorage.setItem('pk-admin-config', JSON.stringify(configToSave))
+      localStorage.setItem('pk-admin-config', JSON.stringify(config))
     } catch {
       // Ignorar erro de localStorage
     }
     
-    // Tentar salvar no Blob (pode falhar se suspenso)
+    // Salvar no Supabase via API
     try {
       const res = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: sessionPassword, config: configToSave }),
+        body: JSON.stringify({ password: sessionPassword, config }),
       })
       const data = await res.json()
       
-      // Considerar sucesso mesmo com warning do Blob
-      if (data.success || data.warning) {
+      if (data.success) {
         setSaveSuccess(true)
+        // Mostrar onde foi salvo
+        if (data.savedTo === 'supabase') {
+          showToast("Salvo no Supabase")
+        } else {
+          showToast("Salvo localmente")
+        }
         setTimeout(() => setSaveSuccess(false), 3000)
       }
-      // Nao mostrar erro do Blob - ja salvou localmente
     } catch (error) {
-      // Erro de rede/servidor - ja salvou localmente, entao mostrar sucesso
-      console.warn("[Admin] Erro ao salvar no servidor:", error)
+      // Erro de rede - ja salvou localmente
+      console.warn("[Admin] Erro ao salvar:", error)
       setSaveSuccess(true)
+      showToast("Salvo localmente")
       setTimeout(() => setSaveSuccess(false), 3000)
     } finally {
       setSaving(false)

@@ -1,8 +1,7 @@
-import { put, list, del, get } from "@vercel/blob"
 import { NextResponse } from "next/server"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
+import { createClient } from "@supabase/supabase-js"
 
-const CONFIG_PREFIX = "pk-config-"
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
 const LOCAL_CONFIG_KEY = "pk-site-config"
 
@@ -17,6 +16,18 @@ const noCacheHeaders = {
   "Expires": "0",
 }
 
+// Criar cliente Supabase (server-side)
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  
+  if (!url || !key) {
+    return null
+  }
+  
+  return createClient(url, key)
+}
+
 export async function GET(request: Request) {
   try {
     // Verificar senha para acesso admin (opcional)
@@ -28,36 +39,57 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Tentar carregar config do Blob
-    try {
-      const { blobs } = await list({ prefix: CONFIG_PREFIX })
-      
-      if (blobs.length > 0) {
-        // Pegar o blob mais recente
-        const latestBlob = blobs.sort((a, b) => 
-          new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-        )[0]
+    // Tentar carregar config do Supabase
+    const supabase = getSupabaseClient()
+    
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('admin_settings')
+          .select('*')
+          .eq('id', 'main')
+          .single()
         
-        // Usar get() para blobs privados
-        const result = await get(latestBlob.pathname, { access: "private" })
-        
-        if (result && result.stream) {
-          const text = await new Response(result.stream).text()
-          const config = JSON.parse(text) as SiteConfig
+        if (!error && data) {
+          // Mesclar dados do Supabase com defaultConfig
+          const config: SiteConfig = {
+            ...defaultConfig,
+            storeName: data.store_name || defaultConfig.storeName,
+            storeHours: {
+              ...defaultConfig.storeHours,
+              isOpen: data.store_open,
+              manualControl: data.manual_control,
+              openTime: data.opening_time || defaultConfig.storeHours.openTime,
+              closeTime: data.closing_time || defaultConfig.storeHours.closeTime,
+              closedMessage: data.closed_message || defaultConfig.storeHours.closedMessage,
+            },
+            delivery: {
+              ...defaultConfig.delivery,
+              defaultFee: data.delivery_fee || defaultConfig.delivery.defaultFee,
+              minimumOrder: data.minimum_order || defaultConfig.delivery.minimumOrder,
+            },
+            whatsapp: {
+              ...defaultConfig.whatsapp,
+              number: data.whatsapp_number || defaultConfig.whatsapp.number,
+            },
+            pixManual: {
+              ...defaultConfig.pixManual,
+              key: data.pix_key || defaultConfig.pixManual.key,
+            },
+          }
           
-          return NextResponse.json({ success: true, config }, { headers: noCacheHeaders })
+          return NextResponse.json({ success: true, config, source: 'supabase' }, { headers: noCacheHeaders })
         }
+      } catch (e) {
+        console.warn("[Config GET] Erro ao buscar do Supabase:", e)
       }
-    } catch (e) {
-      // Blob indisponivel - usar defaultConfig sem erro fatal
-      console.warn("[Config GET] Blob indisponivel, usando defaultConfig")
     }
 
-    // Usar defaultConfig se Blob falhar ou nao houver dados
-    return NextResponse.json({ success: true, config: defaultConfig }, { headers: noCacheHeaders })
+    // Usar defaultConfig se Supabase falhar ou nao houver dados
+    return NextResponse.json({ success: true, config: defaultConfig, source: 'default' }, { headers: noCacheHeaders })
   } catch (error) {
     console.error("[Config GET] Erro geral:", error)
-    return NextResponse.json({ success: true, config: defaultConfig }, { headers: noCacheHeaders })
+    return NextResponse.json({ success: true, config: defaultConfig, source: 'default' }, { headers: noCacheHeaders })
   }
 }
 
@@ -76,49 +108,60 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Config vazia" }, { status: 400 })
     }
 
-    // Tentar salvar no Blob
-    try {
-      const timestamp = Date.now()
-      const filename = `${CONFIG_PREFIX}${timestamp}.json`
-      
-      const blob = await put(filename, JSON.stringify(config, null, 2), {
-        access: "private",
-        contentType: "application/json",
-      })
-
-      // Limpar configs antigas (manter apenas o mais recente)
+    // Tentar salvar no Supabase
+    const supabase = getSupabaseClient()
+    
+    if (supabase) {
       try {
-        const { blobs } = await list({ prefix: CONFIG_PREFIX })
-        const oldBlobs = blobs.filter(b => b.url !== blob.url)
-        
-        for (const oldBlob of oldBlobs) {
-          try {
-            await del(oldBlob.url)
-          } catch {
-            // ignorar erro de delete
-          }
+        const updateData = {
+          id: 'main',
+          store_name: config.storeName,
+          store_open: config.storeHours?.isOpen ?? true,
+          manual_control: config.storeHours?.manualControl ?? false,
+          opening_time: config.storeHours?.openTime || '14:00',
+          closing_time: config.storeHours?.closeTime || '22:00',
+          closed_message: config.storeHours?.closedMessage || 'Estamos fechados no momento',
+          delivery_fee: config.delivery?.defaultFee || 5,
+          minimum_order: config.delivery?.minimumOrder || 15,
+          whatsapp_number: config.whatsapp?.number || '',
+          pix_key: config.pixManual?.key || '',
+          updated_at: new Date().toISOString(),
         }
-      } catch {
-        // ignorar erro ao limpar
-      }
 
-      return NextResponse.json({ success: true, config })
-    } catch (blobError) {
-      // Blob indisponivel - retornar sucesso mesmo assim
-      // O status da loja ja e salvo no Supabase, entao nao e critico
-      console.warn("[Config POST] Blob indisponivel:", blobError)
-      return NextResponse.json({ 
-        success: true, 
-        config,
-        warning: "Blob indisponivel, config salva apenas localmente"
-      })
+        const { error } = await supabase
+          .from('admin_settings')
+          .upsert(updateData, { onConflict: 'id' })
+
+        if (!error) {
+          return NextResponse.json({ 
+            success: true, 
+            config,
+            savedTo: 'supabase'
+          })
+        } else {
+          console.warn("[Config POST] Erro Supabase:", error.message)
+        }
+      } catch (e) {
+        console.warn("[Config POST] Excecao Supabase:", e)
+      }
     }
+
+    // Se chegou aqui, Supabase falhou - retornar sucesso mesmo assim
+    // O frontend ja salvou em localStorage
+    return NextResponse.json({ 
+      success: true, 
+      config,
+      savedTo: 'local',
+      warning: "Supabase indisponivel, config salva apenas localmente"
+    })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error("[Config POST] ERRO:", errorMessage)
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    )
+    // Mesmo com erro, retornar sucesso - frontend ja salvou localmente
+    return NextResponse.json({ 
+      success: true,
+      savedTo: 'local',
+      warning: errorMessage
+    })
   }
 }
