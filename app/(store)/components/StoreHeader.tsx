@@ -1,18 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { ShoppingCart, User, Star, Package, LogOut } from "lucide-react"
 import type { Customer } from "@/lib/config-types"
-
-// Le dados do localStorage (mesma fonte do AdminStoreSettings)
-function loadLocalStatus() {
-  if (typeof window === 'undefined') return null
-  try {
-    const saved = localStorage.getItem('pk-store-status')
-    if (saved) return JSON.parse(saved)
-  } catch { /* ignore */ }
-  return null
-}
+import { useStoreSettings } from "@/hooks/useStoreSettings"
 
 interface StoreHeaderProps {
   customer: Customer | null
@@ -39,25 +29,11 @@ export function StoreHeader({
   onLogout,
   onOpenLogin
 }: StoreHeaderProps) {
-  const [storeData, setStoreData] = useState<{ storeName: string; subtitle: string } | null>(null)
+  // Usa hook da nova arquitetura - atualiza automaticamente
+  const { settings } = useStoreSettings()
 
-  useEffect(() => {
-    const loadData = () => {
-      const data = loadLocalStatus()
-      if (data) {
-        setStoreData({
-          storeName: data.storeName || 'Acai da Terra',
-          subtitle: data.subtitle || 'Delivery de Acai'
-        })
-      }
-    }
-    loadData()
-    const interval = setInterval(loadData, 2000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const displayName = storeData?.storeName || 'Acai da Terra'
-  const displaySubtitle = storeData?.subtitle || 'Delivery de Acai'
+  const displayName = settings.storeName || 'Acai da Terra'
+  const displaySubtitle = settings.subtitle || 'Delivery de Acai'
 
   return (
     <header className="sticky top-0 z-50 glass border-b border-white/5 shadow-xl shadow-black/10">

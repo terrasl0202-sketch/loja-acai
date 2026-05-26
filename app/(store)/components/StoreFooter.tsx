@@ -1,49 +1,23 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { MessageCircle, Instagram } from "lucide-react"
-
-// Le dados do localStorage (mesma fonte do AdminStoreSettings)
-function loadLocalStatus() {
-  if (typeof window === 'undefined') return null
-  try {
-    const saved = localStorage.getItem('pk-store-status')
-    if (saved) return JSON.parse(saved)
-  } catch { /* ignore */ }
-  return null
-}
+import { useStoreSettings } from "@/hooks/useStoreSettings"
 
 export function StoreFooter() {
-  const [storeData, setStoreData] = useState<{
-    storeName: string
-    slogan: string
-    whatsapp: string
-    instagram: string
-    address: string
-  } | null>(null)
-
-  useEffect(() => {
-    const loadData = () => {
-      const data = loadLocalStatus()
-      if (data) {
-        setStoreData({
-          storeName: data.storeName || '',
-          slogan: data.slogan || '',
-          whatsapp: data.whatsapp || '',
-          instagram: data.instagram || '',
-          address: data.address || ''
-        })
-      }
-    }
-    loadData()
-    const interval = setInterval(loadData, 2000)
-    return () => clearInterval(interval)
-  }, [])
+  // Usa hook da nova arquitetura - atualiza automaticamente
+  const { settings, isLoading } = useStoreSettings()
 
   const currentYear = new Date().getFullYear()
   
-  // Se nao houver dados salvos, nao mostra nada
-  if (!storeData) {
+  const { storeName, slogan, whatsapp, instagram, address } = settings
+
+  // Formata numero de WhatsApp para exibicao
+  const whatsappFormatted = whatsapp 
+    ? whatsapp.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, '($2) $3-$4')
+    : ''
+
+  // Se ainda carregando, mostra footer minimo
+  if (isLoading) {
     return (
       <footer className="border-t border-border mt-8 pb-24">
         <div className="max-w-lg mx-auto px-4 py-8 text-center">
@@ -54,13 +28,6 @@ export function StoreFooter() {
       </footer>
     )
   }
-
-  const { storeName, slogan, whatsapp, instagram, address } = storeData
-
-  // Formata numero de WhatsApp para exibicao
-  const whatsappFormatted = whatsapp 
-    ? whatsapp.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, '($2) $3-$4')
-    : ''
 
   return (
     <footer className="border-t border-border mt-8 pb-24">

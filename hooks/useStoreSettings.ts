@@ -32,7 +32,9 @@ export interface UseStoreSettingsReturn {
   settings: StoreSettings
   status: StoreStatus
   isLoading: boolean
+  isSaving: boolean
   error: string | null
+  lastSaved: string | null
   
   // Status helpers
   isOpen: boolean
@@ -41,6 +43,8 @@ export interface UseStoreSettingsReturn {
   // Actions
   updateSettings: (partial: Partial<StoreSettings>) => Promise<void>
   setOpen: (isOpen: boolean) => Promise<void>
+  toggleOpen: () => Promise<void>
+  toggleManualControl: () => Promise<void>
   useAutomaticSchedule: () => Promise<void>
   refresh: () => Promise<void>
 }
@@ -48,7 +52,9 @@ export interface UseStoreSettingsReturn {
 export function useStoreSettings(): UseStoreSettingsReturn {
   const [settings, setSettings] = useState<StoreSettings>(DEFAULT_STORE_SETTINGS)
   const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lastSaved, setLastSaved] = useState<string | null>(null)
   
   // Calcula status em tempo real
   const status = calculateStoreStatus(settings)
@@ -91,23 +97,41 @@ export function useStoreSettings(): UseStoreSettingsReturn {
   const updateSettings = useCallback(async (partial: Partial<StoreSettings>) => {
     try {
       setError(null)
+      setIsSaving(true)
       const updated = await storeService.saveSettings(partial)
       setSettings(updated)
+      setLastSaved(new Date().toISOString())
     } catch (err) {
       setError('Erro ao salvar configuracoes')
       throw err
+    } finally {
+      setIsSaving(false)
     }
   }, [])
   
   // Abre/fecha loja
   const setOpen = useCallback(async (isOpen: boolean) => {
     try {
+      setIsSaving(true)
       await storeService.setOpen(isOpen)
+      setLastSaved(new Date().toISOString())
     } catch (err) {
       setError('Erro ao alterar status da loja')
       throw err
+    } finally {
+      setIsSaving(false)
     }
   }, [])
+  
+  // Toggle open/closed
+  const toggleOpen = useCallback(async () => {
+    await setOpen(!settings.storeOpen)
+  }, [settings.storeOpen, setOpen])
+  
+  // Toggle manual control
+  const toggleManualControl = useCallback(async () => {
+    await updateSettings({ manualControl: !settings.manualControl })
+  }, [settings.manualControl, updateSettings])
   
   // Usa horario automatico
   const useAutomaticSchedule = useCallback(async () => {
@@ -137,11 +161,15 @@ export function useStoreSettings(): UseStoreSettingsReturn {
     settings,
     status,
     isLoading,
+    isSaving,
     error,
+    lastSaved,
     isOpen: status.isOpen,
     isManualControl: settings.manualControl,
     updateSettings,
     setOpen,
+    toggleOpen,
+    toggleManualControl,
     useAutomaticSchedule,
     refresh,
   }

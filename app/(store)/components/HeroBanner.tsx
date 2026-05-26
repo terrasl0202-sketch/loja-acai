@@ -1,42 +1,15 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Snowflake, Award, Clock } from "lucide-react"
-
-// Le dados do localStorage (mesma fonte do AdminStoreSettings)
-function loadLocalStatus() {
-  if (typeof window === 'undefined') return null
-  try {
-    const saved = localStorage.getItem('pk-store-status')
-    if (saved) return JSON.parse(saved)
-  } catch { /* ignore */ }
-  return null
-}
+import { useStoreSettings } from "@/hooks/useStoreSettings"
 
 export function HeroBanner() {
-  const [storeData, setStoreData] = useState<{
-    storeName: string
-    slogan: string
-  } | null>(null)
+  // Usa hook da nova arquitetura - atualiza automaticamente
+  const { settings } = useStoreSettings()
 
-  useEffect(() => {
-    const loadData = () => {
-      const data = loadLocalStatus()
-      if (data) {
-        setStoreData({
-          storeName: data.storeName || 'Acai da Terra',
-          slogan: data.slogan || 'O melhor acai da cidade'
-        })
-      }
-    }
-    loadData()
-    const interval = setInterval(loadData, 2000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const displayName = storeData?.storeName || 'Acai da Terra'
-  const displaySlogan = storeData?.slogan || 'O melhor acai da cidade'
+  const displayName = settings.storeName || 'Acai da Terra'
+  const displaySlogan = settings.slogan || 'O melhor acai da cidade'
   
   return (
     <section className="relative h-48 sm:h-56 overflow-hidden">
