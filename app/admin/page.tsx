@@ -348,47 +348,50 @@ export default function AdminPage() {
   }
 
   // ========== SALVAR CONFIGURACOES ==========
-  // NOTA: Agora salva no Supabase via /api/config (NAO usa mais Blob)
-  // O status da loja (aberta/fechada) tambem e salvo no AdminStoreSettings
-  // Produtos tambem sao sincronizados em pk-products para nova arquitetura
+  // NOTA: Produtos salvos no Supabase via /api/products
+  // Config geral salva em /api/config
   const handleSave = async () => {
+    console.log("[Admin] handleSave iniciado")
     setSaving(true)
     setSaveSuccess(false)
     
-    // Salvar localmente primeiro (sempre funciona como fallback)
     try {
-      localStorage.setItem('pk-admin-config', JSON.stringify(config))
-      // Sincronizar produtos para nova arquitetura SaaS (pk-products)
-      localStorage.setItem('pk-products', JSON.stringify(config.products))
-    } catch {
-      // Ignorar erro de localStorage
-    }
-    
-    // Salvar no Supabase via API
-    try {
-      const res = await fetch("/api/config", {
+      // 1. SALVAR PRODUTOS NO SUPABASE
+      console.log("[Admin] Salvando produtos no Supabase...")
+      const productsRes = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: sessionPassword, config }),
+        body: JSON.stringify({ products: config.products }),
       })
-      const data = await res.json()
+      const productsData = await productsRes.json()
       
-      if (data.success) {
-        setSaveSuccess(true)
-        // Mostrar onde foi salvo
-        if (data.savedTo === 'supabase') {
-          showToast("Salvo no Supabase")
-        } else {
-          showToast("Salvo localmente")
-        }
-        setTimeout(() => setSaveSuccess(false), 3000)
+      if (!productsData.success) {
+        console.error("[Admin] Erro ao salvar produtos:", productsData.error)
+        showToast("Erro ao salvar: " + productsData.error)
+        setSaving(false)
+        return
       }
-    } catch (error) {
-      // Erro de rede - ja salvou localmente
-      console.warn("[Admin] Erro ao salvar:", error)
+      
+      console.log("[Admin] Produtos salvos:", productsData.count)
+      
+      // 2. SALVAR CONFIG GERAL (sem produtos)
+      const configToSave = { ...config, products: [] }
+      await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sessionPassword, config: configToSave }),
+      })
+      
+      // Cache local
+      localStorage.setItem('pk-products', JSON.stringify(config.products))
+      
       setSaveSuccess(true)
-      showToast("Salvo localmente")
+      showToast(`Salvo (${productsData.count} produtos)`)
       setTimeout(() => setSaveSuccess(false), 3000)
+      
+    } catch (error) {
+      console.error("[Admin] Erro:", error)
+      showToast("Erro ao salvar")
     } finally {
       setSaving(false)
     }
