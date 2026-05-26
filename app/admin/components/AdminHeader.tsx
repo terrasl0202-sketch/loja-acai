@@ -1,17 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Lock, Bell, BellOff, RefreshCw, Volume2, Save, Loader2, Check, LogOut } from "lucide-react"
-
-// Le dados do localStorage
-function loadLocalStatus() {
-  if (typeof window === 'undefined') return null
-  try {
-    const saved = localStorage.getItem('pk-store-status')
-    if (saved) return JSON.parse(saved)
-  } catch { /* ignore */ }
-  return null
-}
+import { useStoreSettings } from "@/hooks/useStoreSettings"
 
 interface AdminHeaderProps {
   newOrdersCount: number
@@ -42,19 +32,9 @@ export function AdminHeader({
   onLogout,
   onMarkAsSeen,
 }: AdminHeaderProps) {
-  const [storeName, setStoreName] = useState('Acai da Terra')
-
-  useEffect(() => {
-    const loadData = () => {
-      const data = loadLocalStatus()
-      if (data?.storeName) {
-        setStoreName(data.storeName)
-      }
-    }
-    loadData()
-    const interval = setInterval(loadData, 2000)
-    return () => clearInterval(interval)
-  }, [])
+  // Usa hook da nova arquitetura - atualiza automaticamente
+  const { settings } = useStoreSettings()
+  const storeName = settings.storeName || 'Acai da Terra'
 
   return (
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-xl border-b border-primary/10 shadow-xl shadow-black/10">

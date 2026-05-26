@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Clock } from "lucide-react"
+import { useStoreSettings } from "@/hooks/useStoreSettings"
 
 interface StoreClosedBannerProps {
   // Props opcionais para override
@@ -10,42 +10,14 @@ interface StoreClosedBannerProps {
   closeTime?: string
 }
 
-// Le dados do localStorage (mesma fonte do AdminStoreSettings)
-function loadLocalStatus() {
-  if (typeof window === 'undefined') return null
-  try {
-    const saved = localStorage.getItem('pk-store-status')
-    if (saved) {
-      return JSON.parse(saved)
-    }
-  } catch {
-    // Ignora erro
-  }
-  return null
-}
-
 export function StoreClosedBanner({ closedMessage, openTime, closeTime }: StoreClosedBannerProps) {
-  const [localData, setLocalData] = useState<{
-    closedMessage: string
-    openTime: string
-    closeTime: string
-  } | null>(null)
+  // Usa hook da nova arquitetura - atualiza automaticamente
+  const { settings } = useStoreSettings()
 
-  useEffect(() => {
-    const data = loadLocalStatus()
-    if (data) {
-      setLocalData({
-        closedMessage: data.closedMessage || 'Estamos fechados no momento. Volte em breve!',
-        openTime: data.openTime || '14:00',
-        closeTime: data.closeTime || '22:00'
-      })
-    }
-  }, [])
-
-  // Usar props se fornecidas, senao usar localStorage
-  const displayMessage = closedMessage || localData?.closedMessage || 'Estamos fechados no momento.'
-  const displayOpenTime = openTime || localData?.openTime || '14:00'
-  const displayCloseTime = closeTime || localData?.closeTime || '22:00'
+  // Usar props se fornecidas, senao usar settings do hook
+  const displayMessage = closedMessage || settings.closedMessage || 'Estamos fechados no momento.'
+  const displayOpenTime = openTime || settings.openTime || '14:00'
+  const displayCloseTime = closeTime || settings.closeTime || '22:00'
 
   return (
     <div className="mx-4 mt-5 p-5 bg-gradient-to-br from-orange-500/10 via-red-500/5 to-purple-500/5 border border-orange-500/20 rounded-2xl backdrop-blur-sm shadow-xl shadow-red-500/5">
