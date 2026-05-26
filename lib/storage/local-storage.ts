@@ -41,8 +41,8 @@ export class LocalStorageAdapter implements StorageAdapter {
     if (typeof window === 'undefined') return false
     try {
       const test = '__storage_test__'
-      localStorage.setItem(test, test)
-      localStorage.removeItem(test)
+      window.localStorage.setItem(test, test)
+      window.localStorage.removeItem(test)
       return true
     } catch {
       return false
@@ -71,7 +71,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     
     try {
       const fullKey = this.getFullKey(key)
-      const item = localStorage.getItem(fullKey)
+      const item = window.localStorage.getItem(fullKey)
       
       if (!item) return null
       
@@ -89,7 +89,7 @@ export class LocalStorageAdapter implements StorageAdapter {
       const fullKey = this.getFullKey(key)
       const serialized = JSON.stringify(value)
       
-      localStorage.setItem(fullKey, serialized)
+      window.localStorage.setItem(fullKey, serialized)
       this.emit('set', key, value)
     } catch (error) {
       console.error(`[Storage] Erro ao salvar ${key}:`, error)
@@ -102,7 +102,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     
     try {
       const fullKey = this.getFullKey(key)
-      localStorage.removeItem(fullKey)
+      window.localStorage.removeItem(fullKey)
       this.emit('remove', key)
     } catch (error) {
       console.error(`[Storage] Erro ao remover ${key}:`, error)
@@ -113,7 +113,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     if (!this.isAvailable()) return false
     
     const fullKey = this.getFullKey(key)
-    return localStorage.getItem(fullKey) !== null
+    return window.localStorage.getItem(fullKey) !== null
   }
   
   async keys(prefix?: string): Promise<string[]> {
@@ -122,8 +122,8 @@ export class LocalStorageAdapter implements StorageAdapter {
     const result: string[] = []
     const searchPrefix = this.getFullKey(prefix || '')
     
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i)
       if (key && key.startsWith(searchPrefix)) {
         // Remove o prefixo global para retornar apenas a parte relevante
         const cleanKey = this.prefix ? key.replace(this.prefix, '') : key
