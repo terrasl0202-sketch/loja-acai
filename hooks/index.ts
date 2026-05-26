@@ -26,6 +26,28 @@ export type { UseStoreSettingsReturn } from './useStoreSettings'
 export { useOrders } from './useOrders'
 export type { UseOrdersOptions, UseOrdersReturn } from './useOrders'
 
+// Admin Orders (abstrai chamadas de API do Admin)
+export { useAdminOrders } from './useAdminOrders'
+export type { 
+  UseAdminOrdersOptions, 
+  UseAdminOrdersReturn, 
+  OrderStats 
+} from './useAdminOrders'
+
+// Customer Orders (pedidos do cliente)
+export { useCustomerOrders } from './useCustomerOrders'
+export type { 
+  UseCustomerOrdersOptions, 
+  UseCustomerOrdersReturn 
+} from './useCustomerOrders'
+
+// Order Tracking (acompanhar pedido individual)
+export { useOrderTracking } from './useOrderTracking'
+export type { 
+  UseOrderTrackingOptions, 
+  UseOrderTrackingReturn 
+} from './useOrderTracking'
+
 // Products
 export { useProducts } from './useProducts'
 export type { UseProductsOptions, UseProductsReturn } from './useProducts'
