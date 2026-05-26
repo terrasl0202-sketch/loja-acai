@@ -3,7 +3,11 @@ import { get, list } from "@vercel/blob"
 import type { SiteConfig, Order } from "@/lib/config-types"
 
 const CONFIG_PREFIX = "pk-config-"
-const ORDERS_PREFIX = "orders/"
+const ORDERS_PREFIX = "pk-orders-"
+
+// Evitar cache
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 // GET: Verificar token e retornar dados do entregador (sem PIN)
 export async function GET(

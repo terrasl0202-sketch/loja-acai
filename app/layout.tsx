@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Poppins } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { brandConfig } from '@/lib/brand-config'
 import './globals.css'
 
 const poppins = Poppins({ 
@@ -10,8 +11,9 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: 'P.K Paulo e Karina Gostosuras | Açaí Delivery',
-  description: 'Os melhores açaís da região! Peça agora pelo WhatsApp.',
+  title: brandConfig.seo.title,
+  description: brandConfig.seo.description,
+  keywords: brandConfig.seo.keywords,
   generator: 'v0.app',
   icons: {
     icon: [
@@ -29,6 +31,12 @@ export const metadata: Metadata = {
       },
     ],
     apple: '/apple-icon.png',
+  },
+  openGraph: {
+    title: brandConfig.seo.title,
+    description: brandConfig.seo.description,
+    siteName: brandConfig.name,
+    type: 'website',
   },
 }
 

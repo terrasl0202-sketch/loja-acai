@@ -25,6 +25,7 @@ export interface StoreHours {
   closeTime: string
   closedMessage: string
   abandonedOrderMinutes?: number
+  autoArchiveDays?: number // 0 = nunca, 7, 15, 30 = dias para arquivar automaticamente
 }
 
 export interface PaymentConfig {
@@ -125,7 +126,32 @@ export interface Order {
   entregadorNome?: string
   entregadorWhatsapp?: string
   saiuParaEntregaEm?: string
+  entregueEm?: string
+  canceladoEm?: string
+  motivoCancelamento?: string
   historicoEntrega?: { data: string; evento: string; observacao?: string }[]
+  // Identificacao do cliente
+  customerId?: string
+}
+
+// Sistema de Conta do Cliente
+export interface Customer {
+  id: string
+  name: string
+  phone: string
+  pin: string // PIN de 4 digitos
+  createdAt: string
+  lastOrderAt?: string
+  totalOrders: number
+  totalSpent: number
+  isVip: boolean // Cliente VIP (5+ pedidos)
+  favorites: number[] // IDs dos produtos favoritos
+  savedAddress?: {
+    endereco: string
+    numero: string
+    bairro: string
+    referencia: string
+  }
 }
 
 export interface SiteConfig {
@@ -143,7 +169,11 @@ export interface SiteConfig {
 
 export const defaultConfig: SiteConfig = {
   storeName: "P.K Gostosuras",
-  products: [], // Vazio - produtos vem da API/Blob
+  products: [
+    { id: 1, name: "Acai 500ml", price: 15.00, description: "Acai puro 500ml", active: true, stock: 100, order: 1 },
+    { id: 2, name: "Acai 1L", price: 25.00, description: "Acai puro 1 litro", active: true, stock: 100, order: 2 },
+    { id: 3, name: "Acai 2L", price: 45.00, description: "Acai puro 2 litros", active: true, stock: 100, order: 3 },
+  ],
   banner: {
     mainText: "Os melhores açaís de garrafa",
     secondaryText: "da região!",
@@ -159,6 +189,7 @@ export const defaultConfig: SiteConfig = {
     closeTime: "22:00",
     closedMessage: "Estamos fechados no momento. Volte em breve!",
     abandonedOrderMinutes: 15,
+    autoArchiveDays: 0, // 0 = nunca arquivar automaticamente
   },
   payment: {
     minValueForAsaas: 15,

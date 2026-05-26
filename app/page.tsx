@@ -1,32 +1,18 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import Image from "next/image"
-import { Minus, Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock } from "lucide-react"
+import { Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock, ChevronRight, Package, Zap } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
-import { type SiteConfig, type Coupon, defaultConfig } from "@/lib/config-types"
+import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
-type PaymentStatus = "idle" | "loading" | "awaiting" | "confirmed" | "error" | "manual"
-type DeliveryType = "entrega" | "retirada"
-
-// Snapshot do pedido no momento do PIX
-interface OrderSnapshot {
-  items: { id: number; name: string; price: number; quantity: number }[]
-  subtotal: number
-  deliveryFee: number
-  discount: number
-  total: number
-  couponCode: string | null
-  bairro: string
-  deliveryType: DeliveryType
-  customerName: string
-  customerPhone: string
-  address: string
-  reference: string
-  orderId: string
-  createdAt: string
-  expiresAt: string
-}
+// Types, Constants e Utils da area do cliente
+import type { PaymentStatus, DeliveryType, OrderSnapshot, PixData, CustomerOrder, SavedOrder, Coupon, Customer, FormData } from "./(store)/types"
+import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURATION, FALLBACK_NEIGHBORHOOD_FEES } from "./(store)/constants"
+import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode } from "./(store)/utils"
+import { useCart } from "./(store)/hooks/useCart"
+import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer } from "./(store)/components"
+import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./(store)/components/modals"
+import { fetchStoreOpenStatus } from "@/lib/supabase"
 
 export default function Home() {
   // Config do site carregada da API
@@ -76,48 +62,92 @@ export default function Home() {
     }
   }
 
-  // Loja esta realmente aberta = status manual E dentro do horario
-  const isStoreOpen = siteConfig.storeHours?.isOpen && isWithinBusinessHours()
+  // Estado para controlar hydration - evita mismatch server/client
+  const [isClient, setIsClient] = useState(false)
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
-  const [quantities, setQuantities] = useState<Record<number, number>>({})
-  const [formData, setFormData] = useState({
-    nome: "",
-    telefone: "",
-    endereco: "",
-    numero: "",
-    referencia: "",
-    pagamento: "pix",
-    observacao: "",
-    localizacao: "",
-    bairro: "",
-  })
+  // Status da loja via Supabase/localStorage (independente do Blob)
+  const [storeStatusData, setStoreStatusData] = useState<{
+    storeOpen: boolean
+    manualControl: boolean
+    openingTime: string
+    closingTime: string
+    source: 'supabase' | 'local' | 'default'
+  } | null>(null)
+  
+  // Carrega status da loja do Supabase (admin_settings)
+  useEffect(() => {
+    if (!isClient) return
+    
+    async function loadStoreStatus() {
+      try {
+        const data = await fetchStoreOpenStatus()
+        setStoreStatusData(data)
+      } catch (err) {
+        console.error('[Store] Erro ao carregar status:', err)
+      }
+    }
+    
+    loadStoreStatus()
+    // Recarrega a cada 30 segundos para capturar mudancas do admin
+    const interval = setInterval(loadStoreStatus, 30000)
+    return () => clearInterval(interval)
+  }, [isClient])
+
+  // Loja esta realmente aberta
+  // Prioridade: storeStatusData (Supabase/local) > horario automatico
+  // NAO depende mais do Blob (siteConfig.storeHours)
+  const isStoreOpen = isClient ? (
+    storeStatusData 
+      ? (storeStatusData.manualControl ? storeStatusData.storeOpen : isWithinBusinessHours())
+      : isWithinBusinessHours() // Fallback: apenas horario automatico
+  ) : true
+
+  // Hook do carrinho - gerencia quantities, showCart, toast de adicao e som
+  const cart = useCart({ products })
+  const { quantities, setQuantities, showCart, setShowCart, updateQuantity, getTotalItems, addToast, addToCartAudioRef } = cart
+  
+  const [formData, setFormData] = useState<FormData>({ ...DEFAULT_FORM_DATA })
   
   // Cupom
   const [couponCode, setCouponCode] = useState("")
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
   const [couponError, setCouponError] = useState("")
   const [deliveryType, setDeliveryType] = useState<DeliveryType>(DELIVERY_ENABLED ? "entrega" : "retirada")
-  const [showCart, setShowCart] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
+  const [useSavedData, setUseSavedData] = useState<boolean | null>(null) // null = nao escolheu, true = usar salvos, false = novo endereco
   const [copied, setCopied] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
   
   // Asaas PIX states
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("idle")
   const [paymentErrorMessage, setPaymentErrorMessage] = useState<string>("")
-  const [pixData, setPixData] = useState<{
-    paymentId: string
-    pixQrCode: string
-    pixCopyPaste: string
-    value: number
-    expiresAt?: string
-  } | null>(null)
+  const [pixData, setPixData] = useState<PixData | null>(null)
   const [orderId, setOrderId] = useState<string>("")
   const [paymentTime, setPaymentTime] = useState<string>("")
   const [manualPixCode, setManualPixCode] = useState<string>("")
   const [copiedManualKey, setCopiedManualKey] = useState(false)
   const [copiedManualCode, setCopiedManualCode] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  
+  // Sistema de conta do cliente
+  const [customer, setCustomer] = useState<Customer | null>(null)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showLoginModal, setShowLoginModal] = useState(false)
+  const [showMyOrdersModal, setShowMyOrdersModal] = useState(false)
+  const [showMyAccountModal, setShowMyAccountModal] = useState(false)
+  const [loginStep, setLoginStep] = useState<"phone" | "pin" | "register">("phone")
+  const [loginPhone, setLoginPhone] = useState("")
+  const [loginPin, setLoginPin] = useState("")
+  const [loginName, setLoginName] = useState("")
+  const [loginLoading, setLoginLoading] = useState(false)
+  const [loginError, setLoginError] = useState("")
+  const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([])
+  const [loadingOrders, setLoadingOrders] = useState(false)
+  const [showRepeatConfirm, setShowRepeatConfirm] = useState(false)
+  const [orderToRepeat, setOrderToRepeat] = useState<typeof customerOrders[0] | null>(null)
   const [pixTimeLeft, setPixTimeLeft] = useState<number>(0)
   const [pixExpired, setPixExpired] = useState(false)
   
@@ -128,6 +158,7 @@ export default function Home() {
   // Cooldown para novo PIX (anti-spam)
   const [pixCooldownEnd, setPixCooldownEnd] = useState<number | null>(null)
   const [pixCooldownLeft, setPixCooldownLeft] = useState<number>(0)
+  
   const [showChangePaymentModal, setShowChangePaymentModal] = useState(false)
   const [showManualPixDuringCooldown, setShowManualPixDuringCooldown] = useState(false)
   
@@ -140,34 +171,394 @@ export default function Home() {
   // Mostrar toast
   const showToast = (message: string) => {
     setToastMessage(message)
-    setTimeout(() => setToastMessage(null), 4000)
+    setTimeout(() => setToastMessage(null), TOAST_DURATION)
+  }
+  
+  // Funcao para preencher dados do cliente no formulario
+  const fillFormWithCustomerData = (customerData: Customer) => {
+    setFormData(prev => ({
+      ...prev,
+      nome: customerData.name || prev.nome,
+      telefone: customerData.phone || prev.telefone,
+      endereco: customerData.savedAddress?.endereco || prev.endereco,
+      numero: customerData.savedAddress?.numero || prev.numero,
+      bairro: customerData.savedAddress?.bairro || prev.bairro,
+      referencia: customerData.savedAddress?.referencia || prev.referencia,
+    }))
+  }
+  
+  // Carregar sessao do cliente ao iniciar
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedSession = localStorage.getItem(CUSTOMER_SESSION_KEY)
+      if (savedSession) {
+        try {
+          const parsed = JSON.parse(savedSession) as Customer
+          setCustomer(parsed)
+          // Preencher dados automaticamente
+          fillFormWithCustomerData(parsed)
+        } catch {
+          localStorage.removeItem(CUSTOMER_SESSION_KEY)
+        }
+      }
+    }
+  }, [])
+  
+  // Salvar sessao do cliente
+  const saveCustomerSession = (customerData: Customer) => {
+    setCustomer(customerData)
+    localStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(customerData))
+  }
+  
+  // Logout do cliente
+  const handleCustomerLogout = () => {
+    setCustomer(null)
+    localStorage.removeItem(CUSTOMER_SESSION_KEY)
+    setShowProfileMenu(false)
+    setUseSavedData(null)
+    showToast("Voce saiu da sua conta")
+  }
+  
+  // Usar dados salvos do cliente
+  const handleUseSavedData = () => {
+    if (customer) {
+      // Primeiro tentar usar savedAddress do cliente
+      if (customer.savedAddress && customer.savedAddress.endereco) {
+        setFormData(prev => ({
+          ...prev,
+          nome: customer.name || prev.nome,
+          telefone: customer.phone || prev.telefone,
+          endereco: customer.savedAddress?.endereco || prev.endereco,
+          numero: customer.savedAddress?.numero || prev.numero,
+          bairro: customer.savedAddress?.bairro || prev.bairro,
+          referencia: customer.savedAddress?.referencia || prev.referencia,
+        }))
+      } 
+      // Se nao tem savedAddress, tentar usar dados do ultimo pedido
+      else if (customerOrders.length > 0) {
+        const lastOrder = customerOrders[0] // O mais recente
+        // Extrair dados do endereco (formato: "Rua X, 123")
+        const addressParts = (lastOrder.address || "").split(" - ")
+        const enderecoNumero = addressParts[0] || ""
+        const [endereco, numero] = enderecoNumero.includes(",") 
+          ? enderecoNumero.split(",").map(s => s.trim())
+          : [enderecoNumero, ""]
+        
+        setFormData(prev => ({
+          ...prev,
+          nome: customer.name || prev.nome,
+          telefone: customer.phone || prev.telefone,
+          endereco: endereco || prev.endereco,
+          numero: numero || prev.numero,
+          bairro: lastOrder.neighborhood || prev.bairro,
+          referencia: addressParts.length > 1 ? addressParts.slice(1).join(" - ") : prev.referencia,
+        }))
+        
+        // Definir tipo de entrega do ultimo pedido
+        if (lastOrder.deliveryType === "entrega") {
+          setDeliveryType("entrega")
+        } else if (lastOrder.deliveryType === "retirada") {
+          setDeliveryType("retirada")
+        }
+      }
+      // Se nao tem nada, pelo menos preencher nome e telefone
+      else {
+        setFormData(prev => ({
+          ...prev,
+          nome: customer.name || prev.nome,
+          telefone: customer.phone || prev.telefone,
+        }))
+      }
+      
+      setUseSavedData(true)
+    }
+  }
+  
+  // Usar novo endereco (limpar campos de endereco, manter nome e telefone)
+  const handleUseNewAddress = () => {
+    if (customer) {
+      setFormData(prev => ({
+        ...prev,
+        nome: customer.name || prev.nome,
+        telefone: customer.phone || prev.telefone,
+        endereco: "",
+        numero: "",
+        bairro: "",
+        referencia: "",
+      }))
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        endereco: "",
+        numero: "",
+        bairro: "",
+        referencia: "",
+      }))
+    }
+    setUseSavedData(false)
+  }
+  
+  // Verificar se telefone existe
+  const checkPhoneExists = async (phone: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/customers?phone=${encodeURIComponent(phone)}`)
+      const data = await res.json()
+      return data.found === true
+    } catch {
+      return false
+    }
+  }
+  
+  // Fazer login
+  const handleLogin = async () => {
+    setLoginLoading(true)
+    setLoginError("")
+    
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "login",
+          phone: loginPhone,
+          pin: loginPin
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        saveCustomerSession(data.customer)
+        fillFormWithCustomerData(data.customer)
+        setShowLoginModal(false)
+        resetLoginForm()
+        showToast(`Bem-vindo(a), ${data.customer.name}!`)
+      } else {
+        setLoginError(data.error || "Erro ao fazer login")
+      }
+    } catch {
+      setLoginError("Erro de conexao")
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+  
+  // Criar conta
+  const handleRegister = async () => {
+    setLoginLoading(true)
+    setLoginError("")
+    
+    if (loginPin.length !== 4) {
+      setLoginError("PIN deve ter 4 digitos")
+      setLoginLoading(false)
+      return
+    }
+    
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "register",
+          phone: loginPhone,
+          name: loginName,
+          pin: loginPin
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        saveCustomerSession(data.customer)
+        fillFormWithCustomerData(data.customer)
+        setShowLoginModal(false)
+        resetLoginForm()
+        showToast("Conta criada com sucesso!")
+      } else {
+        setLoginError(data.error || "Erro ao criar conta")
+      }
+    } catch {
+      setLoginError("Erro de conexao")
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+  
+  // Avancar no login
+  const handleLoginNext = async () => {
+    if (loginStep === "phone") {
+      if (!loginPhone || loginPhone.replace(/\D/g, "").length < 10) {
+        setLoginError("Digite um telefone valido")
+        return
+      }
+      
+      setLoginLoading(true)
+      const exists = await checkPhoneExists(loginPhone)
+      setLoginLoading(false)
+      
+      if (exists) {
+        setLoginStep("pin")
+      } else {
+        setLoginStep("register")
+      }
+    }
+  }
+  
+  // Resetar formulario de login
+  const resetLoginForm = () => {
+    setLoginStep("phone")
+    setLoginPhone("")
+    setLoginPin("")
+    setLoginName("")
+    setLoginError("")
+  }
+  
+  // Carregar pedidos do cliente
+  const loadCustomerOrders = async () => {
+    if (!customer) return
+    
+    setLoadingOrders(true)
+    try {
+      const res = await fetch(`/api/customers/orders?phone=${customer.phone}`)
+      const data = await res.json()
+      if (data.success) {
+        setCustomerOrders(data.orders || [])
+      }
+    } catch {
+      console.error("Erro ao carregar pedidos")
+    } finally {
+      setLoadingOrders(false)
+    }
+  }
+  
+  // Toggle favorito
+  const toggleFavorite = async (productId: number) => {
+    if (!customer) {
+      setShowLoginModal(true)
+      return
+    }
+    
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update",
+          phone: customer.phone,
+          toggleFavorite: productId
+        })
+      })
+      
+      const data = await res.json()
+      if (data.success) {
+        saveCustomerSession(data.customer)
+        const isFav = data.customer.favorites.includes(productId)
+        showToast(isFav ? "Adicionado aos favoritos!" : "Removido dos favoritos")
+      }
+    } catch {
+      showToast("Erro ao atualizar favoritos")
+    }
+  }
+  
+  // Abrir confirmacao para repetir pedido
+  const openRepeatConfirm = (order: typeof customerOrders[0]) => {
+    if (!order.itemsDetailed || order.itemsDetailed.length === 0) {
+      showToast("Nao foi possivel repetir este pedido")
+      return
+    }
+    setOrderToRepeat(order)
+    setShowRepeatConfirm(true)
+  }
+  
+  // Funcao para normalizar nome de produto para comparacao - usando util importado
+  // (mantendo a funcao local para garantir compatibilidade exata)
+  
+  // Confirmar e repetir pedido
+  const confirmRepeatOrder = () => {
+    if (!orderToRepeat || !orderToRepeat.itemsDetailed || orderToRepeat.itemsDetailed.length === 0) {
+      showToast("Erro ao repetir pedido")
+      setShowRepeatConfirm(false)
+      setOrderToRepeat(null)
+      return
+    }
+    
+    // Criar novo carrinho com os itens do pedido antigo
+    const newQuantities: Record<number, number> = {}
+    
+    for (const item of orderToRepeat.itemsDetailed) {
+      // Tentar encontrar o produto por ID
+      let product = products.find(p => p.id === item.productId)
+      
+      // Se nao encontrou por ID, tentar por nome
+      if (!product) {
+        const itemNameLower = item.productName.toLowerCase().trim()
+        product = products.find(p => p.name.toLowerCase().trim() === itemNameLower)
+      }
+      
+      // Se ainda nao encontrou, tentar match parcial
+      if (!product) {
+        const itemNameLower = item.productName.toLowerCase()
+        product = products.find(p => 
+          p.name.toLowerCase().includes(itemNameLower) || 
+          itemNameLower.includes(p.name.toLowerCase())
+        )
+      }
+      
+      if (product) {
+        newQuantities[product.id] = item.quantity
+      }
+    }
+    
+    // Se nenhum produto foi encontrado
+    if (Object.keys(newQuantities).length === 0) {
+      showToast("Produtos nao disponiveis")
+      setShowRepeatConfirm(false)
+      setOrderToRepeat(null)
+      return
+    }
+    
+    // Atualizar carrinho
+    setQuantities(newQuantities)
+    
+    // Resetar escolha de dados salvos
+    setUseSavedData(null)
+    
+    // Definir tipo de entrega
+    if (orderToRepeat.deliveryType === "entrega") {
+      setDeliveryType("entrega")
+    } else if (orderToRepeat.deliveryType === "retirada") {
+      setDeliveryType("retirada")
+    }
+    
+    // Fechar modais primeiro
+    setShowRepeatConfirm(false)
+    setShowMyOrdersModal(false)
+    setOrderToRepeat(null)
+    
+    // Abrir carrinho apos um pequeno delay
+    setTimeout(() => {
+      setShowCart(true)
+      showToast("Itens adicionados!")
+      
+      // Scroll para checkout
+      setTimeout(() => {
+        const el = document.getElementById("checkout-section")
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 200)
+    }, 50)
+  }
+  
+  // Funcao antiga mantida para compatibilidade
+  const repeatOrder = (order: typeof customerOrders[0]) => {
+    openRepeatConfirm(order)
   }
   
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const addToCartAudioRef = useRef<HTMLAudioElement | null>(null)
+  // addToCartAudioRef agora vem do useCart hook
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const pixTimerRef = useRef<NodeJS.Timeout | null>(null)
   
-  // Chave do localStorage para persistir pedido
-  const ORDER_STORAGE_KEY = "pk-order-in-progress"
-  
-  // Interface do pedido salvo
-  interface SavedOrder {
-    quantities: Record<string, number>
-    formData: typeof formData
-    deliveryType: DeliveryType
-    showCheckout: boolean
-    paymentStatus: PaymentStatus
-    pixData: typeof pixData
-    orderSnapshot: OrderSnapshot | null
-    orderId: string
-    pixTimeLeft: number
-    pixExpired: boolean
-    pixCooldownEnd: number | null
-    appliedCoupon: typeof appliedCoupon
-    couponCode: string
-    savedAt: number
-  }
+  // Interface do pedido salvo - usando tipo importado
   
   // Restaurar pedido do localStorage ao carregar
   useEffect(() => {
@@ -221,10 +612,10 @@ export default function Home() {
           }
         }
         
-        console.log("[v0] Pedido restaurado do localStorage")
+        // Pedido restaurado
       }
     } catch (error) {
-      console.error("[v0] Erro ao restaurar pedido:", error)
+      console.error("Erro ao restaurar pedido:", error)
     }
   }, [])
   
@@ -255,11 +646,20 @@ export default function Home() {
     }
   }, [quantities, formData, deliveryType, showCheckout, paymentStatus, pixData, orderSnapshot, orderId, pixTimeLeft, pixExpired, pixCooldownEnd, appliedCoupon, couponCode])
 
+  // Retorna bairros reais ou fallback se vazios
+  const getNeighborhoodFees = () => {
+    const realFees = siteConfig.delivery?.neighborhoodFees || []
+    if (realFees.length > 0) {
+      return { fees: realFees, isFallback: false }
+    }
+    return { fees: [...FALLBACK_NEIGHBORHOOD_FEES], isFallback: true }
+  }
+
   // Calcula taxa de entrega baseado no bairro
   const getDeliveryFee = () => {
     if (deliveryType === "retirada") return 0
-    const neighborhoodFees = siteConfig.delivery?.neighborhoodFees || []
-    const fee = neighborhoodFees.find(f => 
+    const { fees } = getNeighborhoodFees()
+    const fee = fees.find(f => 
       f.name.toLowerCase() === formData.bairro.toLowerCase()
     )
     return fee ? fee.fee : DELIVERY_FEE
@@ -339,18 +739,8 @@ export default function Home() {
     // Limpar carrinho
     setQuantities({})
     
-    // Limpar formulario
-    setFormData({
-      nome: "",
-      telefone: "",
-      endereco: "",
-      numero: "",
-      referencia: "",
-      pagamento: "pix",
-      observacao: "",
-      localizacao: "",
-      bairro: "",
-    })
+    // Limpar formulario - usando constante importada
+    setFormData({ ...DEFAULT_FORM_DATA })
     
     // Limpar cupom
     setAppliedCoupon(null)
@@ -496,18 +886,8 @@ export default function Home() {
     // Limpar carrinho
     setQuantities({})
     
-    // Limpar formulario
-    setFormData({
-      nome: "",
-      telefone: "",
-      endereco: "",
-      numero: "",
-      referencia: "",
-      pagamento: "pix",
-      observacao: "",
-      localizacao: "",
-      bairro: "",
-    })
+    // Limpar formulario - usando constante importada
+    setFormData({ ...DEFAULT_FORM_DATA })
     
     // Limpar cupom
     setAppliedCoupon(null)
@@ -582,14 +962,6 @@ export default function Home() {
     loadConfig()
   }, [])
 
-  // Som ao adicionar item
-  const playAddSound = useCallback(() => {
-    if (addToCartAudioRef.current) {
-      addToCartAudioRef.current.currentTime = 0
-      addToCartAudioRef.current.play().catch(() => {})
-    }
-  }, [])
-
   // Som de confirmacao
   const playConfirmSound = useCallback(() => {
     if (audioRef.current) {
@@ -598,33 +970,9 @@ export default function Home() {
     }
   }, [])
 
-  const updateQuantity = (id: number, delta: number) => {
-    const newQty = Math.max(0, (quantities[id] || 0) + delta)
-    setQuantities((prev) => ({
-      ...prev,
-      [id]: newQty,
-    }))
-    if (delta > 0) {
-      playAddSound()
-    }
-  }
+  // playAddSound, addToast, updateQuantity e getTotalItems agora vem do useCart hook
 
-  const getTotalItems = () => {
-    return Object.values(quantities).reduce((sum, qty) => sum + qty, 0)
-  }
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    })
-  }
-
-  const generateOrderId = () => {
-    const now = new Date()
-    const id = `PK${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`
-    return id
-  }
+  // formatCurrency e generateOrderId agora sao importados de utils
 
   // Registra pedido na API
   const registerOrder = async (paymentMethod: string) => {
@@ -632,6 +980,17 @@ export default function Home() {
       .filter((p) => quantities[p.id] > 0)
       .map((p) => `${quantities[p.id]}x ${p.name}`)
       .join(", ")
+    
+    // Detalhes do pedido para permitir "Pedir novamente"
+    const itemsDetailed = products
+      .filter((p) => quantities[p.id] > 0)
+      .map((p) => ({
+        productId: p.id,
+        productName: p.name,
+        quantity: quantities[p.id],
+        price: p.price,
+        subtotal: p.price * quantities[p.id]
+      }))
 
     try {
       await fetch("/api/orders", {
@@ -639,70 +998,67 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           order: {
-            orderId: orderId || generateOrderId(), // ID publico PK...
+            orderId: orderId || generateOrderId(),
             customerName: formData.nome,
             customerPhone: formData.telefone,
+            customerId: customer?.id, // Associar ao cliente logado
             items: orderItems,
+            itemsDetailed, // Para permitir repetir pedido
             total: getTotal(),
             paymentMethod,
             deliveryType,
             address: deliveryType === "entrega" 
               ? `${formData.endereco}, ${formData.numero} - ${formData.bairro} (Ref: ${formData.referencia})`
               : "Retirada no local",
+            neighborhood: formData.bairro,
+            reference: formData.referencia,
           },
         }),
       })
+      
+      // Se cliente logado, atualizar estatisticas e salvar endereco
+      if (customer) {
+        // Registrar pedido nas estatisticas
+        await fetch("/api/customers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "recordOrder",
+            phone: customer.phone,
+            orderTotal: getTotal()
+          })
+        })
+        
+        // Salvar endereco se for entrega
+        if (deliveryType === "entrega" && formData.endereco) {
+          const updateRes = await fetch("/api/customers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "update",
+              phone: customer.phone,
+              savedAddress: {
+                endereco: formData.endereco,
+                numero: formData.numero,
+                bairro: formData.bairro,
+                referencia: formData.referencia
+              }
+            })
+          })
+          
+          const updateData = await updateRes.json()
+          if (updateData.success) {
+            saveCustomerSession(updateData.customer)
+          }
+        }
+      }
     } catch (error) {
       console.error("Erro ao registrar pedido:", error)
     }
   }
 
-  // Gera codigo PIX EMV para pagamento manual
-  const generateManualPixCode = (amount: number) => {
-    const pixKey = PIX_MANUAL_KEY_FULL
-    const merchantName = "CARINA KAREN DA SILVA"
-    const merchantCity = "SAO PAULO"
-    const amountStr = amount.toFixed(2)
-
-    const crc16 = (str: string): string => {
-      let crc = 0xFFFF
-      for (let i = 0; i < str.length; i++) {
-        crc ^= str.charCodeAt(i) << 8
-        for (let j = 0; j < 8; j++) {
-          if (crc & 0x8000) {
-            crc = (crc << 1) ^ 0x1021
-          } else {
-            crc <<= 1
-          }
-          crc &= 0xFFFF
-        }
-      }
-      return crc.toString(16).toUpperCase().padStart(4, "0")
-    }
-
-    const tlv = (tag: string, value: string): string => {
-      return tag + value.length.toString().padStart(2, "0") + value
-    }
-
-    const gui = tlv("00", "br.gov.bcb.pix")
-    const chave = tlv("01", pixKey)
-    const merchantAccountInfo = tlv("26", gui + chave)
-
-    let payload = ""
-    payload += tlv("00", "01")
-    payload += merchantAccountInfo
-    payload += tlv("52", "0000")
-    payload += tlv("53", "986")
-    payload += tlv("54", amountStr)
-    payload += tlv("58", "BR")
-    payload += tlv("59", merchantName)
-    payload += tlv("60", merchantCity)
-    payload += tlv("62", tlv("05", "***"))
-    payload += "6304"
-
-    const crcValue = crc16(payload)
-    return payload + crcValue
-  }
+  // Gera codigo PIX EMV para pagamento manual - wrapper usando util importado
+  const generateManualPixCode = (amount: number) => generatePixCode(amount, PIX_MANUAL_KEY_FULL)
 
   const copyToClipboard = async (text: string, setCopiedFn: (v: boolean) => void) => {
     try {
@@ -940,9 +1296,8 @@ export default function Home() {
               },
             }),
           })
-          console.log("[v0] Pedido PIX salvo no backend:", newOrderId)
-        } catch (err) {
-          console.error("[v0] Erro ao salvar pedido PIX:", err)
+        } catch {
+          // Erro silencioso ao salvar pedido
         }
         
         startPaymentPolling(data.paymentId)
@@ -986,9 +1341,8 @@ export default function Home() {
                 asaasPaymentId: paymentId,
               }),
             })
-            console.log("[v0] Pedido confirmado no backend:", orderId)
-          } catch (err) {
-            console.error("[v0] Erro ao confirmar pedido:", err)
+          } catch {
+            // Erro silencioso ao confirmar pedido
           }
         }
       } catch (error) {
@@ -1034,7 +1388,7 @@ export default function Home() {
 
 const message = `━━━━━━━━━━━━━━━━━━
 PEDIDO PAGO
-━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━���━━━━━━━
 
 Pedido No: ${orderId}
 
@@ -1189,311 +1543,217 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         <source src="data:audio/wav;base64,UklGRl9vT19teleS0OAREREAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2Onp6WgWdXXWx5ipOXlpCJgHx3c3J0dn+Hi5CSlZiZmZmYlpORjoyJh4WDgoKDhYiLj5KVl5iYl5WTkI2Lh4WDgYGChIeKjpGUlpeYl5WTkI2Kh4SCgIGDhYmMj5KVl5iYl5WSj4yJhoOBgIGDhomMj5KVl5iYmJaUkY6Lh4SBgICChYiMj5KVl5iYmJaUkY6Lh4SBgICChYiLj5KVl5iYmJaUkY6Lh4SBgIGChYiMj5KVl5iYmJaUkY6Lh4SBgICChYiLj5KVl5iYmJaUkY6LiISBgICChYiLj5KVl5iYmJaUkY6LiISBgICChYiMj5KVl5iYmJaUkY6Lh4SBgICChYiMj5KVl5iYl5aTkI2Kh4SBgIGDhYmMj5KVl5iYl5WTkI2KhoOBgIGDhomMj5KVl5iYl5WTkI2KhoOBgIKEh4qNkJOWmJiYl5WSkI2KhoOBgIKEh4qNkJOWl5iYl5WSkI2KhoOBgIKEh4qOkZSWl5iYl5WSkI2KhoOBgIKEh4qNkJOWl5iYl5WSkI2KhoOBgIKEh4qNkJOWmJiYl5WSkI2Kh4OBgIKEh4qNkJOWmJiYl5WSkI2Kh4OBgIKEh4qNkJOWmJiYl5WSkI2KhoOBgIKEh4qNkJOWmJiYl5WSkI6Lh4SBgYKEh4qNkJOWmJiYl5WSkI6Lh4SBgYKEh4qNkJOW" type="audio/wav" />
       </audio>
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-md border-b border-border">
-        <div className="max-w-lg mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-primary">{STORE_NAME}</h1>
-              <p className="text-xs text-muted-foreground">Paulo e Karina</p>
-            </div>
-            <button
-              onClick={() => setShowCart(!showCart)}
-              className="relative p-3 bg-primary rounded-full transition-transform hover:scale-105 active:scale-95"
-            >
-              <ShoppingCart className="w-5 h-5 text-primary-foreground" />
-              {getTotalItems() > 0 && (
-                <span className="absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center animate-pulse">
-                  {getTotalItems()}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* Header Premium */}
+      <StoreHeader
+        customer={customer}
+        showProfileMenu={showProfileMenu}
+        cartItemsCount={getTotalItems()}
+        onToggleProfileMenu={() => setShowProfileMenu(!showProfileMenu)}
+        onCloseProfileMenu={() => setShowProfileMenu(false)}
+        onToggleCart={() => setShowCart(!showCart)}
+        onOpenMyAccount={() => {
+          setShowProfileMenu(false)
+          setShowMyAccountModal(true)
+        }}
+        onOpenMyOrders={() => {
+          setShowProfileMenu(false)
+          setShowMyOrdersModal(true)
+          loadCustomerOrders()
+        }}
+        onLogout={handleCustomerLogout}
+        onOpenLogin={() => {
+          setShowProfileMenu(false)
+          setShowLoginModal(true)
+        }}
+      />
 
-      {/* Hero */}
-      <section className="relative h-48 overflow-hidden">
-        <Image
-          src="/acai-bowl.jpg"
-          alt="Açaí delicioso"
-          fill
-          className="object-cover"
-          priority
-        />
-<div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background" />
-              <div className="absolute bottom-4 left-4 right-4">
-                <h2 className="text-2xl font-extrabold text-foreground drop-shadow-lg">
-                  {siteConfig.banner.mainText}
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {siteConfig.banner.secondaryText}
-                </p>
-              </div>
-</section>
+      {/* Hero - Cinematografico Premium */}
+      <HeroBanner />
 
-      {/* Aviso Loja Fechada com Horario */}
-      {!isStoreOpen && (
-        <div className="mx-4 mt-4 p-5 bg-gradient-to-br from-red-500/20 to-orange-500/10 border border-red-500/40 rounded-2xl">
-          <div className="text-center space-y-3">
-            <div className="flex justify-center">
-              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
-                <Clock className="w-6 h-6 text-red-400" />
-              </div>
-            </div>
-            <h3 className="text-lg font-bold text-red-400">
-              Estamos fechados no momento
-            </h3>
-            {siteConfig.storeHours.closedMessage && (
-              <p className="text-sm text-muted-foreground">
-                {siteConfig.storeHours.closedMessage}
-              </p>
-            )}
-            <div className="pt-2 border-t border-red-500/20">
-              <p className="text-xs text-muted-foreground mb-1">Horario de funcionamento:</p>
-              <p className="text-sm font-medium text-foreground">
-                {siteConfig.storeHours.openTime || "18:00"} as {siteConfig.storeHours.closeTime || "23:30"}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Aviso Loja Fechada Premium */}
+      {!isStoreOpen && <StoreClosedBanner siteConfig={siteConfig} />}
 
       {/* Products */}
-      <section className="mt-6 space-y-4">
-          <h3 className="text-lg font-semibold text-foreground">Cardapio</h3>
-          
-          {/* Loading state */}
-          {!configLoaded && (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="bg-card rounded-2xl p-4 border border-border shadow-lg animate-pulse"
-                >
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1 space-y-3">
-                      <div className="h-5 bg-secondary rounded w-2/3"></div>
-                      <div className="h-4 bg-secondary rounded w-full"></div>
-                      <div className="h-6 bg-secondary rounded w-1/4"></div>
-                    </div>
-                    <div className="w-28 h-10 bg-secondary rounded-full"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          
-          {/* Products loaded */}
-          {configLoaded && products.map((product) => (
-            <div
-              key={product.id}
-              className="bg-card rounded-2xl p-4 border border-border shadow-lg shadow-primary/5 transition-all hover:shadow-primary/10"
-            >
-              <div className="flex justify-between items-start gap-4">
-                <div className="flex-1">
-                  <h4 className="font-semibold text-foreground">{product.name}</h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {product.description}
-                  </p>
-                  <p className="text-lg font-bold text-primary mt-2">
-                    {formatCurrency(product.price)}
-                  </p>
-                </div>
-                
-                <div className="flex items-center gap-2 bg-secondary rounded-full p-1">
-                  <button
-                    onClick={() => updateQuantity(product.id, -1)}
-                    className="w-9 h-9 flex items-center justify-center bg-card rounded-full text-foreground transition-all hover:bg-primary hover:text-primary-foreground active:scale-90"
-                    aria-label={`Diminuir quantidade de ${product.name}`}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <span className="w-6 text-center font-semibold text-foreground">
-                    {quantities[product.id] || 0}
-                  </span>
-                  <button
-                    onClick={() => updateQuantity(product.id, 1)}
-                    className="w-9 h-9 flex items-center justify-center bg-primary rounded-full text-primary-foreground transition-all hover:brightness-110 active:scale-90"
-                    aria-label={`Aumentar quantidade de ${product.name}`}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </section>
+      <ProductList
+        products={products}
+        quantities={quantities}
+        onUpdateQuantity={updateQuantity}
+        customerFavorites={customer?.favorites || []}
+        onToggleFavorite={toggleFavorite}
+      />
 
         {/* Cart Summary */}
-        {getTotalItems() > 0 && (
-          <section className="mt-8 bg-card rounded-2xl p-4 border border-primary/30 shadow-lg shadow-primary/10">
-            <div className="flex items-center gap-2 mb-4">
-              <ShoppingCart className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-semibold text-foreground">Seu Pedido</h3>
-            </div>
-            
-            <div className="space-y-2">
-              {products.map((product) => {
-                const qty = quantities[product.id] || 0
-                if (qty === 0) return null
-                return (
-                  <div key={product.id} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {qty}x {product.name}
-                    </span>
-                    <span className="text-foreground font-medium">
-                      {formatCurrency(product.price * qty)}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-            
-            <div className="border-t border-border mt-4 pt-4 flex justify-between items-center">
-              <span className="text-foreground font-semibold">Total</span>
-              <span className="text-xl font-bold text-primary">
-                {formatCurrency(getTotal())}
-              </span>
-            </div>
-          </section>
-        )}
+        <CartSummary 
+          products={products} 
+          quantities={quantities} 
+          total={getTotal()} 
+        />
 
-        {/* Spacer for fixed button */}
-        <div className="h-4" />
+        {/* Spacer for fixed button - altura suficiente para nao sobrepor */}
+        <div className="h-24" />
 
         {/* Footer */}
-        <footer className="text-center py-6 border-t border-border mt-8">
-          <p className="text-xs text-muted-foreground tracking-wider">
-            DEVELOPED BY <span className="font-semibold text-foreground/80">AILTON</span>
-          </p>
-        </footer>
+        <StoreFooter />
 
       {/* Fixed Bottom Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border p-4">
-        <div className="max-w-lg mx-auto">
-            {!isStoreOpen ? (
-            <div className="w-full py-4 bg-red-500/20 text-red-400 font-bold text-lg rounded-2xl flex items-center justify-center gap-3 border border-red-500/50">
-              <X className="w-5 h-5" />
-              Loja Fechada
-            </div>
-          ) : (
-            <button
-              onClick={openCheckout}
-              disabled={getTotalItems() === 0}
-              className="w-full py-4 bg-primary text-primary-foreground font-bold text-lg rounded-2xl flex items-center justify-center gap-3 transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/30"
-            >
-              <Send className="w-5 h-5" />
-              Enviar Pedido no WhatsApp
-              {getTotalItems() > 0 && (
-                <span className="bg-accent text-accent-foreground px-3 py-1 rounded-full text-sm">
-                  {formatCurrency(getTotal())}
-                </span>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
+      <FloatingCartButton
+        isStoreOpen={isStoreOpen}
+        totalItems={getTotalItems()}
+        total={getTotal()}
+        onOpenCheckout={openCheckout}
+      />
+
+      {/* Cart Drawer */}
+      <CartDrawer
+        isOpen={showCart}
+        onClose={() => setShowCart(false)}
+        products={products}
+        quantities={quantities}
+        onUpdateQuantity={updateQuantity}
+        subtotal={getSubtotal()}
+        total={getTotal()}
+        isStoreOpen={isStoreOpen}
+        onCheckout={openCheckout}
+      />
 
       {/* Checkout Modal */}
       {showCheckout && (
-        <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-slide-up">
           <div className="min-h-screen pb-8">
-            {/* Modal Header */}
-            <header className="sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border">
+            {/* Modal Header Premium */}
+            <header className="sticky top-0 z-10 glass border-b border-white/5">
               <div className="max-w-lg mx-auto px-4 py-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-foreground">
-                    {paymentStatus === "confirmed" ? "Pedido Confirmado" : "Finalizar Pedido"}
-                  </h2>
-                <button 
-                  onClick={handleCloseCheckout}
-                  className="p-2 bg-secondary rounded-full text-foreground transition-all hover:bg-secondary/80 active:scale-95"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+                      <ShoppingCart className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-foreground">
+                        {paymentStatus === "confirmed" ? "Pedido Confirmado" : "Finalizar Pedido"}
+                      </h2>
+                      <p className="text-xs text-muted-foreground">{getTotalItems()} {getTotalItems() === 1 ? 'item' : 'itens'} no carrinho</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleCloseCheckout}
+                    className="p-2.5 bg-secondary/60 hover:bg-secondary rounded-xl text-foreground/70 hover:text-foreground transition-all duration-200 active:scale-95"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
+              <div className="h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
             </header>
 
-            <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+            <div className="max-w-lg mx-auto px-4 pt-5 space-y-5">
               {/* Payment Confirmed Screen */}
               {paymentStatus === "confirmed" && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  {/* Success Banner */}
-                  <div className="bg-green-500/20 border border-green-500/50 rounded-2xl p-6 text-center">
-                    <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                      <Check className="w-8 h-8 text-white" />
+                <div className="space-y-5 animate-in fade-in duration-500">
+                  {/* Success Banner Premium */}
+                  <div className="relative bg-gradient-to-br from-green-500/15 via-green-500/10 to-green-500/5 border border-green-500/30 rounded-3xl p-8 text-center overflow-hidden">
+                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-green-500/10 rounded-full blur-3xl" />
+                    <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-green-500/10 rounded-full blur-3xl" />
+                    <div className="relative">
+                      <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-5 shadow-2xl shadow-green-500/40 animate-float">
+                        <Check className="w-10 h-10 text-white" />
+                      </div>
+                      <h3 className="text-2xl font-black text-green-400 mb-2">PAGAMENTO APROVADO</h3>
+                      <p className="text-green-400/70 text-sm">Seu pedido foi confirmado com sucesso!</p>
                     </div>
-                    <h3 className="text-2xl font-bold text-green-400 mb-2">PAGAMENTO APROVADO</h3>
-                    <p className="text-green-300">Seu pedido foi confirmado com sucesso!</p>
                   </div>
 
-                  {/* Order Details */}
-                  <div className="bg-card rounded-2xl p-4 border border-border space-y-4">
-                    <div className="flex justify-between items-center border-b border-border pb-3">
-                      <span className="text-muted-foreground">Pedido No</span>
-                      <span className="font-bold text-primary">{orderId}</span>
+                  {/* Order Details Premium */}
+                  <div className="premium-card rounded-2xl p-5 space-y-4">
+                    <div className="flex justify-between items-center border-b border-primary/10 pb-4">
+                      <span className="text-muted-foreground text-sm flex items-center gap-2">
+                        <Package className="w-4 h-4" />
+                        Pedido No
+                      </span>
+                      <span className="font-black text-primary text-lg">{orderId}</span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <User className="w-3 h-3" />
+                        Cliente
+                      </p>
+                      <p className="font-bold text-foreground">{formData.nome}</p>
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Cliente</p>
-                      <p className="font-semibold text-foreground">{formData.nome}</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Itens</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <ShoppingCart className="w-3 h-3" />
+                        Itens
+                      </p>
                       {products.map((product) => {
                         const qty = quantities[product.id] || 0
                         if (qty === 0) return null
                         return (
-                          <p key={product.id} className="text-foreground">
-                            {qty}x {product.name}
+                          <p key={product.id} className="text-foreground flex items-center gap-2.5 text-sm">
+                            <span className="w-6 h-6 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg flex items-center justify-center text-xs font-bold text-primary">{qty}</span>
+                            {product.name}
                           </p>
                         )
                       })}
                     </div>
 
-                    <div className="flex justify-between items-center border-t border-border pt-3">
-                      <span className="font-semibold text-foreground">Total</span>
-                      <span className="text-xl font-bold text-primary">{formatCurrency(getTotal())}</span>
+                    <div className="flex justify-between items-center border-t border-primary/10 pt-4">
+                      <span className="font-bold text-foreground">Total</span>
+                      <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">{formatCurrency(getTotal())}</span>
                     </div>
 
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Pagamento</p>
-                      <p className="font-semibold text-green-400">PIX CONFIRMADO</p>
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <CreditCard className="w-3 h-3" />
+                        Pagamento
+                      </p>
+                      <p className="font-bold text-green-400 flex items-center gap-2 text-sm">
+                        <div className="w-5 h-5 bg-green-500/20 rounded flex items-center justify-center">
+                          <Check className="w-3 h-3" />
+                        </div>
+                        PIX CONFIRMADO
+                      </p>
                     </div>
 
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">{deliveryType === "entrega" ? "Entrega" : "Retirada"}</p>
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3" />
+                        {deliveryType === "entrega" ? "Entrega" : "Retirada"}
+                      </p>
                       {deliveryType === "entrega" ? (
                         <>
-                          <p className="text-foreground">{formData.endereco}, {formData.numero}</p>
-                          <p className="text-muted-foreground text-sm">Ref: {formData.referencia}</p>
+                          <p className="text-foreground text-sm font-medium">{formData.endereco}, {formData.numero}</p>
+                          <p className="text-muted-foreground text-xs">Ref: {formData.referencia}</p>
                           {formData.localizacao && (
-                            <a href={formData.localizacao} target="_blank" rel="noopener noreferrer" className="text-primary text-sm underline">
+                            <a href={formData.localizacao} target="_blank" rel="noopener noreferrer" className="text-primary text-xs hover:underline flex items-center gap-1.5 mt-1">
+                              <MapPin className="w-3.5 h-3.5" />
                               Ver no mapa
                             </a>
                           )}
                         </>
                       ) : (
-                        <p className="text-foreground">Retirada no local</p>
+                        <p className="text-foreground text-sm font-medium">Retirada no local</p>
                       )}
                     </div>
 
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Horario do pagamento</p>
-                      <p className="text-foreground">{paymentTime}</p>
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <Clock className="w-3 h-3" />
+                        Horario do pagamento
+                      </p>
+                      <p className="text-foreground text-sm font-medium">{paymentTime}</p>
                     </div>
                   </div>
 
-                  {/* Send to WhatsApp Button */}
+                  {/* Send to WhatsApp Button Premium */}
                   <button
                     onClick={sendConfirmedOrder}
-                    className="w-full py-4 bg-green-500 text-white font-bold text-lg rounded-2xl flex items-center justify-center gap-3 transition-all hover:bg-green-600 active:scale-[0.98] shadow-lg"
+                    className="premium-btn w-full py-5 bg-gradient-to-r from-green-500 to-green-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-2xl hover:shadow-green-500/40 active:scale-[0.98] relative overflow-hidden group"
                   >
-                    <Check className="w-6 h-6" />
-                    ENVIAR PEDIDO CONFIRMADO
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                    <Check className="w-5 h-5 relative" />
+                    <span>ENVIAR PEDIDO CONFIRMADO</span>
                   </button>
                 </div>
               )}
@@ -1501,64 +1761,88 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
               {/* Normal Checkout Flow */}
               {paymentStatus !== "confirmed" && (
                 <>
-                  {/* Order Summary */}
-                  <section className="bg-card rounded-2xl p-4 border border-border">
-                    <h3 className="font-semibold text-foreground mb-3">Resumo do Pedido</h3>
+                  {/* Order Summary Premium */}
+                  <section className="premium-card rounded-2xl p-5 animate-scale-in">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-foreground flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                          <ShoppingCart className="w-4 h-4 text-primary" />
+                        </div>
+                        Resumo do Pedido
+                      </h3>
+                      <span className="text-xs font-medium text-primary bg-primary/10 px-3 py-1 rounded-full">
+                        {getTotalItems()} {getTotalItems() === 1 ? 'item' : 'itens'}
+                      </span>
+                    </div>
+                      
                     <div className="space-y-2">
                       {products.map((product) => {
                         const qty = quantities[product.id] || 0
                         if (qty === 0) return null
                         return (
-                          <div key={product.id} className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">
-                              {qty}x {product.name}
+                          <div key={product.id} className="flex justify-between items-center text-sm py-2.5 border-b border-border/30 last:border-0 group hover:bg-secondary/20 -mx-2 px-2 rounded-lg transition-colors">
+                            <span className="text-muted-foreground flex items-center gap-2.5">
+                              <span className="w-6 h-6 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg flex items-center justify-center text-xs font-bold text-primary">{qty}</span>
+                              <span className="group-hover:text-foreground transition-colors">{product.name}</span>
                             </span>
-                            <span className="text-foreground font-medium">
+                            <span className="text-foreground font-semibold tabular-nums">
                               {formatCurrency(product.price * qty)}
                             </span>
                           </div>
                         )
                       })}
                     </div>
-                    
+                      
                     {/* Subtotal, Desconto, Taxa, Total */}
-                    <div className="border-t border-border mt-3 pt-3 space-y-2">
+                    <div className="border-t border-primary/10 mt-4 pt-4 space-y-2.5">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Subtotal</span>
-                        <span className="text-foreground">{formatCurrency(getSubtotal())}</span>
+                        <span className="text-foreground tabular-nums">{formatCurrency(getSubtotal())}</span>
                       </div>
                       {appliedCoupon && getDiscount() > 0 && (
                         <div className="flex justify-between text-sm">
-                          <span className="text-green-400">Cupom {appliedCoupon.code}</span>
-                          <span className="text-green-400">-{formatCurrency(getDiscount())}</span>
+                          <span className="text-green-400 flex items-center gap-1.5">
+                            <Tag className="w-3.5 h-3.5" />
+                            Cupom {appliedCoupon.code}
+                          </span>
+                          <span className="text-green-400 font-semibold">-{formatCurrency(getDiscount())}</span>
                         </div>
                       )}
                       {deliveryType === "entrega" && getDeliveryFee() > 0 && (
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Taxa de entrega</span>
-                          <span className="text-foreground">{formatCurrency(getDeliveryFee())}</span>
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <Truck className="w-3.5 h-3.5" />
+                            Taxa de entrega
+                          </span>
+                          <span className="text-foreground tabular-nums">{formatCurrency(getDeliveryFee())}</span>
                         </div>
                       )}
-                      <div className="flex justify-between items-center pt-2 border-t border-border">
-                        <span className="text-foreground font-semibold">Total</span>
-                        <span className="text-xl font-bold text-primary">{formatCurrency(getTotal())}</span>
+                        
+                      {/* Total Premium */}
+                      <div className="flex justify-between items-center pt-3 border-t border-primary/20 mt-3">
+                        <span className="text-foreground font-bold text-lg">Total</span>
+                        <div className="text-right">
+                          <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary to-accent drop-shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+                            {formatCurrency(getTotal())}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
                     {/* Cupom */}
                     {(siteConfig.coupons || []).length > 0 && !appliedCoupon && (
-                      <div className="mt-4 pt-4 border-t border-border">
+                      <div className="mt-4 pt-4 border-t border-border/30">
                         <div className="flex gap-2">
                           <input
                             type="text"
                             value={couponCode}
                             onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                             placeholder="Codigo do cupom"
-                            className="flex-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground"
+                            className="premium-input flex-1 px-4 py-3 bg-input/50 border border-border/50 rounded-xl text-foreground text-sm placeholder:text-muted-foreground/60 focus:outline-none"
                           />
                           <button
                             onClick={applyCoupon}
-                            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
+                            className="premium-btn px-5 py-3 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-[0.98]"
                           >
                             Aplicar
                           </button>
@@ -1569,14 +1853,16 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                       </div>
                     )}
                     {appliedCoupon && (
-                      <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+                      <div className="mt-4 pt-4 border-t border-border/30 flex items-center justify-between bg-green-500/5 -mx-2 px-3 py-2 rounded-xl">
                         <div className="flex items-center gap-2 text-green-400">
-                          <Tag className="w-4 h-4" />
-                          <span className="text-sm font-medium">Cupom {appliedCoupon.code} aplicado</span>
+                          <div className="w-6 h-6 bg-green-500/20 rounded-lg flex items-center justify-center">
+                            <Tag className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-sm font-bold">Cupom {appliedCoupon.code} aplicado</span>
                         </div>
                         <button
                           onClick={() => setAppliedCoupon(null)}
-                          className="text-xs text-muted-foreground hover:text-foreground"
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                         >
                           Remover
                         </button>
@@ -1584,19 +1870,22 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     )}
                   </section>
 
-                  {/* Mensagem de pedido bloqueado */}
+                  {/* Mensagem de pedido bloqueado - Premium */}
                   {isOrderBlocked && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                    <div className="relative bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl p-5 overflow-hidden">
+                      <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+                      <div className="flex items-start gap-4 relative">
+                        <div className="w-10 h-10 bg-gradient-to-br from-amber-500/20 to-amber-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <AlertCircle className="w-5 h-5 text-amber-400" />
+                        </div>
                         <div className="flex-1">
-                          <p className="text-amber-400 font-medium text-sm">Pedido bloqueado</p>
+                          <p className="text-amber-400 font-black text-sm">Pedido bloqueado</p>
                           <p className="text-muted-foreground text-xs mt-1">
                             Para alterar itens ou bairro, cancele este pedido e comece um novo.
                           </p>
                           <button
                             onClick={() => setShowNewOrderModal(true)}
-                            className="mt-3 px-4 py-2 bg-amber-500/20 text-amber-400 rounded-lg text-sm font-medium hover:bg-amber-500/30 transition-colors"
+                            className="mt-3 px-5 py-2.5 bg-gradient-to-r from-amber-500/20 to-amber-500/10 text-amber-400 rounded-xl text-sm font-bold hover:from-amber-500/30 hover:to-amber-500/20 transition-all border border-amber-500/30 active:scale-[0.98]"
                           >
                             Fazer novo pedido
                           </button>
@@ -1605,111 +1894,173 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     </div>
                   )}
 
-                  {/* Delivery Type */}
-                  <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <Truck className="w-5 h-5 text-primary" />
+                  {/* Delivery Type Premium */}
+                  <section className={`premium-card rounded-2xl p-5 animate-scale-in ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`} style={{ animationDelay: '0.1s' }}>
+                    <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                        <Truck className="w-4 h-4 text-primary" />
+                      </div>
                       Tipo de Entrega
                     </h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      {DELIVERY_ENABLED && (
-                        <button
-                          onClick={() => !isOrderBlocked && setDeliveryType("entrega")}
-                          disabled={isOrderBlocked}
-                          className={`py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                            deliveryType === "entrega"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                          }`}
-                        >
-                          <MapPin className="w-4 h-4" />
-                          Entrega
-                          {DELIVERY_FEE > 0 && <span className="text-xs opacity-75">(+R${DELIVERY_FEE})</span>}
-                        </button>
-                      )}
-                      {PICKUP_ENABLED && (
-                        <button
-                          onClick={() => !isOrderBlocked && setDeliveryType("retirada")}
-                          disabled={isOrderBlocked}
-                          className={`py-3 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                            deliveryType === "retirada"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                          }`}
-                        >
-                          <HomeIcon className="w-4 h-4" />
-                          Retirada
-                        </button>
-                      )}
+                    
+                    {/* Segmented Control Premium */}
+                    <div className="bg-secondary/30 backdrop-blur-sm rounded-2xl p-1.5">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {DELIVERY_ENABLED && (
+                          <button
+                            onClick={() => !isOrderBlocked && setDeliveryType("entrega")}
+                            disabled={isOrderBlocked}
+                            className={`relative py-4 px-4 rounded-xl text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2.5 ${
+                              deliveryType === "entrega"
+                                ? "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/30 glow-primary"
+                                : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/50"
+                            }`}
+                          >
+                            <MapPin className="w-4 h-4" />
+                            <span>Entrega</span>
+                            {DELIVERY_FEE > 0 && deliveryType !== "entrega" && (
+                              <span className="text-[10px] opacity-60">(+R${DELIVERY_FEE})</span>
+                            )}
+                          </button>
+                        )}
+                        {PICKUP_ENABLED && (
+                          <button
+                            onClick={() => !isOrderBlocked && setDeliveryType("retirada")}
+                            disabled={isOrderBlocked}
+                            className={`relative py-4 px-4 rounded-xl text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2.5 ${
+                              deliveryType === "retirada"
+                                ? "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/30 glow-primary"
+                                : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-card/50"
+                            }`}
+                          >
+                            <HomeIcon className="w-4 h-4" />
+                            <span>Retirada</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
+                    
                     {deliveryType === "entrega" && siteConfig.delivery?.estimatedTime && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        Tempo estimado: {siteConfig.delivery.estimatedTime}
+                      <p className="text-xs text-muted-foreground text-center mt-3 flex items-center justify-center gap-1.5 bg-secondary/30 py-2 rounded-lg">
+                        <Clock className="w-3.5 h-3.5" />
+                        Tempo estimado: <span className="text-foreground font-medium">{siteConfig.delivery.estimatedTime}</span>
                       </p>
                     )}
                   </section>
 
-                  {/* Customer Info */}
-                  <section className={`bg-card rounded-2xl p-4 border border-border space-y-4 ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <h3 className="font-semibold text-foreground">Seus Dados</h3>
+                  {/* Customer Info Premium */}
+                  <section className={`premium-card rounded-2xl p-5 space-y-5 animate-scale-in ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`} style={{ animationDelay: '0.15s' }}>
+                    <h3 className="font-bold text-foreground flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                        <User className="w-4 h-4 text-primary" />
+                      </div>
+                      Seus Dados
+                    </h3>
                     
-                    <div>
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                        <User className="w-4 h-4" />
-                        Nome *
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.nome}
-                        onChange={(e) => !isOrderBlocked && setFormData({ ...formData, nome: e.target.value })}
-                        disabled={isOrderBlocked}
-                        placeholder="Seu nome completo"
-                        className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                        <Phone className="w-4 h-4" />
-                        Telefone/WhatsApp *
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.telefone}
-                        disabled={isOrderBlocked}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, "").slice(0, 11)
-                          const formatted = value
-                            .replace(/(\d{2})(\d)/, "($1) $2")
-                            .replace(/(\d{5})(\d)/, "$1-$2")
-                          setFormData({ ...formData, telefone: formatted })
-                        }}
-                        placeholder="(11) 99999-9999"
-                        className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                      />
-                    </div>
-
-                    {deliveryType === "entrega" && (
+                    {/* Opcao de usar dados salvos */}
+                    {customer && (customer.savedAddress || customerOrders.length > 0) && useSavedData === null && !isOrderBlocked && (
+                      <div className="bg-gradient-to-br from-secondary/60 to-secondary/30 backdrop-blur-sm rounded-2xl p-5 space-y-4 border border-primary/10">
+                        <p className="text-sm text-foreground font-bold">Como deseja prosseguir?</p>
+                        <div className="flex flex-col gap-3">
+                          <button
+                            type="button"
+                            onClick={handleUseSavedData}
+                            className="premium-btn w-full py-4 px-4 text-sm bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-xl hover:shadow-lg hover:shadow-primary/30 transition-all font-bold flex items-center justify-center gap-2 active:scale-[0.98]"
+                          >
+                            <Check className="w-4 h-4" />
+                            Usar dados salvos
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleUseNewAddress}
+                            className="w-full py-4 px-4 text-sm bg-card/80 text-foreground rounded-xl hover:bg-card transition-all border border-border/50 font-medium flex items-center justify-center gap-2 active:scale-[0.98]"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Inserir novo endereco
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Indicador de dados salvos em uso */}
+                    {useSavedData === true && (
+                      <div className="flex items-center justify-between bg-gradient-to-r from-green-500/15 to-green-500/5 rounded-xl px-4 py-3 border border-green-500/25">
+                        <span className="text-sm text-green-400 font-bold flex items-center gap-2">
+                          <div className="w-6 h-6 bg-green-500/20 rounded-lg flex items-center justify-center">
+                            <Check className="w-3.5 h-3.5" />
+                          </div>
+                          Usando dados salvos
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setUseSavedData(null)}
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Alterar
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* Campos Premium */}
+                    {(useSavedData !== null || !customer || (!customer.savedAddress && customerOrders.length === 0)) && (
                       <>
-                        <div>
-                          <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                            <MapPin className="w-4 h-4" />
-                            Endereco *
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
+                            <User className="w-3 h-3" />
+                            Nome *
                           </label>
                           <input
                             type="text"
-                            value={formData.endereco}
-                            onChange={(e) => !isOrderBlocked && setFormData({ ...formData, endereco: e.target.value })}
+                            value={formData.nome}
+                            onChange={(e) => !isOrderBlocked && setFormData({ ...formData, nome: e.target.value })}
                             disabled={isOrderBlocked}
-                            placeholder="Rua"
-                            className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
+                            placeholder="Seu nome completo"
+                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
                           />
                         </div>
 
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
+                            <Phone className="w-3 h-3" />
+                            Telefone/WhatsApp *
+                          </label>
+                          <input
+                            type="tel"
+                            value={formData.telefone}
+                            disabled={isOrderBlocked}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, "").slice(0, 11)
+                              const formatted = value
+                                .replace(/(\d{2})(\d)/, "($1) $2")
+                                .replace(/(\d{5})(\d)/, "$1-$2")
+                              setFormData({ ...formData, telefone: formatted })
+                            }}
+                            placeholder="(11) 99999-9999"
+                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+                          />
+                        </div>
+
+                        {deliveryType === "entrega" && (
+                          <>
+                            <div className="space-y-2">
+                              <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
+                                <MapPin className="w-3 h-3" />
+                                Endereco *
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.endereco}
+                                onChange={(e) => !isOrderBlocked && setFormData({ ...formData, endereco: e.target.value })}
+                                disabled={isOrderBlocked}
+                                placeholder="Rua"
+                                className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
+                              />
+                            </div>
+
                         <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                              <HomeIcon className="w-4 h-4" />
+                          <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
+                              <HomeIcon className="w-3 h-3" />
                               Numero *
                             </label>
                             <input
@@ -1718,56 +2069,66 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               onChange={(e) => !isOrderBlocked && setFormData({ ...formData, numero: e.target.value })}
                               disabled={isOrderBlocked}
                               placeholder="Numero"
-                              className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
+                              className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
                             />
                           </div>
                         </div>
 
-                        {/* Bairro Dropdown */}
-                        <div>
-                          <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                            <MapPin className="w-4 h-4" />
+                        {/* Bairro Dropdown Premium */}
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
+                            <MapPin className="w-3 h-3" />
                             Bairro *
                           </label>
                           <select
                             value={formData.bairro}
                             onChange={(e) => !isOrderBlocked && setFormData({ ...formData, bairro: e.target.value })}
                             disabled={isOrderBlocked}
-                            className={`w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all appearance-none ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '20px' }}
+                            className={`premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground focus:outline-none appearance-none ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center', backgroundSize: '18px' }}
                           >
                             <option value="">Selecione seu bairro</option>
-                            {(siteConfig.delivery?.neighborhoodFees || [])
-                              .filter(n => n.active !== false)
-                              .map((neighborhood) => (
-                                <option key={neighborhood.name} value={neighborhood.name}>
-                                  {neighborhood.name} - R$ {neighborhood.fee.toFixed(2)}
-                                </option>
-                              ))}
+                            {(() => {
+                              const { fees, isFallback } = getNeighborhoodFees()
+                              return fees
+                                .filter(n => n.active !== false)
+                                .map((neighborhood) => (
+                                  <option key={neighborhood.name} value={neighborhood.name}>
+                                    {neighborhood.name} - R$ {neighborhood.fee.toFixed(2)}{isFallback ? " (teste)" : ""}
+                                  </option>
+                                ))
+                            })()}
                           </select>
+                          {getNeighborhoodFees().isFallback && (
+                            <p className="text-xs text-amber-400 mt-2 flex items-center gap-1.5">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              Modo teste: bairros de exemplo (Blob indisponivel)
+                            </p>
+                          )}
                           {formData.bairro && (
-                            <div className="mt-2 p-3 bg-primary/10 border border-primary/20 rounded-xl">
+                            <div className="mt-3 p-4 bg-gradient-to-r from-primary/15 to-primary/5 border border-primary/25 rounded-xl">
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-muted-foreground flex items-center gap-2">
-                                  <Truck className="w-4 h-4" />
+                                  <Truck className="w-4 h-4 text-primary" />
                                   Taxa de entrega:
                                 </span>
-                                <span className="font-semibold text-primary">
+                                <span className="font-black text-primary text-lg">
                                   {formatCurrency(orderSnapshot ? orderSnapshot.deliveryFee : getDeliveryFee())}
                                 </span>
                               </div>
                             </div>
                           )}
-                          {!formData.bairro && !isOrderBlocked && (
-                            <p className="text-xs text-amber-400 mt-2">
+                          {!formData.bairro && !isOrderBlocked && !getNeighborhoodFees().isFallback && (
+                            <p className="text-xs text-amber-400 mt-2 flex items-center gap-1.5">
+                              <AlertCircle className="w-3.5 h-3.5" />
                               Selecione seu bairro para calcular a entrega.
                             </p>
                           )}
                         </div>
 
-                        <div>
-                          <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                            <MapPinned className="w-4 h-4" />
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
+                            <MapPinned className="w-3 h-3" />
                             Referencia *
                           </label>
                           <input
@@ -1776,27 +2137,30 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             onChange={(e) => !isOrderBlocked && setFormData({ ...formData, referencia: e.target.value })}
                             disabled={isOrderBlocked}
                             placeholder="Ponto de referencia"
-                            className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:opacity-50"
+                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
                           />
                         </div>
 
                         <button
                           onClick={getLocation}
                           disabled={isOrderBlocked}
-                          className={`w-full py-3 bg-secondary text-secondary-foreground rounded-xl flex items-center justify-center gap-2 transition-all ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-secondary/80'}`}
+                          className={`premium-btn w-full py-4 bg-gradient-to-r from-secondary to-secondary/80 text-foreground rounded-xl flex items-center justify-center gap-2.5 font-bold border border-border/50 ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg hover:shadow-primary/10 active:scale-[0.98]'}`}
                         >
                           <MapPinned className="w-4 h-4" />
                           Enviar minha localizacao
                         </button>
                         {formData.localizacao && (
-                          <p className="text-xs text-green-400 text-center">Localizacao capturada com sucesso!</p>
+                          <p className="text-xs text-green-400 text-center flex items-center justify-center gap-1.5 bg-green-500/10 py-2 rounded-lg">
+                            <Check className="w-3.5 h-3.5" />
+                            Localizacao capturada com sucesso!
+                          </p>
                         )}
                       </>
                     )}
 
-                    <div>
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                        <MessageSquare className="w-4 h-4" />
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-foreground/80">
+                        <MessageSquare className="w-3 h-3" />
                         Observacoes (opcional)
                       </label>
                       <textarea
@@ -1804,85 +2168,132 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                         onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
                         placeholder="Ex: Sem banana, mais granola..."
                         rows={2}
-                        className="w-full px-4 py-3 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
+                        className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none resize-none"
                       />
                     </div>
+                      </>
+                    )}
                   </section>
 
-                  {/* Payment Method */}
-                  <section className="bg-card rounded-2xl p-4 border border-border space-y-4">
-                    <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <CreditCard className="w-5 h-5 text-primary" />
+                  {/* Payment Method Premium */}
+                  <section className="premium-card rounded-2xl p-5 space-y-5 animate-scale-in" style={{ animationDelay: '0.2s' }}>
+                    <h3 className="font-bold text-foreground flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                        <CreditCard className="w-4 h-4 text-primary" />
+                      </div>
                       Forma de Pagamento
                     </h3>
                     
-                    {/* Mostrar botoes quando NAO tem PIX automatico ativo (permite durante cooldown) */}
+                    {/* Payment Options Premium */}
                     {!isOrderLocked && (
-                      <>
-                        <div className="grid grid-cols-3 gap-2">
-                          {[
-                            { value: "pix", label: "Pix" },
-                            { value: "dinheiro", label: "Dinheiro" },
-                            { value: "cartao", label: "Cartao" },
-                          ].map((option) => (
-                            <button
-                              key={option.value}
-                              onClick={() => {
-                                setFormData({ ...formData, pagamento: option.value })
-                                if (!isInCooldown) {
-                                  setPaymentStatus("idle")
-                                  setPixData(null)
-                                }
-                              }}
-                              className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                                formData.pagamento === option.value
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                              }`}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
-                        </div>
-                      </>
+                      <div className="grid grid-cols-3 gap-3">
+                        {/* PIX Card */}
+                        <button
+                          onClick={() => {
+                            setFormData({ ...formData, pagamento: "pix" })
+                            if (!isInCooldown) {
+                              setPaymentStatus("idle")
+                              setPixData(null)
+                            }
+                          }}
+                          className={`relative py-5 px-3 rounded-2xl text-center font-bold transition-all duration-300 flex flex-col items-center gap-2 overflow-hidden group ${
+                            formData.pagamento === "pix"
+                              ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20 border-2 border-primary/50 scale-[1.02]"
+                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/40 hover:border-primary/40"
+                          }`}
+                        >
+                          <span className="text-2xl relative">💠</span>
+                          <span className="text-sm relative font-bold">Pix</span>
+                          <span className={`text-[10px] relative font-medium ${formData.pagamento === "pix" ? 'text-primary-foreground/90' : 'text-foreground/50'}`}>
+                            Pagamento automatico
+                          </span>
+                        </button>
+                        
+                        {/* Dinheiro Card */}
+                        <button
+                          onClick={() => {
+                            setFormData({ ...formData, pagamento: "dinheiro" })
+                            if (!isInCooldown) {
+                              setPaymentStatus("idle")
+                              setPixData(null)
+                            }
+                          }}
+                          className={`relative py-5 px-3 rounded-2xl text-center font-bold transition-all duration-300 flex flex-col items-center gap-2 ${
+                            formData.pagamento === "dinheiro"
+                              ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20 border-2 border-primary/50 scale-[1.02]"
+                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/40 hover:border-primary/40"
+                          }`}
+                        >
+                          <span className="text-2xl">💵</span>
+                          <span className="text-sm font-bold">Dinheiro</span>
+                          <span className={`text-[10px] font-medium ${formData.pagamento === "dinheiro" ? 'text-primary-foreground/90' : 'text-foreground/50'}`}>
+                            Pagamento na entrega
+                          </span>
+                        </button>
+                        
+                        {/* Cartao Card */}
+                        <button
+                          onClick={() => {
+                            setFormData({ ...formData, pagamento: "cartao" })
+                            if (!isInCooldown) {
+                              setPaymentStatus("idle")
+                              setPixData(null)
+                            }
+                          }}
+                          className={`relative py-5 px-3 rounded-2xl text-center font-bold transition-all duration-300 flex flex-col items-center gap-2 ${
+                            formData.pagamento === "cartao"
+                              ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20 border-2 border-primary/50 scale-[1.02]"
+                              : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-border/40 hover:border-primary/40"
+                          }`}
+                        >
+                          <span className="text-2xl">💳</span>
+                          <span className="text-sm font-bold">Cartao</span>
+                          <span className={`text-[10px] font-medium ${formData.pagamento === "cartao" ? 'text-primary-foreground/90' : 'text-foreground/50'}`}>
+                            Pagamento na entrega
+                          </span>
+                        </button>
+                      </div>
                     )}
 
-                    {/* Card de cooldown com PIX manual */}
+                    {/* Card de cooldown com PIX manual - Premium */}
                     {isInCooldown && (
                       <div className="space-y-4">
-                        {/* Aviso de cooldown */}
-                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
-                          <p className="text-amber-400 text-sm text-center">
-                            Novo PIX automatico disponivel em:{" "}
-                            <span className="font-mono font-bold">
+                        {/* Aviso de cooldown - Premium */}
+                        <div className="relative bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl p-4 overflow-hidden">
+                          <div className="absolute -top-10 -right-10 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+                          <p className="text-amber-400 text-sm text-center relative flex items-center justify-center gap-2">
+                            <Clock className="w-4 h-4" />
+                            Novo PIX automatico em:{" "}
+                            <span className="font-mono font-black text-base bg-amber-500/20 px-2 py-0.5 rounded-lg">
                               {Math.floor(pixCooldownLeft / 60).toString().padStart(2, '0')}:{(pixCooldownLeft % 60).toString().padStart(2, '0')}
                             </span>
                           </p>
                         </div>
                         
-                        {/* PIX Manual durante cooldown */}
+                        {/* PIX Manual durante cooldown - Premium */}
                         {formData.pagamento === "pix" && (
-                          <div className="bg-secondary/50 rounded-xl p-4 space-y-4">
+                          <div className="relative bg-gradient-to-br from-secondary/80 via-secondary/50 to-secondary/30 backdrop-blur-sm rounded-2xl p-5 space-y-4 border border-border/50">
                             <div className="text-center">
-                              <p className="text-sm text-muted-foreground mb-3">
+                              <p className="text-sm text-muted-foreground mb-4">
                                 Nao quer esperar? Pague pelo PIX manual e envie o comprovante no WhatsApp.
                               </p>
                               {!showManualPixDuringCooldown ? (
                                 <button
                                   onClick={() => setShowManualPixDuringCooldown(true)}
-                                  className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
+                                  className="relative px-6 py-4 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground rounded-xl font-bold hover:brightness-110 transition-all shadow-lg shadow-primary/30 overflow-hidden group"
                                 >
-                                  Pagar com PIX manual
+                                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                                  <span className="relative">Pagar com PIX manual</span>
                                 </button>
                               ) : (
-                                <div className="space-y-4 animate-in fade-in duration-300 border-t border-border pt-4 mt-4">
+                                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300 border-t border-border/50 pt-5 mt-5">
                                   <div className="text-center">
-                                    <h4 className="font-bold text-foreground">PIX Manual</h4>
+                                    <h4 className="font-black text-foreground text-lg">PIX Manual</h4>
                                     <p className="text-xs text-muted-foreground mt-1">Pague e envie o comprovante</p>
                                   </div>
                                   
                                   <div className="flex flex-col items-center">
-                                    <div className="bg-white p-4 rounded-xl shadow-md">
+                                    <div className="bg-white p-4 rounded-2xl shadow-xl">
                                       <QRCodeSVG
                                         value={generateManualPixCode(orderSnapshot?.total || getTotal())}
                                         size={150}
@@ -1981,72 +2392,85 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                       </div>
                     )}
 
-                    {/* PIX Section */}
+                    {/* PIX Section Premium */}
                     {formData.pagamento === "pix" && (
-                      <div className="bg-secondary/50 rounded-xl p-4 space-y-4">
-                        {/* Loading State */}
+                      <div className="relative bg-gradient-to-br from-secondary/80 via-secondary/50 to-secondary/30 backdrop-blur-sm rounded-2xl p-5 space-y-4 border border-border/50 overflow-hidden">
+                        <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+                        
+                        {/* Loading State Premium */}
                         {paymentStatus === "loading" && (
-                          <div className="flex flex-col items-center py-8">
-                            <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-                            <p className="text-foreground font-medium">Gerando PIX...</p>
-                            <p className="text-sm text-muted-foreground">Aguarde um momento</p>
+                          <div className="flex flex-col items-center py-10 relative">
+                            <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-primary/10 rounded-full flex items-center justify-center mb-5">
+                              <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                            </div>
+                            <p className="text-foreground font-black text-lg">Gerando PIX...</p>
+                            <p className="text-sm text-muted-foreground mt-1">Aguarde um momento</p>
                           </div>
                         )}
 
-                        {/* Error State */}
+                        {/* Error State Premium */}
                         {paymentStatus === "error" && (
-                          <div className="text-center py-4">
-                            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-                            <p className="text-red-400 font-medium mb-2">Erro ao gerar PIX</p>
+                          <div className="text-center py-8 relative">
+                            <div className="w-16 h-16 bg-gradient-to-br from-red-500/20 to-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <AlertCircle className="w-8 h-8 text-red-400" />
+                            </div>
+                            <p className="text-red-400 font-black text-lg mb-2">Erro ao gerar PIX</p>
                             {paymentErrorMessage && (
-                              <p className="text-sm text-red-300 mb-4 px-4">{paymentErrorMessage}</p>
+                              <p className="text-sm text-red-300/80 mb-5 px-4">{paymentErrorMessage}</p>
                             )}
                             <button
                               onClick={() => {
                                 setPaymentStatus("idle")
                                 setPaymentErrorMessage("")
                               }}
-                              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg"
+                              className="px-6 py-3 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground rounded-xl font-bold shadow-lg shadow-primary/30 hover:brightness-110 transition-all active:scale-[0.98]"
                             >
                               Corrigir e tentar novamente
                             </button>
                           </div>
                         )}
 
-                        {/* Awaiting Payment */}
+                        {/* Awaiting Payment Premium */}
                         {paymentStatus === "awaiting" && pixData && (
-                          <div className="space-y-4 animate-in fade-in duration-300">
-                            {/* Header PIX */}
-                            <div className="text-center border-b border-border pb-3">
-                              <h4 className="font-bold text-foreground text-lg">Pagamento via PIX</h4>
+                          <div className="space-y-5 animate-in fade-in duration-500">
+                            {/* Header PIX Premium */}
+                            <div className="text-center border-b border-primary/10 pb-4">
+                              <div className="flex items-center justify-center gap-2 mb-3">
+                                <span className="text-2xl">💠</span>
+                                <h4 className="font-black text-foreground text-xl">Pagamento via PIX</h4>
+                              </div>
                               {!pixExpired ? (
-                                <div className="flex items-center justify-center gap-2 mt-2">
-                                  <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
-                                  <span className="text-yellow-400 font-medium">AGUARDANDO PAGAMENTO</span>
+                                <div className="inline-flex items-center gap-2 bg-yellow-500/10 px-4 py-2 rounded-full border border-yellow-500/30">
+                                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                                  <span className="text-yellow-400 font-bold text-sm">AGUARDANDO PAGAMENTO</span>
                                 </div>
                               ) : (
-                                <div className="flex items-center justify-center gap-2 mt-2">
-                                  <div className="w-3 h-3 bg-red-400 rounded-full" />
-                                  <span className="text-red-400 font-medium">PIX EXPIRADO</span>
+                                <div className="inline-flex items-center gap-2 bg-red-500/10 px-4 py-2 rounded-full border border-red-500/30">
+                                  <div className="w-2 h-2 bg-red-400 rounded-full" />
+                                  <span className="text-red-400 font-bold text-sm">PIX EXPIRADO</span>
                                 </div>
                               )}
-                              {/* Timer */}
+                              {/* Timer Premium */}
                               {!pixExpired && pixTimeLeft > 0 && (
-                                <div className="mt-2 text-sm">
-                                  <span className="text-muted-foreground">Expira em: </span>
-                                  <span className={`font-mono font-bold ${pixTimeLeft <= 60 ? 'text-red-400' : 'text-foreground'}`}>
+                                <div className="mt-4 inline-flex items-center gap-3 bg-gradient-to-r from-secondary/60 to-secondary/30 px-5 py-2.5 rounded-xl border border-border/30">
+                                  <Clock className="w-4 h-4 text-muted-foreground" />
+                                  <span className="text-sm text-muted-foreground">Expira em</span>
+                                  <span className={`font-mono font-black text-lg ${pixTimeLeft <= 60 ? 'text-red-400' : 'text-primary'}`}>
                                     {Math.floor(pixTimeLeft / 60).toString().padStart(2, '0')}:{(pixTimeLeft % 60).toString().padStart(2, '0')}
                                   </span>
                                 </div>
                               )}
                             </div>
 
-                            {/* QR Code */}
+                            {/* QR Code Premium */}
                             <div className="flex flex-col items-center">
-                              <p className="text-sm text-muted-foreground mb-3">
+                              <p className="text-sm text-muted-foreground mb-4">
                                 {pixExpired ? "PIX expirado - gere um novo" : "Escaneie o QR Code para pagar"}
                               </p>
-                              <div className={`bg-white p-4 rounded-xl shadow-md ${pixExpired ? 'opacity-40 grayscale' : ''}`}>
+                              <div className={`relative bg-white p-5 rounded-2xl shadow-2xl shadow-primary/20 ${pixExpired ? 'opacity-40 grayscale' : 'glow-primary'}`}>
+                                {!pixExpired && (
+                                  <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/30 to-primary/30 rounded-2xl blur-sm -z-10" />
+                                )}
                                 {pixData.pixQrCode ? (
                                   <img
                                     src={`data:image/png;base64,${pixData.pixQrCode}`}
@@ -2066,63 +2490,84 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               {pixExpired && (
                                 <button
                                   onClick={cancelOrderAndStartNew}
-                                  className="mt-4 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-all"
+                                  className="premium-btn mt-5 px-6 py-3 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-xl font-bold hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-[0.98]"
                                 >
                                   Comecar novo pedido
                                 </button>
                               )}
                             </div>
 
-                            {/* Dados do recebedor */}
-                            <div className="space-y-2">
-                              <div className="bg-input rounded-xl px-4 py-3">
-                                <p className="text-xs text-muted-foreground">Nome do Recebedor</p>
-                                <p className="font-semibold text-foreground">{PIX_RECEIVER_NAME}</p>
+                            {/* Dados do recebedor Premium */}
+                            <div className="space-y-3">
+                              <div className="bg-gradient-to-r from-input/80 to-input/50 rounded-xl px-4 py-3.5 border border-border/30">
+                                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                  <User className="w-3 h-3" />
+                                  Nome do Recebedor
+                                </p>
+                                <p className="font-bold text-foreground mt-1">{PIX_RECEIVER_NAME}</p>
                               </div>
 
-                              <div className="bg-input rounded-xl px-4 py-3">
-                                <p className="text-xs text-muted-foreground">Valor do Pedido</p>
-                                <p className="font-bold text-xl text-primary">{formatCurrency(orderSnapshot?.total || pixData.value)}</p>
+                              <div className="bg-gradient-to-r from-primary/15 to-primary/5 rounded-xl px-4 py-4 border border-primary/25">
+                                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                  <CreditCard className="w-3 h-3" />
+                                  Valor do Pedido
+                                </p>
+                                <p className="font-black text-2xl text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent mt-1">{formatCurrency(orderSnapshot?.total || pixData.value)}</p>
                               </div>
                               
                               {orderSnapshot && (
-                                <div className="bg-input/50 rounded-xl px-4 py-3 text-xs space-y-1">
-                                  <p className="text-muted-foreground">Subtotal: {formatCurrency(orderSnapshot.subtotal)}</p>
+                                <div className="bg-secondary/30 rounded-xl px-4 py-3 text-xs space-y-1.5 border border-border/20">
+                                  <p className="text-muted-foreground flex justify-between">
+                                    <span>Subtotal:</span>
+                                    <span className="font-medium text-foreground">{formatCurrency(orderSnapshot.subtotal)}</span>
+                                  </p>
                                   {orderSnapshot.discount > 0 && (
-                                    <p className="text-green-400">Desconto: -{formatCurrency(orderSnapshot.discount)}</p>
+                                    <p className="text-green-400 flex justify-between">
+                                      <span>Desconto:</span>
+                                      <span className="font-medium">-{formatCurrency(orderSnapshot.discount)}</span>
+                                    </p>
                                   )}
                                   {orderSnapshot.deliveryFee > 0 && (
-                                    <p className="text-muted-foreground">Entrega ({orderSnapshot.bairro}): {formatCurrency(orderSnapshot.deliveryFee)}</p>
+                                    <p className="text-muted-foreground flex justify-between">
+                                      <span>Entrega ({orderSnapshot.bairro}):</span>
+                                      <span className="font-medium text-foreground">{formatCurrency(orderSnapshot.deliveryFee)}</span>
+                                    </p>
                                   )}
                                 </div>
                               )}
                             </div>
 
-                            {/* Codigo PIX Copia e Cola */}
-                            <div className="bg-input rounded-xl p-4 space-y-3">
-                              <p className="text-sm font-medium text-foreground">Codigo PIX Copia e Cola</p>
-                              <div className="bg-background/50 rounded-lg p-3 max-h-24 overflow-y-auto">
-                                <p className="font-mono text-xs text-muted-foreground break-all select-all">
+                            {/* Codigo PIX Copia e Cola Premium */}
+                            <div className="bg-gradient-to-br from-input/80 to-input/50 rounded-xl p-5 space-y-4 border border-border/30">
+                              <p className="font-bold text-foreground flex items-center gap-2">
+                                <Copy className="w-4 h-4 text-primary" />
+                                Codigo PIX Copia e Cola
+                              </p>
+                              <div className="bg-background/60 rounded-xl p-4 max-h-24 overflow-y-auto border border-border/20">
+                                <p className="font-mono text-xs text-muted-foreground break-all select-all leading-relaxed">
                                   {pixData.pixCopyPaste}
                                 </p>
                               </div>
                               <button
                                 onClick={() => !pixExpired && copyToClipboard(pixData.pixCopyPaste, setCopiedCode)}
                                 disabled={pixExpired}
-                                className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-medium transition-all ${
+                                className={`premium-btn w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-bold transition-all ${
                                   pixExpired 
                                     ? 'bg-muted text-muted-foreground cursor-not-allowed' 
-                                    : 'bg-primary text-primary-foreground hover:brightness-110 active:scale-[0.98]'
+                                    : copiedCode
+                                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/30'
+                                      : 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98]'
                                 }`}
                               >
                                 {copiedCode ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                                {pixExpired ? "PIX Expirado" : copiedCode ? "Copiado com sucesso!" : "Copiar Codigo PIX"}
+                                {pixExpired ? "PIX Expirado" : copiedCode ? "Copiado!" : "Copiar Codigo PIX"}
                               </button>
                             </div>
 
-                            {/* Aviso */}
-                            <div className="bg-primary/20 border border-primary/30 rounded-xl p-3">
-                              <p className="text-sm text-foreground text-center">
+                            {/* Aviso Premium */}
+                            <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4">
+                              <p className="text-sm text-foreground text-center font-medium flex items-center justify-center gap-2">
+                                <Zap className="w-4 h-4 text-primary" />
                                 O pagamento sera confirmado automaticamente
                               </p>
                             </div>
@@ -2131,7 +2576,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             {!pixExpired && (
                               <button
                                 onClick={() => setShowChangePaymentModal(true)}
-                                className="w-full py-3 text-sm text-muted-foreground hover:text-primary transition-colors"
+                                className="w-full py-3 text-sm text-muted-foreground hover:text-primary transition-all hover:bg-secondary/30 rounded-xl"
                               >
                                 Alterar forma de pagamento
                               </button>
@@ -2139,21 +2584,25 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           </div>
                         )}
 
-                        {/* Manual PIX - For orders below R$15 */}
+                        {/* Manual PIX Premium - For orders below R$15 */}
                         {paymentStatus === "manual" && manualPixCode && (
-                          <div className="space-y-4 animate-in fade-in duration-300">
-                            {/* Header */}
-                            <div className="text-center border-b border-border pb-3">
-                              <h4 className="font-bold text-foreground text-lg">Pagamento via PIX Manual</h4>
-                              <p className="text-xs text-muted-foreground mt-1">
+                          <div className="space-y-5 animate-in fade-in duration-500">
+                            {/* Header Premium */}
+                            <div className="text-center border-b border-primary/10 pb-4">
+                              <div className="flex items-center justify-center gap-2 mb-2">
+                                <span className="text-2xl">💠</span>
+                                <h4 className="font-black text-foreground text-xl">Pagamento via PIX Manual</h4>
+                              </div>
+                              <p className="text-xs text-muted-foreground bg-secondary/40 inline-block px-3 py-1 rounded-full">
                                 Pedidos abaixo de R$ 15,00
                               </p>
                             </div>
 
-                            {/* QR Code */}
+                            {/* QR Code Premium */}
                             <div className="flex flex-col items-center">
-                              <p className="text-sm text-muted-foreground mb-3">Escaneie o QR Code para pagar</p>
-                              <div className="bg-white p-4 rounded-xl shadow-lg">
+                              <p className="text-sm text-muted-foreground mb-4">Escaneie o QR Code para pagar</p>
+                              <div className="relative bg-white p-5 rounded-2xl shadow-2xl shadow-primary/20 glow-primary">
+                                <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-accent/30 to-primary/30 rounded-2xl blur-sm -z-10" />
                                 <QRCodeSVG
                                   value={manualPixCode}
                                   size={180}
@@ -2163,61 +2612,81 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               </div>
                             </div>
 
-                            {/* Dados do recebedor */}
-                            <div className="space-y-2">
-                              <div className="bg-input rounded-xl px-4 py-3">
-                                <p className="text-xs text-muted-foreground">Nome do Recebedor</p>
-                                <p className="font-semibold text-foreground">{PIX_MANUAL_NAME}</p>
+                            {/* Dados do recebedor Premium */}
+                            <div className="space-y-3">
+                              <div className="bg-gradient-to-r from-input/80 to-input/50 rounded-xl px-4 py-3.5 border border-border/30">
+                                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                  <User className="w-3 h-3" />
+                                  Nome do Recebedor
+                                </p>
+                                <p className="font-bold text-foreground mt-1">{PIX_MANUAL_NAME}</p>
                               </div>
 
-                              <div className="flex items-center justify-between bg-input rounded-xl px-4 py-3">
+                              <div className="flex items-center justify-between bg-gradient-to-r from-input/80 to-input/50 rounded-xl px-4 py-3.5 border border-border/30">
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Chave PIX (Telefone)</p>
-                                  <p className="font-mono font-semibold text-foreground">{PIX_MANUAL_KEY}</p>
+                                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                    <Phone className="w-3 h-3" />
+                                    Chave PIX (Telefone)
+                                  </p>
+                                  <p className="font-mono font-bold text-foreground mt-1">{PIX_MANUAL_KEY}</p>
                                 </div>
                                 <button
                                   onClick={() => copyToClipboard(PIX_MANUAL_KEY, setCopiedManualKey)}
-                                  className="flex items-center gap-2 px-3 py-2 bg-primary rounded-lg text-primary-foreground text-sm font-medium transition-all hover:brightness-110 active:scale-95"
+                                  className={`premium-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                                    copiedManualKey 
+                                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/30'
+                                      : 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/30'
+                                  }`}
                                 >
                                   {copiedManualKey ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                   {copiedManualKey ? "Copiado!" : "Copiar"}
                                 </button>
                               </div>
 
-                              <div className="bg-input rounded-xl px-4 py-3">
-                                <p className="text-xs text-muted-foreground">Valor do Pedido</p>
-                                <p className="font-bold text-xl text-primary">{formatCurrency(getTotal())}</p>
+                              <div className="bg-gradient-to-r from-primary/15 to-primary/5 rounded-xl px-4 py-4 border border-primary/25">
+                                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                  <CreditCard className="w-3 h-3" />
+                                  Valor do Pedido
+                                </p>
+                                <p className="font-black text-2xl text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent mt-1">{formatCurrency(getTotal())}</p>
                               </div>
                             </div>
 
-                            {/* Codigo PIX Copia e Cola */}
-                            <div className="bg-input rounded-xl p-4 space-y-3">
-                              <p className="text-sm font-medium text-foreground">Codigo PIX Copia e Cola</p>
-                              <div className="bg-background/50 rounded-lg p-3 max-h-24 overflow-y-auto">
-                                <p className="font-mono text-xs text-muted-foreground break-all select-all">
+                            {/* Codigo PIX Copia e Cola Premium */}
+                            <div className="bg-gradient-to-br from-input/80 to-input/50 rounded-xl p-5 space-y-4 border border-border/30">
+                              <p className="font-bold text-foreground flex items-center gap-2">
+                                <Copy className="w-4 h-4 text-primary" />
+                                Codigo PIX Copia e Cola
+                              </p>
+                              <div className="bg-background/60 rounded-xl p-4 max-h-24 overflow-y-auto border border-border/20">
+                                <p className="font-mono text-xs text-muted-foreground break-all select-all leading-relaxed">
                                   {manualPixCode}
                                 </p>
                               </div>
                               <button
                                 onClick={() => copyToClipboard(manualPixCode, setCopiedManualCode)}
-                                className="w-full flex items-center justify-center gap-2 py-3 bg-primary rounded-xl text-primary-foreground font-medium transition-all hover:brightness-110 active:scale-[0.98]"
+                                className={`premium-btn w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-bold transition-all active:scale-[0.98] ${
+                                  copiedManualCode
+                                    ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/30'
+                                    : 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/30'
+                                }`}
                               >
                                 {copiedManualCode ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
                                 {copiedManualCode ? "Copiado com sucesso!" : "Copiar Codigo PIX"}
                               </button>
                             </div>
 
-                            {/* Aviso */}
-                            <div className="bg-primary/20 border border-primary/30 rounded-xl p-4">
-                              <p className="text-sm text-foreground text-center">
+                            {/* Aviso Premium */}
+                            <div className="bg-gradient-to-r from-primary/15 to-primary/5 border border-primary/25 rounded-xl p-4">
+                              <p className="text-sm text-foreground text-center font-medium">
                                 Apos o pagamento, envie o comprovante no WhatsApp para agilizar a confirmacao do pedido.
                               </p>
                             </div>
 
-                            {/* Botao WhatsApp */}
+                            {/* Botao WhatsApp Premium */}
                             <button
                               onClick={sendManualPayment}
-                              className="w-full py-4 bg-green-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-green-700 active:scale-[0.98]"
+                              className="premium-btn w-full py-5 bg-gradient-to-r from-green-500 to-green-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-2xl hover:shadow-green-500/40 active:scale-[0.98] relative overflow-hidden group"
                             >
                               <Send className="w-5 h-5" />
                               Enviar Comprovante no WhatsApp
@@ -2230,10 +2699,10 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           <div className="text-center py-4">
                             {/* Esconder botao PIX automatico durante cooldown */}
                             {isInCooldown ? (
-                              <div className="space-y-3">
+                              <div className="space-y-2 p-3 bg-amber-500/10 rounded-xl border border-amber-500/20">
                                 <p className="text-muted-foreground text-sm">
                                   PIX automatico bloqueado por mais{" "}
-                                  <span className="font-mono font-bold text-amber-400">
+                                  <span className="font-mono font-medium text-amber-400">
                                     {Math.floor(pixCooldownLeft / 60).toString().padStart(2, '0')}:{(pixCooldownLeft % 60).toString().padStart(2, '0')}
                                   </span>
                                 </p>
@@ -2243,20 +2712,21 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               </div>
                             ) : (
                               <>
-                                <p className="text-muted-foreground mb-4">
+                                <p className="text-muted-foreground mb-4 text-sm">
                                   {getTotal() < MIN_VALUE_FOR_ASAAS 
                                     ? "Clique abaixo para ver os dados do PIX" 
                                     : "Clique abaixo para gerar o PIX automatico"}
                                 </p>
                                 <button
                                   onClick={createPixCharge}
-                                  className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 active:scale-[0.98]"
+                                  className="premium-btn w-full py-4 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-xl hover:shadow-primary/25 active:scale-[0.98] shadow-lg shadow-primary/15 relative overflow-hidden group"
                                 >
-                                  <CreditCard className="w-5 h-5" />
-                                  {getTotal() < MIN_VALUE_FOR_ASAAS ? "Ver PIX Manual" : "Gerar PIX Automatico"}
+                                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                                  <span className="text-xl relative">💠</span>
+                                  <span className="relative text-base">{getTotal() < MIN_VALUE_FOR_ASAAS ? "Ver PIX Manual" : "Gerar PIX Automatico"}</span>
                                 </button>
                                 {getTotal() < MIN_VALUE_FOR_ASAAS && (
-                                  <p className="text-xs text-muted-foreground mt-3">
+                                  <p className="text-xs text-muted-foreground mt-3 text-center">
                                     Pedidos abaixo de R$ 15 usam PIX manual
                                   </p>
                                 )}
@@ -2265,11 +2735,11 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           </div>
                         )}
 
-                        {/* Fallback Button */}
+                        {/* Fallback Button Premium */}
                         {(paymentStatus === "awaiting" || paymentStatus === "error") && (
                           <button
                             onClick={sendManualPayment}
-                            className="w-full py-3 bg-secondary text-secondary-foreground rounded-xl flex items-center justify-center gap-2 text-sm transition-all hover:bg-secondary/80"
+                            className="w-full py-3.5 bg-secondary/80 text-foreground rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all hover:bg-secondary active:scale-[0.98] border border-border/30"
                           >
                             <Phone className="w-4 h-4" />
                             Problema com o Pix? Pagar pelo WhatsApp
@@ -2279,14 +2749,16 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     )}
                   </section>
 
-                  {/* Submit Button for non-PIX payments */}
+                  {/* Submit Button for non-PIX payments - Premium */}
                   {formData.pagamento !== "pix" && (
                     <button
                       onClick={handleManualPayment}
-                      className="w-full py-4 bg-primary text-primary-foreground font-bold text-lg rounded-2xl flex items-center justify-center gap-3 transition-all hover:brightness-110 active:scale-[0.98] shadow-lg shadow-primary/30"
+                      className="premium-btn w-full py-5 bg-gradient-to-r from-green-500 to-green-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-2xl hover:shadow-green-500/40 active:scale-[0.98] relative overflow-hidden group animate-scale-in"
+                      style={{ animationDelay: '0.25s' }}
                     >
-                      <Send className="w-5 h-5" />
-                      Finalizar Pedido no WhatsApp
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                      <Send className="w-5 h-5 relative" />
+                      <span className="relative text-base">Finalizar Pedido no WhatsApp</span>
                     </button>
                   )}
                       </>
@@ -2327,80 +2799,90 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       )}
 
       {/* Modal de confirmacao para fechar com PIX ativo */}
+      {/* Modal de aviso PIX ativo */}
       {showCloseConfirmModal && (
-        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
-            <div className="text-center">
-              <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-foreground mb-2">PIX Ativo</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Existe um PIX ativo para este pedido. Para alterar algo, voce precisa iniciar um novo pedido.
-              </p>
-              
-              <div className="space-y-3">
-                <button
-                  onClick={() => setShowCloseConfirmModal(false)}
-                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
-                >
-                  Continuar neste pedido
-                </button>
-                <button
-                  onClick={() => {
-                    setShowCloseConfirmModal(false)
-                    setShowNewOrderModal(true)
-                  }}
-                  className="w-full py-3 bg-secondary text-secondary-foreground rounded-xl font-medium hover:bg-secondary/80 transition-colors"
-                >
-                  Fazer novo pedido
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ConfirmPixActiveModal
+          onClose={() => setShowCloseConfirmModal(false)}
+          onNewOrder={() => {
+            setShowCloseConfirmModal(false)
+            setShowNewOrderModal(true)
+          }}
+        />
       )}
 
       {/* Modal de opcoes para novo pedido */}
       {showNewOrderModal && (
-        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
-            <div className="text-center">
-              <ShoppingCart className="w-12 h-12 text-primary mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-foreground mb-2">Novo Pedido</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Como voce deseja comecar seu novo pedido?
-              </p>
-              
-              <div className="space-y-3">
-                <button
-                  onClick={startNewOrderFromScratch}
-                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
-                >
-                  Novo pedido do zero
-                </button>
-                <button
-                  onClick={startNewOrderKeepingData}
-                  className="w-full py-3 bg-secondary text-secondary-foreground rounded-xl font-medium hover:bg-secondary/80 transition-colors"
-                >
-                  Manter dados de entrega
-                </button>
-                <button
-                  onClick={() => setShowNewOrderModal(false)}
-                  className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <NewOrderOptionsModal
+          onStartFromScratch={startNewOrderFromScratch}
+          onKeepData={startNewOrderKeepingData}
+          onCancel={() => setShowNewOrderModal(false)}
+        />
+      )}
+
+      {/* Modal de Login */}
+      {showLoginModal && (
+        <CustomerLoginModal
+          loginStep={loginStep}
+          loginPhone={loginPhone}
+          loginPin={loginPin}
+          loginName={loginName}
+          loginError={loginError}
+          loginLoading={loginLoading}
+          onPhoneChange={setLoginPhone}
+          onPinChange={setLoginPin}
+          onNameChange={setLoginName}
+          onLoginNext={handleLoginNext}
+          onLogin={handleLogin}
+          onRegister={handleRegister}
+          onBack={() => {
+            setLoginStep("phone")
+            setLoginPin("")
+            setLoginName("")
+            setLoginError("")
+          }}
+          onClose={() => {
+            setShowLoginModal(false)
+            resetLoginForm()
+          }}
+        />
+      )}
+
+      {/* Modal Minha Conta */}
+      {showMyAccountModal && customer && (
+        <MyAccountModal
+          customer={customer}
+          products={products}
+          onClose={() => setShowMyAccountModal(false)}
+        />
+      )}
+
+      {/* Modal Meus Pedidos */}
+      {showMyOrdersModal && customer && (
+        <MyOrdersModal
+          orders={customerOrders}
+          loadingOrders={loadingOrders}
+          onClose={() => setShowMyOrdersModal(false)}
+          onRepeatOrder={repeatOrder}
+        />
+      )}
+
+      {/* Modal Confirmar Repetir Pedido */}
+      {showRepeatConfirm && orderToRepeat && (
+        <RepeatOrderModal
+          order={orderToRepeat}
+          onConfirm={confirmRepeatOrder}
+          onCancel={() => {
+            setShowRepeatConfirm(false)
+            setOrderToRepeat(null)
+          }}
+        />
       )}
 
       {/* Toast de Notificacao */}
-      {toastMessage && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-card text-foreground px-4 py-3 rounded-xl shadow-lg border border-border flex items-center gap-2 animate-in slide-in-from-top-2 fade-in duration-300">
-          <span className="text-sm font-medium">{toastMessage}</span>
-        </div>
-      )}
+      {toastMessage && <Toast message={toastMessage} />}
+      
+      {/* Toast de Adicao ao Carrinho */}
+      {addToast.show && <AddToCartToast />}
     </main>
   )
 }

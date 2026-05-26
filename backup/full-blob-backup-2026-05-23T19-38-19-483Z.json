@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-05-23T19:38:19.259Z",
+  "version": "1.0.0-stable-premium",
+  "description": "Full stable premium delivery system - backup completo",
+  "blobs": [
+    {
+      "pathname": "pk-config-1779494062350.json",
+      "url": "https://cugoqcmdadnyepfh.private.blob.vercel-storage.com/pk-config-1779494062350.json",
+      "size": 1546,
+      "uploadedAt": "2026-05-22T23:54:23.000Z",
+      "content": null
+    },
+    {
+      "pathname": "pk-config-1779494103286.json",
+      "url": "https://cugoqcmdadnyepfh.private.blob.vercel-storage.com/pk-config-1779494103286.json",
+      "size": 1635,
+      "uploadedAt": "2026-05-22T23:55:04.000Z",
+      "content": null
+    },
+    {
+      "pathname": "pk-orders-1779495288591.json",
+      "url": "https://cugoqcmdadnyepfh.private.blob.vercel-storage.com/pk-orders-1779495288591.json",
+      "size": 674,
+      "uploadedAt": "2026-05-23T00:14:49.000Z",
+      "content": null
+    },
+    {
+      "pathname": "pk-orders-1779497875970.json",
+      "url": "https://cugoqcmdadnyepfh.private.blob.vercel-storage.com/pk-orders-1779497875970.json",
+      "size": 924,
+      "uploadedAt": "2026-05-23T00:57:57.000Z",
+      "content": null
+    }
+  ]
+}

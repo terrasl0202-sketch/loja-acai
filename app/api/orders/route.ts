@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { type Order } from "@/lib/config-types"
 
 const ORDERS_PREFIX = "pk-orders-"
+const FINANCIAL_HISTORY_PREFIX = "pk-financial-history-"
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
 
 // Evitar cache
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url)
     const password = url.searchParams.get("password")
+    const includeHistory = url.searchParams.get("includeHistory") === "true"
 
     if (password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noCacheHeaders })
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
     const { blobs } = await list({ prefix: ORDERS_PREFIX })
 
     if (blobs.length === 0) {
-      return NextResponse.json({ success: true, orders: [] }, { headers: noCacheHeaders })
+      return NextResponse.json({ success: true, orders: [], financialHistory: [] }, { headers: noCacheHeaders })
     }
 
     // Pegar o mais recente
@@ -57,6 +59,27 @@ export async function GET(request: NextRequest) {
     )[0]
 
     const result = await get(latestBlob.pathname, { access: "private" })
+    
+    let financialHistory: Array<{ id: string, total: number, paymentMethod: string, createdAt: string, confirmedAt?: string, deletedAt: string }> = []
+    
+    // Carregar historico financeiro se solicitado
+    if (includeHistory) {
+      try {
+        const { blobs: historyBlobs } = await list({ prefix: FINANCIAL_HISTORY_PREFIX })
+        if (historyBlobs.length > 0) {
+          const latestHistoryBlob = historyBlobs.sort(
+            (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+          )[0]
+          const historyResult = await get(latestHistoryBlob.pathname, { access: "private" })
+          if (historyResult && historyResult.stream) {
+            const historyText = await new Response(historyResult.stream).text()
+            financialHistory = JSON.parse(historyText)
+          }
+        }
+      } catch {
+        // Sem historico
+      }
+    }
 
     if (result && result.stream) {
       const text = await new Response(result.stream).text()
@@ -84,10 +107,10 @@ export async function GET(request: NextRequest) {
       }
       orders = Array.from(orderMap.values())
       
-      return NextResponse.json({ success: true, orders }, { headers: noCacheHeaders })
+      return NextResponse.json({ success: true, orders, financialHistory }, { headers: noCacheHeaders })
     }
 
-    return NextResponse.json({ success: true, orders: [] }, { headers: noCacheHeaders })
+    return NextResponse.json({ success: true, orders: [], financialHistory }, { headers: noCacheHeaders })
   } catch (error) {
     console.error("[Orders GET] Erro:", error)
     return NextResponse.json({ success: true, orders: [] }, { headers: noCacheHeaders })
@@ -140,6 +163,7 @@ export async function POST(request: NextRequest) {
       id: publicOrderId,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
+      customerId: order.customerId,
       items: order.items,
       itemsDetailed: order.itemsDetailed || [],
       total: order.total,
@@ -220,6 +244,33 @@ export async function PATCH(request: NextRequest) {
 
     // Atualizar campos conforme fornecido
     if (status !== undefined) {
+      // Validar que o status so pode avancar (exceto para cancelled e voltar para preparing)
+      const statusOrder: Record<string, number> = { 
+        pending: 1, 
+        confirmed: 2, 
+        preparing: 3, 
+        delivering: 4, 
+        completed: 5, 
+        cancelled: 0 // Cancelado pode vir de qualquer estado
+      }
+      const currentStatusOrder = statusOrder[orders[orderIndex].status] || 0
+      const newStatusOrder = statusOrder[status] || 0
+      
+      // Permitir: avanco normal, cancelamento, ou voltar para preparing (problema na entrega)
+      const isValidTransition = 
+        status === "cancelled" || // Sempre pode cancelar
+        status === "preparing" || // Sempre pode voltar para preparo (problema entrega)
+        newStatusOrder >= currentStatusOrder // Avanco normal
+      
+      if (!isValidTransition) {
+        console.log(`[Orders PATCH] Transicao de status bloqueada: ${orders[orderIndex].status} -> ${status}`)
+        return NextResponse.json({ 
+          error: "Invalid status transition", 
+          currentStatus: orders[orderIndex].status,
+          attemptedStatus: status 
+        }, { status: 400 })
+      }
+      
       orders[orderIndex].status = status
       // Se mudou para "delivering", salvar horario de saida
       if (status === "delivering") {
@@ -227,9 +278,14 @@ export async function PATCH(request: NextRequest) {
       }
     }
     if (paymentStatus !== undefined) {
-      orders[orderIndex].paymentStatus = paymentStatus
-      if (paymentStatus === "confirmed") {
-        orders[orderIndex].confirmedAt = new Date().toISOString()
+      // Nunca regredir de confirmed para pending
+      if (orders[orderIndex].paymentStatus === "confirmed" && paymentStatus === "pending") {
+        console.log(`[Orders PATCH] Impedida regressao de paymentStatus: confirmed -> pending`)
+      } else {
+        orders[orderIndex].paymentStatus = paymentStatus
+        if (paymentStatus === "confirmed") {
+          orders[orderIndex].confirmedAt = new Date().toISOString()
+        }
       }
     }
     if (manuallyConfirmed !== undefined) {
@@ -288,14 +344,99 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// DELETE para arquivar/limpar relatorios
+// DELETE para arquivar/limpar relatorios ou excluir pedidos
 export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json()
-    const { password, action } = body
+    const { password, action, orderIds } = body
 
     if (password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Excluir pedidos especificos
+    if (orderIds && Array.isArray(orderIds) && orderIds.length > 0) {
+      let orders: Order[] = []
+      const { blobs } = await list({ prefix: ORDERS_PREFIX })
+      
+      if (blobs.length > 0) {
+        const latestBlob = blobs.sort(
+          (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+        )[0]
+        const result = await get(latestBlob.pathname, { access: "private" })
+        if (result && result.stream) {
+          const text = await new Response(result.stream).text()
+          orders = JSON.parse(text) as Order[]
+        }
+      }
+
+      const originalCount = orders.length
+      const idsToDelete = new Set(orderIds)
+      
+      // Salvar historico financeiro dos pedidos finalizados antes de excluir
+      const ordersToDelete = orders.filter(o => idsToDelete.has(o.id))
+      const completedOrdersToArchive = ordersToDelete.filter(o => o.status === "completed" && o.paymentStatus === "confirmed")
+      
+      if (completedOrdersToArchive.length > 0) {
+        // Carregar historico existente
+        let financialHistory: Array<{ id: string, total: number, paymentMethod: string, createdAt: string, confirmedAt?: string, deletedAt: string }> = []
+        try {
+          const { blobs: historyBlobs } = await list({ prefix: FINANCIAL_HISTORY_PREFIX })
+          if (historyBlobs.length > 0) {
+            const latestHistoryBlob = historyBlobs.sort(
+              (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+            )[0]
+            const historyResult = await get(latestHistoryBlob.pathname, { access: "private" })
+            if (historyResult && historyResult.stream) {
+              const historyText = await new Response(historyResult.stream).text()
+              financialHistory = JSON.parse(historyText)
+            }
+          }
+        } catch {
+          // Sem historico anterior
+        }
+        
+        // Adicionar pedidos excluidos ao historico
+        for (const order of completedOrdersToArchive) {
+          financialHistory.push({
+            id: order.id,
+            total: order.total,
+            paymentMethod: order.paymentMethod,
+            createdAt: order.createdAt,
+            confirmedAt: order.confirmedAt,
+            deletedAt: new Date().toISOString()
+          })
+        }
+        
+        // Salvar historico atualizado
+        const historyTimestamp = Date.now()
+        const historyFilename = `${FINANCIAL_HISTORY_PREFIX}${historyTimestamp}.json`
+        await put(historyFilename, JSON.stringify(financialHistory, null, 2), {
+          access: "private",
+          contentType: "application/json",
+        })
+      }
+      
+      orders = orders.filter(o => !idsToDelete.has(o.id))
+      const deletedCount = originalCount - orders.length
+
+      // Salvar
+      const timestamp = Date.now()
+      const filename = `${ORDERS_PREFIX}${timestamp}.json`
+
+      await put(filename, JSON.stringify(orders, null, 2), {
+        access: "private",
+        contentType: "application/json",
+      })
+
+      // Limpar blobs antigos
+      await cleanupOldBlobs()
+
+      return NextResponse.json({ 
+        success: true, 
+        message: `${deletedCount} pedido(s) excluido(s)`,
+        deletedCount
+      })
     }
 
     if (action === "archive_all") {

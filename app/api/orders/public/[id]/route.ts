@@ -30,7 +30,7 @@ export async function GET(
     const { blobs } = await list({ prefix: ORDERS_PREFIX })
 
     if (blobs.length === 0) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404, headers: noCacheHeaders })
+      return NextResponse.json({ error: "Order not found", success: false }, { status: 404, headers: noCacheHeaders })
     }
 
     // Pegar o mais recente
@@ -38,43 +38,44 @@ export async function GET(
       (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
     )[0]
 
+    // Usar get() para blobs privados - METODO QUE FUNCIONA
     const result = await get(latestBlob.pathname, { access: "private" })
-
-    if (result && result.stream) {
-      const text = await new Response(result.stream).text()
-      const orders = JSON.parse(text) as Order[]
-      
-      // Buscar pedido por ID
-      const order = orders.find(o => o.id === orderId)
-      
-      if (!order) {
-        return NextResponse.json({ error: "Order not found" }, { status: 404, headers: noCacheHeaders })
-      }
-
-      // Retornar dados publicos (sem dados sensiveis)
-      const publicOrder = {
-        id: order.id,
-        customerName: order.customerName,
-        items: order.items,
-        itemsDetailed: order.itemsDetailed,
-        total: order.total,
-        paymentMethod: order.paymentMethod,
-        deliveryType: order.deliveryType,
-        neighborhood: order.neighborhood,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        createdAt: order.createdAt,
-        confirmedAt: order.confirmedAt,
-        saiuParaEntregaEm: order.saiuParaEntregaEm,
-        entregadorNome: order.entregadorNome,
-      }
-
-      return NextResponse.json({ success: true, order: publicOrder }, { headers: noCacheHeaders })
+    
+    if (!result || !result.stream) {
+      return NextResponse.json({ error: "Failed to load orders", success: false }, { status: 500, headers: noCacheHeaders })
+    }
+    
+    const text = await new Response(result.stream).text()
+    const orders = JSON.parse(text) as Order[]
+    
+    // Buscar pedido por ID
+    const order = orders.find(o => o.id === orderId)
+    
+    if (!order) {
+      return NextResponse.json({ error: "Order not found", success: false }, { status: 404, headers: noCacheHeaders })
     }
 
-    return NextResponse.json({ error: "Order not found" }, { status: 404, headers: noCacheHeaders })
+    // Retornar dados publicos (sem dados sensiveis)
+    const publicOrder = {
+      id: order.id,
+      customerName: order.customerName,
+      items: order.items,
+      itemsDetailed: order.itemsDetailed,
+      total: order.total,
+      paymentMethod: order.paymentMethod,
+      deliveryType: order.deliveryType,
+      neighborhood: order.neighborhood,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      createdAt: order.createdAt,
+      confirmedAt: order.confirmedAt,
+      saiuParaEntregaEm: order.saiuParaEntregaEm,
+      entregadorNome: order.entregadorNome,
+    }
+
+    return NextResponse.json({ success: true, order: publicOrder }, { headers: noCacheHeaders })
   } catch (error) {
     console.error("[Orders Public GET] Erro:", error)
-    return NextResponse.json({ error: "Failed to fetch order" }, { status: 500, headers: noCacheHeaders })
+    return NextResponse.json({ error: "Failed to fetch order", success: false }, { status: 500, headers: noCacheHeaders })
   }
 }
