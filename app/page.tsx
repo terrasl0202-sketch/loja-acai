@@ -91,11 +91,12 @@ export default function Home() {
   }, [isClient])
 
   // Loja esta realmente aberta
-  // Prioridade: storeStatusData (Supabase/local) > siteConfig (Blob) > horario automatico
+  // Prioridade: storeStatusData (Supabase/local) > horario automatico
+  // NAO depende mais do Blob (siteConfig.storeHours)
   const isStoreOpen = isClient ? (
     storeStatusData 
       ? (storeStatusData.manualControl ? storeStatusData.storeOpen : isWithinBusinessHours())
-      : (siteConfig.storeHours?.isOpen && isWithinBusinessHours())
+      : isWithinBusinessHours() // Fallback: apenas horario automatico
   ) : true
 
   // Hook do carrinho - gerencia quantities, showCart, toast de adicao e som

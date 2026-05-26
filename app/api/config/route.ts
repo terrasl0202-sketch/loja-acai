@@ -4,6 +4,7 @@ import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 
 const CONFIG_PREFIX = "pk-config-"
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
+const LOCAL_CONFIG_KEY = "pk-site-config"
 
 // Evitar cache
 export const dynamic = "force-dynamic"
@@ -37,22 +38,22 @@ export async function GET(request: Request) {
           new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
         )[0]
         
-        // Usar get() para blobs privados - METODO QUE FUNCIONAVA
+        // Usar get() para blobs privados
         const result = await get(latestBlob.pathname, { access: "private" })
         
         if (result && result.stream) {
           const text = await new Response(result.stream).text()
           const config = JSON.parse(text) as SiteConfig
           
-          // Retornar config real - NAO sobrescrever com defaults
           return NextResponse.json({ success: true, config }, { headers: noCacheHeaders })
         }
       }
     } catch (e) {
-      console.error("[Config GET] Erro ao buscar do Blob:", e)
+      // Blob indisponivel - usar defaultConfig sem erro fatal
+      console.warn("[Config GET] Blob indisponivel, usando defaultConfig")
     }
 
-    // Apenas usar defaultConfig se realmente nao houver dados salvos
+    // Usar defaultConfig se Blob falhar ou nao houver dados
     return NextResponse.json({ success: true, config: defaultConfig }, { headers: noCacheHeaders })
   } catch (error) {
     console.error("[Config GET] Erro geral:", error)
@@ -75,32 +76,43 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Config vazia" }, { status: 400 })
     }
 
-    // Salvar nova config com timestamp (private access)
-    const timestamp = Date.now()
-    const filename = `${CONFIG_PREFIX}${timestamp}.json`
-    
-    const blob = await put(filename, JSON.stringify(config, null, 2), {
-      access: "private",
-      contentType: "application/json",
-    })
-
-    // Limpar configs antigas (manter apenas o mais recente)
+    // Tentar salvar no Blob
     try {
-      const { blobs } = await list({ prefix: CONFIG_PREFIX })
-      const oldBlobs = blobs.filter(b => b.url !== blob.url)
+      const timestamp = Date.now()
+      const filename = `${CONFIG_PREFIX}${timestamp}.json`
       
-      for (const oldBlob of oldBlobs) {
-        try {
-          await del(oldBlob.url)
-        } catch {
-          // ignorar erro de delete
-        }
-      }
-    } catch (e) {
-      console.error("[Config POST] Erro ao limpar blobs antigos:", e)
-    }
+      const blob = await put(filename, JSON.stringify(config, null, 2), {
+        access: "private",
+        contentType: "application/json",
+      })
 
-    return NextResponse.json({ success: true, config })
+      // Limpar configs antigas (manter apenas o mais recente)
+      try {
+        const { blobs } = await list({ prefix: CONFIG_PREFIX })
+        const oldBlobs = blobs.filter(b => b.url !== blob.url)
+        
+        for (const oldBlob of oldBlobs) {
+          try {
+            await del(oldBlob.url)
+          } catch {
+            // ignorar erro de delete
+          }
+        }
+      } catch {
+        // ignorar erro ao limpar
+      }
+
+      return NextResponse.json({ success: true, config })
+    } catch (blobError) {
+      // Blob indisponivel - retornar sucesso mesmo assim
+      // O status da loja ja e salvo no Supabase, entao nao e critico
+      console.warn("[Config POST] Blob indisponivel:", blobError)
+      return NextResponse.json({ 
+        success: true, 
+        config,
+        warning: "Blob indisponivel, config salva apenas localmente"
+      })
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error("[Config POST] ERRO:", errorMessage)

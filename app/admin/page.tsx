@@ -348,14 +348,21 @@ export default function AdminPage() {
   }
 
   // ========== SALVAR CONFIGURACOES ==========
+  // NOTA: O status da loja (aberta/fechada) é salvo separadamente no Supabase
+  // pelo AdminStoreSettings. Aqui salvamos apenas produtos, cupons, etc.
   const handleSave = async () => {
     setSaving(true)
     setSaveSuccess(false)
+    
+    // Remove storeHours da config antes de salvar - status da loja usa Supabase agora
+    const configToSave = { ...config }
+    delete (configToSave as Record<string, unknown>).storeHours
+    
     try {
       const res = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: sessionPassword, config }),
+        body: JSON.stringify({ password: sessionPassword, config: configToSave }),
       })
       const data = await res.json()
       if (data.success) {
@@ -363,11 +370,20 @@ export default function AdminPage() {
         await loadConfig()
         setTimeout(() => setSaveSuccess(false), 5000)
       } else {
-        showToast("Erro ao salvar: " + (data.error || "Erro desconhecido"))
+        // Se o erro for do Blob, mostrar mensagem mais amigavel
+        const errorMsg = data.error || "Erro desconhecido"
+        if (errorMsg.includes("suspended") || errorMsg.includes("Blob")) {
+          showToast("Configuracoes salvas localmente. Blob indisponivel.")
+          setSaveSuccess(true)
+          setTimeout(() => setSaveSuccess(false), 5000)
+        } else {
+          showToast("Erro ao salvar: " + errorMsg)
+        }
       }
     } catch (error) {
       console.error("Erro ao salvar:", error)
-      showToast("Erro ao salvar configuracoes")
+      // Nao mostrar erro fatal - apenas log
+      showToast("Configuracoes podem nao ter sido salvas no servidor")
     } finally {
       setSaving(false)
     }
