@@ -41,6 +41,10 @@ export async function GET(
     try {
       const supabase = getSupabase()
       
+      if (!supabase) {
+        throw new Error('Supabase nao disponivel')
+      }
+      
       const { data: order, error } = await supabase
         .from('orders')
         .select('*')

@@ -54,6 +54,10 @@ export async function POST(request: NextRequest) {
     try {
       const supabase = getSupabase()
       
+      if (!supabase) {
+        throw new Error('Supabase nao disponivel')
+      }
+      
       // Buscar pedido por paymentId ou orderId
       let query = supabase.from('orders').select('*')
       

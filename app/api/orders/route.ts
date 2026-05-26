@@ -211,6 +211,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = getSupabase()
+    
+    if (!supabase) {
+      // Fallback para Blob se Supabase nao disponivel
+      console.warn("[orders GET] Supabase nao disponivel, usando Blob")
+      const orders = await loadOrdersFromBlob()
+      return NextResponse.json({ success: true, orders, source: 'blob' }, { headers: noCacheHeaders })
+    }
+    
     const { data, error } = await supabase
       .from('orders')
       .select('*')
@@ -299,6 +307,10 @@ export async function POST(request: NextRequest) {
     try {
       const supabase = getSupabase()
       
+      if (!supabase) {
+        throw new Error('Supabase nao disponivel')
+      }
+      
       // Verificar se ja existe
       const { data: existing } = await supabase
         .from('orders')
@@ -363,6 +375,10 @@ export async function PATCH(request: NextRequest) {
 
     try {
       const supabase = getSupabase()
+      
+      if (!supabase) {
+        throw new Error('Supabase nao disponivel')
+      }
       
       // Buscar pedido atual
       const { data: currentOrder, error: fetchError } = await supabase
@@ -515,6 +531,10 @@ export async function DELETE(request: NextRequest) {
     if (orderIds && Array.isArray(orderIds) && orderIds.length > 0) {
       try {
         const supabase = getSupabase()
+        
+        if (!supabase) {
+          throw new Error('Supabase nao disponivel')
+        }
         
         const { error } = await supabase
           .from('orders')
