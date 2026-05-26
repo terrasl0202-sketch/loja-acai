@@ -2,11 +2,12 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
+import { fetchStoreStatus, type StoreStatus } from "@/lib/supabase"
 
 // ============================================================
 // STORE PROVIDER
 // Gerencia: config da loja, estados visuais, horario de funcionamento
-// NAO gerencia: PIX, checkout, pedidos, APIs
+// Status da loja (aberta/fechada) vem do Supabase, NAO do Blob
 // ============================================================
 
 interface StoreContextValue {
@@ -44,6 +45,7 @@ const TOAST_DURATION = 4000
 
 export function StoreProvider({ children }: StoreProviderProps) {
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultConfig)
+  const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -53,14 +55,16 @@ export function StoreProvider({ children }: StoreProviderProps) {
     setIsClient(true)
   }, [])
 
-  // Carregar config
+  // Carregar config (Blob) - apenas para produtos, horarios, etc
   useEffect(() => {
     const loadConfig = async () => {
       try {
         const response = await fetch("/api/config")
         if (response.ok) {
           const data = await response.json()
-          setSiteConfig(data)
+          if (data.config) {
+            setSiteConfig(data.config)
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar config:", error)
@@ -70,6 +74,25 @@ export function StoreProvider({ children }: StoreProviderProps) {
     }
     loadConfig()
   }, [])
+
+  // Carregar status da loja do Supabase (NAO do Blob)
+  useEffect(() => {
+    if (!isClient) return
+    
+    const loadStoreStatus = async () => {
+      try {
+        const { data } = await fetchStoreStatus()
+        setStoreStatus(data)
+      } catch (error) {
+        console.error("Erro ao carregar status da loja:", error)
+      }
+    }
+    
+    loadStoreStatus()
+    // Atualiza a cada 30 segundos
+    const interval = setInterval(loadStoreStatus, 30000)
+    return () => clearInterval(interval)
+  }, [isClient])
 
   // Verifica horario de funcionamento
   const isWithinBusinessHours = useCallback(() => {
@@ -94,8 +117,13 @@ export function StoreProvider({ children }: StoreProviderProps) {
     }
   }, [siteConfig.storeHours])
 
-  // Loja esta aberta = status manual E dentro do horario
-  const isStoreOpen = isClient ? (siteConfig.storeHours?.isOpen && isWithinBusinessHours()) : true
+  // Loja esta aberta = status do Supabase/localStorage + horario
+  // NAO depende mais do Blob (siteConfig.storeHours?.isOpen)
+  const isStoreOpen = isClient ? (
+    storeStatus
+      ? (storeStatus.manualControl ? storeStatus.storeOpen : isWithinBusinessHours())
+      : isWithinBusinessHours() // Fallback: apenas horario automatico
+  ) : true
 
   // Toast global
   const showToast = useCallback((message: string) => {

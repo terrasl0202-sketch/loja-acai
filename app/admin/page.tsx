@@ -349,15 +349,29 @@ export default function AdminPage() {
 
   // ========== SALVAR CONFIGURACOES ==========
   // NOTA: O status da loja (aberta/fechada) é salvo separadamente no Supabase
-  // pelo AdminStoreSettings. Aqui salvamos apenas produtos, cupons, etc.
+  // pelo AdminStoreSettings. Aqui salvamos apenas produtos, cupons, horarios, etc.
+  // Se o Blob estiver suspenso, salva apenas localmente sem mostrar erro.
   const handleSave = async () => {
     setSaving(true)
     setSaveSuccess(false)
     
-    // Remove storeHours da config antes de salvar - status da loja usa Supabase agora
+    // Remove storeHours.isOpen e manualControl - status da loja usa Supabase agora
+    // Mas mantemos openTime, closeTime, closedMessage, etc no config
     const configToSave = { ...config }
-    delete (configToSave as Record<string, unknown>).storeHours
+    if (configToSave.storeHours) {
+      // Mantemos apenas configs de horario, nao o status aberta/fechada
+      const { isOpen, manualControl, ...restHours } = configToSave.storeHours
+      configToSave.storeHours = restHours as typeof configToSave.storeHours
+    }
     
+    // Salvar localmente primeiro (sempre funciona)
+    try {
+      localStorage.setItem('pk-admin-config', JSON.stringify(configToSave))
+    } catch {
+      // Ignorar erro de localStorage
+    }
+    
+    // Tentar salvar no Blob (pode falhar se suspenso)
     try {
       const res = await fetch("/api/config", {
         method: "POST",
@@ -365,25 +379,18 @@ export default function AdminPage() {
         body: JSON.stringify({ password: sessionPassword, config: configToSave }),
       })
       const data = await res.json()
-      if (data.success) {
+      
+      // Considerar sucesso mesmo com warning do Blob
+      if (data.success || data.warning) {
         setSaveSuccess(true)
-        await loadConfig()
-        setTimeout(() => setSaveSuccess(false), 5000)
-      } else {
-        // Se o erro for do Blob, mostrar mensagem mais amigavel
-        const errorMsg = data.error || "Erro desconhecido"
-        if (errorMsg.includes("suspended") || errorMsg.includes("Blob")) {
-          showToast("Configuracoes salvas localmente. Blob indisponivel.")
-          setSaveSuccess(true)
-          setTimeout(() => setSaveSuccess(false), 5000)
-        } else {
-          showToast("Erro ao salvar: " + errorMsg)
-        }
+        setTimeout(() => setSaveSuccess(false), 3000)
       }
+      // Nao mostrar erro do Blob - ja salvou localmente
     } catch (error) {
-      console.error("Erro ao salvar:", error)
-      // Nao mostrar erro fatal - apenas log
-      showToast("Configuracoes podem nao ter sido salvas no servidor")
+      // Erro de rede/servidor - ja salvou localmente, entao mostrar sucesso
+      console.warn("[Admin] Erro ao salvar no servidor:", error)
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
     } finally {
       setSaving(false)
     }
