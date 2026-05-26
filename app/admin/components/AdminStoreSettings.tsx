@@ -1,124 +1,103 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { Store, AlertCircle, Loader2, Check, Wifi, WifiOff, Database } from "lucide-react"
-import { 
-  fetchAdminSettings, 
-  saveAdminSettings, 
-  updateStoreOpenStatus,
-  type AdminSettings 
-} from "@/lib/supabase"
+import { useState, useEffect } from "react"
+import { Store, AlertCircle, Loader2, Check, WifiOff } from "lucide-react"
 
 // ============================================================
 // ADMIN STORE SETTINGS
-// Gerencia configuracoes da loja via Supabase
-// NAO usa Vercel Blob - apenas Supabase + localStorage fallback
+// Gerencia status da loja APENAS via localStorage
+// NAO usa Vercel Blob, NAO usa Supabase, NAO usa fetch
 // ============================================================
 
-interface AdminStoreSettingsProps {
-  onSettingsLoaded?: (settings: AdminSettings) => void
+const LOCAL_KEY = 'pk-store-status'
+
+interface StoreStatus {
+  storeOpen: boolean
+  manualControl: boolean
+  storeName: string
+  updatedAt: string
 }
 
-export function AdminStoreSettings({ onSettingsLoaded }: AdminStoreSettingsProps) {
-  const [settings, setSettings] = useState<AdminSettings | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-  const [savedTo, setSavedTo] = useState<'supabase' | 'local' | null>(null)
-  const [source, setSource] = useState<'supabase' | 'local' | 'default'>('default')
+const DEFAULT_STATUS: StoreStatus = {
+  storeOpen: true,
+  manualControl: false,
+  storeName: 'Acai da Terra',
+  updatedAt: new Date().toISOString()
+}
 
-  // Carrega as configuracoes ao montar
-  const loadSettings = useCallback(async () => {
-    setLoading(true)
-    try {
-      const { data, source: dataSource } = await fetchAdminSettings()
-      setSettings(data)
-      setSource(dataSource)
-      onSettingsLoaded?.(data)
-    } catch (err) {
-      console.error('[AdminStore] Erro ao carregar:', err)
-    } finally {
-      setLoading(false)
+function loadStatus(): StoreStatus {
+  if (typeof window === 'undefined') return DEFAULT_STATUS
+  try {
+    const saved = localStorage.getItem(LOCAL_KEY)
+    if (saved) {
+      return { ...DEFAULT_STATUS, ...JSON.parse(saved) }
     }
-  }, [onSettingsLoaded])
+  } catch {
+    // Ignora erro
+  }
+  return DEFAULT_STATUS
+}
 
+function saveStatus(status: StoreStatus): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(status))
+  } catch {
+    // Ignora erro
+  }
+}
+
+export function AdminStoreSettings() {
+  const [status, setStatus] = useState<StoreStatus>(DEFAULT_STATUS)
+  const [loading, setLoading] = useState(true)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+
+  // Carrega do localStorage ao montar
   useEffect(() => {
-    loadSettings()
-  }, [loadSettings])
+    const loaded = loadStatus()
+    setStatus(loaded)
+    setLoading(false)
+  }, [])
 
   // Toggle status da loja (aberta/fechada)
-  async function handleToggleOpen() {
-    if (!settings || saving) return
-    
-    setSaving(true)
-    const newOpen = !settings.storeOpen
-    
-    // Atualiza UI imediatamente (otimista)
-    setSettings(prev => prev ? { ...prev, storeOpen: newOpen, manualControl: true } : null)
-    
-    try {
-      const result = await updateStoreOpenStatus(newOpen, true)
-      setSavedTo(result.savedTo)
-      setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 2000)
-    } catch (err) {
-      console.error('[AdminStore] Erro ao salvar status:', err)
-      // Reverte em caso de erro
-      setSettings(prev => prev ? { ...prev, storeOpen: !newOpen } : null)
-    } finally {
-      setSaving(false)
+  function handleToggleOpen() {
+    const newStatus: StoreStatus = {
+      ...status,
+      storeOpen: !status.storeOpen,
+      manualControl: true,
+      updatedAt: new Date().toISOString()
     }
+    setStatus(newStatus)
+    saveStatus(newStatus)
+    setSaveSuccess(true)
+    setTimeout(() => setSaveSuccess(false), 2000)
   }
 
   // Toggle controle manual
-  async function handleToggleManual() {
-    if (!settings || saving) return
-    
-    setSaving(true)
-    const newManual = !settings.manualControl
-    
-    // Atualiza UI imediatamente (otimista)
-    setSettings(prev => prev ? { ...prev, manualControl: newManual } : null)
-    
-    try {
-      const result = await updateStoreOpenStatus(settings.storeOpen, newManual)
-      setSavedTo(result.savedTo)
-      setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 2000)
-    } catch (err) {
-      console.error('[AdminStore] Erro ao salvar controle manual:', err)
-      setSettings(prev => prev ? { ...prev, manualControl: !newManual } : null)
-    } finally {
-      setSaving(false)
+  function handleToggleManual() {
+    const newStatus: StoreStatus = {
+      ...status,
+      manualControl: !status.manualControl,
+      updatedAt: new Date().toISOString()
     }
+    setStatus(newStatus)
+    saveStatus(newStatus)
+    setSaveSuccess(true)
+    setTimeout(() => setSaveSuccess(false), 2000)
   }
 
   // Salvar nome da loja
-  async function handleSaveStoreName(name: string) {
-    if (!settings || saving) return
-    
-    setSaving(true)
-    setSettings(prev => prev ? { ...prev, storeName: name } : null)
-    
-    try {
-      const result = await saveAdminSettings({ storeName: name })
-      setSavedTo(result.savedTo)
-      setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 2000)
-    } catch (err) {
-      console.error('[AdminStore] Erro ao salvar nome:', err)
-    } finally {
-      setSaving(false)
+  function handleSaveStoreName(name: string) {
+    const newStatus: StoreStatus = {
+      ...status,
+      storeName: name,
+      updatedAt: new Date().toISOString()
     }
+    setStatus(newStatus)
+    saveStatus(newStatus)
+    setSaveSuccess(true)
+    setTimeout(() => setSaveSuccess(false), 2000)
   }
-
-  const sourceLabels = {
-    supabase: { text: 'Supabase', icon: Database, color: 'text-green-400' },
-    local: { text: 'Local', icon: WifiOff, color: 'text-yellow-400' },
-    default: { text: 'Padrao', icon: Store, color: 'text-blue-400' }
-  }
-
-  const currentSource = sourceLabels[source]
 
   return (
     <div className="space-y-5">
@@ -133,10 +112,10 @@ export function AdminStoreSettings({ onSettingsLoaded }: AdminStoreSettingsProps
         {saveSuccess && (
           <div className="flex items-center gap-1.5 text-green-400 text-xs font-medium">
             <Check className="w-4 h-4" />
-            {savedTo === 'supabase' ? 'Salvo no Supabase' : 'Salvo localmente'}
+            Salvo localmente
           </div>
         )}
-        {saving && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+        {loading && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
       </div>
 
       <div className="space-y-4">
@@ -145,8 +124,8 @@ export function AdminStoreSettings({ onSettingsLoaded }: AdminStoreSettingsProps
           <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nome da Loja</label>
           <input
             type="text"
-            value={settings?.storeName || ""}
-            onChange={(e) => setSettings(prev => prev ? { ...prev, storeName: e.target.value } : null)}
+            value={status.storeName}
+            onChange={(e) => setStatus(prev => ({ ...prev, storeName: e.target.value }))}
             onBlur={(e) => handleSaveStoreName(e.target.value)}
             disabled={loading}
             className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
@@ -161,20 +140,20 @@ export function AdminStoreSettings({ onSettingsLoaded }: AdminStoreSettingsProps
               <p className="text-xs text-muted-foreground mt-0.5">Carregando...</p>
             ) : (
               <p className="text-xs text-muted-foreground mt-0.5">
-                {settings?.storeOpen ? "Loja esta ABERTA" : "Loja esta FECHADA"}
+                {status.storeOpen ? "Loja esta ABERTA" : "Loja esta FECHADA"}
               </p>
             )}
           </div>
           <button
             onClick={handleToggleOpen}
-            disabled={loading || saving}
+            disabled={loading}
             className={`w-14 h-7 rounded-full transition-all shadow-inner disabled:opacity-50 ${
-              settings?.storeOpen ? "bg-green-500 shadow-green-600/30" : "bg-red-500/80 shadow-red-600/30"
+              status.storeOpen ? "bg-green-500 shadow-green-600/30" : "bg-red-500/80 shadow-red-600/30"
             }`}
           >
             <div
               className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
-                settings?.storeOpen ? "translate-x-8" : "translate-x-1"
+                status.storeOpen ? "translate-x-8" : "translate-x-1"
               }`}
             />
           </button>
@@ -188,23 +167,23 @@ export function AdminStoreSettings({ onSettingsLoaded }: AdminStoreSettingsProps
           </div>
           <button
             onClick={handleToggleManual}
-            disabled={loading || saving}
+            disabled={loading}
             className={`w-14 h-7 rounded-full transition-all shadow-inner disabled:opacity-50 ${
-              settings?.manualControl ? "bg-primary shadow-primary/30" : "bg-secondary shadow-black/20"
+              status.manualControl ? "bg-primary shadow-primary/30" : "bg-secondary shadow-black/20"
             }`}
           >
             <div
               className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
-                settings?.manualControl ? "translate-x-8" : "translate-x-1"
+                status.manualControl ? "translate-x-8" : "translate-x-1"
               }`}
             />
           </button>
         </div>
 
-        {/* Fonte das Configuracoes */}
+        {/* Indicador de armazenamento */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <currentSource.icon className={`w-3.5 h-3.5 ${currentSource.color}`} />
-          <span>Configuracoes carregadas de: <span className={currentSource.color}>{currentSource.text}</span></span>
+          <WifiOff className="w-3.5 h-3.5 text-yellow-400" />
+          <span>Configuracoes salvas em: <span className="text-yellow-400">localStorage</span></span>
         </div>
 
         <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">

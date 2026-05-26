@@ -2,21 +2,32 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
-import { fetchStoreOpenStatus } from "@/lib/supabase"
 
 // ============================================================
 // STORE PROVIDER
 // Gerencia: config da loja, estados visuais, horario de funcionamento
-// Status da loja (aberta/fechada) vem do Supabase (admin_settings)
-// NAO usa Vercel Blob para status
+// Status da loja (aberta/fechada) vem do localStorage (pk-store-status)
+// NAO usa Vercel Blob, NAO usa Supabase para status
 // ============================================================
+
+const LOCAL_KEY = 'pk-store-status'
 
 interface StoreStatusData {
   storeOpen: boolean
   manualControl: boolean
-  openingTime: string
-  closingTime: string
-  source: 'supabase' | 'local' | 'default'
+}
+
+function loadLocalStatus(): StoreStatusData | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const saved = localStorage.getItem(LOCAL_KEY)
+    if (saved) {
+      return JSON.parse(saved)
+    }
+  } catch {
+    // Ignora erro
+  }
+  return null
 }
 
 interface StoreContextValue {
@@ -85,22 +96,21 @@ export function StoreProvider({ children }: StoreProviderProps) {
     loadConfig()
   }, [])
 
-  // Carregar status da loja do Supabase (admin_settings)
+  // Carregar status da loja do localStorage (pk-store-status)
+  // NAO usa Supabase, NAO usa fetch, NAO usa Blob
   useEffect(() => {
     if (!isClient) return
     
-    const loadStoreStatus = async () => {
-      try {
-        const data = await fetchStoreOpenStatus()
+    const loadStoreStatus = () => {
+      const data = loadLocalStatus()
+      if (data) {
         setStoreStatus(data)
-      } catch (error) {
-        console.error("Erro ao carregar status da loja:", error)
       }
     }
     
     loadStoreStatus()
-    // Atualiza a cada 30 segundos
-    const interval = setInterval(loadStoreStatus, 30000)
+    // Atualiza a cada 5 segundos para capturar mudancas do admin
+    const interval = setInterval(loadStoreStatus, 5000)
     return () => clearInterval(interval)
   }, [isClient])
 
