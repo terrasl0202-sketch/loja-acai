@@ -121,14 +121,24 @@ export async function POST(request: Request) {
   
   try {
     const body = await request.json()
-    const { settings } = body
+    
+    // Aceita formato { settings: {...} } ou campos diretos no body
+    const settings = body.settings || body
     
     console.log("[store-settings POST] Dados recebidos:", settings)
 
-    if (!settings) {
+    // Verifica se tem pelo menos um campo valido
+    const hasValidField = settings && (
+      settings.store_name !== undefined ||
+      settings.storeName !== undefined ||
+      settings.store_open !== undefined ||
+      settings.storeOpen !== undefined
+    )
+
+    if (!hasValidField) {
       return NextResponse.json({ 
         success: false, 
-        error: "Settings vazio" 
+        error: "Settings vazio ou invalido" 
       }, { status: 400 })
     }
 
@@ -142,7 +152,22 @@ export async function POST(request: Request) {
       }, { status: 500 })
     }
 
-    const dbData = mapSettingsToDb(settings)
+    // Mapeia campos camelCase para snake_case se necessario
+    const dbData = {
+      store_name: settings.store_name || settings.storeName,
+      subtitle: settings.subtitle,
+      slogan: settings.slogan,
+      whatsapp: settings.whatsapp,
+      instagram: settings.instagram,
+      address: settings.address,
+      open_time: settings.open_time || settings.openTime,
+      close_time: settings.close_time || settings.closeTime,
+      closed_message: settings.closed_message || settings.closedMessage,
+      store_open: settings.store_open ?? settings.storeOpen,
+      manual_control: settings.manual_control ?? settings.manualControl,
+      updated_at: new Date().toISOString(),
+    }
+    
     console.log("[store-settings POST] Dados para DB:", dbData)
 
     const { data, error } = await supabase

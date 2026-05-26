@@ -1,33 +1,37 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { Store, AlertCircle, Loader2, Check, WifiOff, Clock, Phone, Instagram, MapPin } from "lucide-react"
-import { useStoreSettings } from "@/hooks/useStoreSettings"
+import { useState, useEffect } from "react"
+import { Store, AlertCircle, Loader2, Clock, Phone, Instagram, MapPin } from "lucide-react"
 
 // ============================================================
-// ADMIN STORE SETTINGS
-// Gerencia TODAS as configuracoes da loja via useStoreSettings hook
-// Hook usa storage adapter -> localStorage (preparado para Supabase)
+// ADMIN STORE SETTINGS v94
+// CORRIGIDO: Sem autosave - apenas estado local
+// Salvamento via botao Salvar geral do Admin
 // ============================================================
 
-// Debounce delay em ms
-const DEBOUNCE_DELAY = 800
+interface StoreSettingsData {
+  storeName: string
+  subtitle: string
+  slogan: string
+  closedMessage: string
+  whatsapp: string
+  instagram: string
+  address: string
+  openTime: string
+  closeTime: string
+  storeOpen: boolean
+  manualControl: boolean
+}
 
-export function AdminStoreSettings() {
-  const { 
-    settings, 
-    isLoading, 
-    isSaving, 
-    updateSettings, 
-    toggleOpen, 
-    toggleManualControl,
-    lastSaved 
-  } = useStoreSettings()
+interface AdminStoreSettingsProps {
+  settings: StoreSettingsData
+  isLoading: boolean
+  onSettingsChange: (settings: StoreSettingsData) => void
+}
 
-  // ========================================
-  // ESTADO LOCAL PARA INPUTS (evita loop)
-  // ========================================
-  const [localValues, setLocalValues] = useState({
+export function AdminStoreSettings({ settings, isLoading, onSettingsChange }: AdminStoreSettingsProps) {
+  // Estado local do formulario - NAO salva automaticamente
+  const [localValues, setLocalValues] = useState<StoreSettingsData>({
     storeName: '',
     subtitle: '',
     slogan: '',
@@ -37,15 +41,13 @@ export function AdminStoreSettings() {
     address: '',
     openTime: '',
     closeTime: '',
+    storeOpen: false,
+    manualControl: false,
   })
   
-  // Flag para saber se usuario esta digitando
-  const isTypingRef = useRef(false)
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
-  
-  // Sincroniza estado local com settings do hook APENAS quando nao esta digitando
+  // Sincroniza com props apenas no load inicial ou quando settings muda externamente
   useEffect(() => {
-    if (!isTypingRef.current && !isLoading) {
+    if (!isLoading && settings) {
       setLocalValues({
         storeName: settings.storeName || '',
         subtitle: settings.subtitle || '',
@@ -56,43 +58,29 @@ export function AdminStoreSettings() {
         address: settings.address || '',
         openTime: settings.openTime || '',
         closeTime: settings.closeTime || '',
+        storeOpen: settings.storeOpen ?? false,
+        manualControl: settings.manualControl ?? false,
       })
     }
   }, [settings, isLoading])
-  
-  // Limpa timer no unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-      }
-    }
-  }, [])
 
-  // ========================================
-  // HANDLER COM DEBOUNCE
-  // ========================================
-  const handleFieldChange = useCallback((field: keyof typeof localValues, value: string) => {
-    // Marca que esta digitando
-    isTypingRef.current = true
-    
-    // Atualiza estado local imediatamente (UX responsiva)
-    setLocalValues(prev => ({ ...prev, [field]: value }))
-    
-    // Limpa debounce anterior
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
-    }
-    
-    // Agenda salvamento com debounce
-    debounceTimerRef.current = setTimeout(() => {
-      isTypingRef.current = false
-      updateSettings({ [field]: value })
-    }, DEBOUNCE_DELAY)
-  }, [updateSettings])
+  // Handler para mudanca de campo - atualiza APENAS estado local
+  // Propaga para o pai via onSettingsChange para que handleSave tenha acesso
+  const handleFieldChange = (field: keyof StoreSettingsData, value: string | boolean) => {
+    const newValues = { ...localValues, [field]: value }
+    setLocalValues(newValues)
+    onSettingsChange(newValues) // Propaga para o estado do Admin (nao salva)
+  }
 
-  // Feedback visual de salvamento
-  const showSaveSuccess = lastSaved && (Date.now() - new Date(lastSaved).getTime()) < 2000
+  // Toggle aberto/fechado
+  const handleToggleOpen = () => {
+    handleFieldChange('storeOpen', !localValues.storeOpen)
+  }
+
+  // Toggle controle manual
+  const handleToggleManualControl = () => {
+    handleFieldChange('manualControl', !localValues.manualControl)
+  }
 
   return (
     <div className="space-y-5">
@@ -104,13 +92,7 @@ export function AdminStoreSettings() {
           <h2 className="text-lg font-bold text-foreground">Configuracoes da Loja</h2>
           <p className="text-xs text-muted-foreground">Gerencie as informacoes principais</p>
         </div>
-        {showSaveSuccess && (
-          <div className="flex items-center gap-1.5 text-green-400 text-xs font-medium">
-            <Check className="w-4 h-4" />
-            Salvo
-          </div>
-        )}
-        {(isLoading || isSaving) && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+        {isLoading && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
       </div>
 
       <div className="space-y-4">
@@ -157,24 +139,20 @@ export function AdminStoreSettings() {
         <div className="flex items-center justify-between p-4 bg-gradient-to-r from-secondary/30 to-secondary/10 rounded-xl border border-border/30">
           <div>
             <p className="font-semibold text-foreground text-sm">Status da Loja</p>
-            {isLoading ? (
-              <p className="text-xs text-muted-foreground mt-0.5">Carregando...</p>
-            ) : (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {settings.storeOpen ? "Loja esta ABERTA" : "Loja esta FECHADA"}
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {localValues.storeOpen ? "Loja esta ABERTA" : "Loja esta FECHADA"}
+            </p>
           </div>
           <button
-            onClick={toggleOpen}
+            onClick={handleToggleOpen}
             disabled={isLoading}
             className={`w-14 h-7 rounded-full transition-all shadow-inner disabled:opacity-50 ${
-              settings.storeOpen ? "bg-green-500 shadow-green-600/30" : "bg-red-500/80 shadow-red-600/30"
+              localValues.storeOpen ? "bg-green-500 shadow-green-600/30" : "bg-red-500/80 shadow-red-600/30"
             }`}
           >
             <div
               className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
-                settings.storeOpen ? "translate-x-8" : "translate-x-1"
+                localValues.storeOpen ? "translate-x-8" : "translate-x-1"
               }`}
             />
           </button>
@@ -187,15 +165,15 @@ export function AdminStoreSettings() {
             <p className="text-xs text-muted-foreground mt-0.5">Ignorar horario automatico</p>
           </div>
           <button
-            onClick={toggleManualControl}
+            onClick={handleToggleManualControl}
             disabled={isLoading}
             className={`w-14 h-7 rounded-full transition-all shadow-inner disabled:opacity-50 ${
-              settings.manualControl ? "bg-primary shadow-primary/30" : "bg-secondary shadow-black/20"
+              localValues.manualControl ? "bg-primary shadow-primary/30" : "bg-secondary shadow-black/20"
             }`}
           >
             <div
               className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
-                settings.manualControl ? "translate-x-8" : "translate-x-1"
+                localValues.manualControl ? "translate-x-8" : "translate-x-1"
               }`}
             />
           </button>
@@ -292,19 +270,14 @@ export function AdminStoreSettings() {
           />
         </div>
 
-        {/* Indicador de armazenamento */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <WifiOff className="w-3.5 h-3.5 text-yellow-400" />
-          <span>Configuracoes salvas via: <span className="text-yellow-400">Storage Adapter</span></span>
-        </div>
-
-        <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+        {/* Aviso v94 */}
+        <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5" />
+            <AlertCircle className="w-5 h-5 text-green-400 mt-0.5" />
             <div>
-              <p className="font-medium text-foreground">Dica</p>
+              <p className="font-medium text-foreground">Admin v94 - Supabase Only</p>
               <p className="text-sm text-muted-foreground">
-                Todas as informacoes salvas aqui aparecem automaticamente na loja publica.
+                As alteracoes so sao salvas ao clicar no botao Salvar geral.
               </p>
             </div>
           </div>

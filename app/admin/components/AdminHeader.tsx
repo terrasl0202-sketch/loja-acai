@@ -1,9 +1,9 @@
 "use client"
 
 import { Lock, Bell, BellOff, RefreshCw, Volume2, Save, Loader2, Check, LogOut } from "lucide-react"
-import { useStoreSettings } from "@/hooks/useStoreSettings"
 
 interface AdminHeaderProps {
+  storeName?: string
   newOrdersCount: number
   soundActivated: boolean
   soundEnabled: boolean
@@ -19,6 +19,7 @@ interface AdminHeaderProps {
 }
 
 export function AdminHeader({
+  storeName = 'Acai da Terra',
   newOrdersCount,
   soundActivated,
   soundEnabled,
@@ -32,9 +33,8 @@ export function AdminHeader({
   onLogout,
   onMarkAsSeen,
 }: AdminHeaderProps) {
-  // Usa hook da nova arquitetura - atualiza automaticamente
-  const { settings } = useStoreSettings()
-  const storeName = settings.storeName || 'Acai da Terra'
+  // Nome da loja vem como prop do Admin page (carregado via API)
+  const displayName = storeName || 'Acai da Terra'
 
   return (
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-xl border-b border-primary/10 shadow-xl shadow-black/10">
@@ -46,7 +46,7 @@ export function AdminHeader({
             </div>
             <div className="min-w-0">
               <h1 className="font-bold text-sm sm:text-base text-transparent bg-clip-text bg-gradient-to-r from-foreground to-foreground/80">Painel Admin</h1>
-              <p className="text-[10px] sm:text-xs text-muted-foreground/70 truncate">{storeName}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground/70 truncate">{displayName}</p>
             </div>
           </div>
 

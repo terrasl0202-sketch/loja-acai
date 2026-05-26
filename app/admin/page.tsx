@@ -108,6 +108,21 @@ export default function AdminPage() {
   const [archivedSearchInput, setArchivedSearchInput] = useState("")
   const [archivedSearchQuery, setArchivedSearchQuery] = useState("")
   
+  // ========== ESTADO DE STORE SETTINGS (v94 - Supabase Only) ==========
+  const [storeSettings, setStoreSettings] = useState({
+    storeName: '',
+    subtitle: '',
+    slogan: '',
+    closedMessage: '',
+    whatsapp: '',
+    instagram: '',
+    address: '',
+    openTime: '',
+    closeTime: '',
+    storeOpen: false,
+    manualControl: false,
+  })
+  
   // ========== ESTADOS DE UI/MODAIS ==========
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null)
@@ -222,11 +237,67 @@ export default function AdminPage() {
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/config?admin=true&password=${encodeURIComponent(sessionPassword)}`)
-      const data = await res.json()
-      if (data.success && data.config) setConfig(data.config)
+      console.log("[Admin v94] loadConfig - Carregando dados do Supabase...")
+      
+      // 1. Carregar config geral (legacy - para produtos/delivery que ainda estao la)
+      const configRes = await fetch(`/api/config?admin=true&password=${encodeURIComponent(sessionPassword)}`)
+      const configData = await configRes.json()
+      let baseConfig = configData.success && configData.config ? configData.config : defaultConfig
+      
+      // 2. Carregar store-settings do Supabase
+      console.log("[Admin v94] Carregando store-settings...")
+      const settingsRes = await fetch('/api/store-settings')
+      const settingsData = await settingsRes.json()
+      if (settingsData.success && settingsData.settings) {
+        console.log("[Admin v94] Store settings carregados do Supabase")
+        setStoreSettings({
+          storeName: settingsData.settings.store_name || '',
+          subtitle: settingsData.settings.subtitle || '',
+          slogan: settingsData.settings.slogan || '',
+          closedMessage: settingsData.settings.closed_message || '',
+          whatsapp: settingsData.settings.whatsapp || '',
+          instagram: settingsData.settings.instagram || '',
+          address: settingsData.settings.address || '',
+          openTime: settingsData.settings.open_time || '',
+          closeTime: settingsData.settings.close_time || '',
+          storeOpen: settingsData.settings.store_open ?? false,
+          manualControl: settingsData.settings.manual_control ?? false,
+        })
+      }
+      
+      // 3. Carregar produtos do Supabase
+      console.log("[Admin v94] Carregando produtos...")
+      const productsRes = await fetch('/api/products')
+      const productsData = await productsRes.json()
+      if (productsData.success && Array.isArray(productsData.products) && productsData.products.length > 0) {
+        console.log(`[Admin v94] ${productsData.products.length} produtos carregados`)
+        baseConfig = { ...baseConfig, products: productsData.products }
+      }
+      
+      // 4. Carregar bairros do Supabase
+      console.log("[Admin v94] Carregando bairros...")
+      const neighborhoodsRes = await fetch('/api/neighborhoods')
+      const neighborhoodsData = await neighborhoodsRes.json()
+      if (neighborhoodsData.success && Array.isArray(neighborhoodsData.neighborhoods) && neighborhoodsData.neighborhoods.length > 0) {
+        console.log(`[Admin v94] ${neighborhoodsData.neighborhoods.length} bairros carregados`)
+        const neighborhoodFees = neighborhoodsData.neighborhoods.map((n: { name: string; deliveryFee?: number; fee?: number; active: boolean }) => ({
+          name: n.name,
+          fee: n.deliveryFee ?? n.fee ?? 0,
+          active: n.active
+        }))
+        baseConfig = { 
+          ...baseConfig, 
+          delivery: { 
+            ...baseConfig.delivery, 
+            neighborhoodFees 
+          } 
+        }
+      }
+      
+      setConfig(baseConfig)
+      console.log("[Admin v94] Dados carregados com sucesso")
     } catch (error) {
-      console.error("Erro ao carregar config:", error)
+      console.error("[Admin v94] Erro ao carregar:", error)
     } finally {
       setLoading(false)
     }
@@ -347,34 +418,111 @@ export default function AdminPage() {
     localStorage.removeItem("admin_session")
   }
 
-  // ========== SALVAR CONFIGURACOES ==========
-  // NOTA: Produtos salvos no Supabase via /api/products
-  // Config geral salva em /api/config
+  // ========== SALVAR CONFIGURACOES v94 ==========
+  // Tudo salvo via APIs server-side no Supabase
+  // NAO usa localStorage como fonte principal
   const handleSave = async () => {
-    console.log("[Admin] handleSave iniciado")
+    console.log("[Admin v94] handleSave iniciado")
     setSaving(true)
     setSaveSuccess(false)
     
+    const results = {
+      storeSettings: { success: false, error: '' },
+      products: { success: false, count: 0, error: '' },
+      neighborhoods: { success: false, count: 0, error: '' },
+    }
+    
     try {
-      // 1. SALVAR PRODUTOS NO SUPABASE
-      console.log("[Admin] Salvando produtos no Supabase...")
-      const productsRes = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ products: config.products }),
-      })
-      const productsData = await productsRes.json()
-      
-      if (!productsData.success) {
-        console.error("[Admin] Erro ao salvar produtos:", productsData.error)
-        showToast("Erro ao salvar: " + productsData.error)
-        setSaving(false)
-        return
+      // 1. SALVAR STORE-SETTINGS NO SUPABASE
+      console.log("[Admin v94] Salvando store-settings...")
+      try {
+        const settingsRes = await fetch("/api/store-settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            store_name: storeSettings.storeName,
+            subtitle: storeSettings.subtitle,
+            slogan: storeSettings.slogan,
+            closed_message: storeSettings.closedMessage,
+            whatsapp: storeSettings.whatsapp,
+            instagram: storeSettings.instagram,
+            address: storeSettings.address,
+            open_time: storeSettings.openTime,
+            close_time: storeSettings.closeTime,
+            store_open: storeSettings.storeOpen,
+            manual_control: storeSettings.manualControl,
+          }),
+        })
+        const settingsData = await settingsRes.json()
+        if (settingsData.success) {
+          results.storeSettings.success = true
+          console.log("[Admin v94] Store settings salvos")
+        } else {
+          results.storeSettings.error = settingsData.error || 'Erro desconhecido'
+          console.error("[Admin v94] Erro store-settings:", results.storeSettings.error)
+        }
+      } catch (e) {
+        results.storeSettings.error = String(e)
+        console.error("[Admin v94] Erro store-settings:", e)
       }
       
-      console.log("[Admin] Produtos salvos:", productsData.count)
+      // 2. SALVAR PRODUTOS NO SUPABASE
+      console.log("[Admin v94] Salvando produtos...")
+      try {
+        const productsRes = await fetch("/api/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ products: config.products }),
+        })
+        const productsData = await productsRes.json()
+        if (productsData.success) {
+          results.products.success = true
+          results.products.count = productsData.count || config.products.length
+          console.log("[Admin v94] Produtos salvos:", results.products.count)
+        } else {
+          results.products.error = productsData.error || 'Erro desconhecido'
+          console.error("[Admin v94] Erro produtos:", results.products.error)
+        }
+      } catch (e) {
+        results.products.error = String(e)
+        console.error("[Admin v94] Erro produtos:", e)
+      }
       
-      // 2. SALVAR CONFIG GERAL (sem produtos)
+      // 3. SALVAR BAIRROS NO SUPABASE
+      console.log("[Admin v94] Salvando bairros...")
+      try {
+        const neighborhoodFees = config.delivery?.neighborhoodFees || []
+        if (neighborhoodFees.length > 0) {
+          const neighborhoodsToSave = neighborhoodFees.map((n: NeighborhoodFee, i: number) => ({
+            name: n.name,
+            deliveryFee: n.fee,
+            active: n.active !== false,
+            order: i
+          }))
+          
+          const neighborhoodsRes = await fetch("/api/neighborhoods", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ neighborhoods: neighborhoodsToSave }),
+          })
+          const neighborhoodsData = await neighborhoodsRes.json()
+          if (neighborhoodsData.success) {
+            results.neighborhoods.success = true
+            results.neighborhoods.count = neighborhoodsData.count || neighborhoodFees.length
+            console.log("[Admin v94] Bairros salvos:", results.neighborhoods.count)
+          } else {
+            results.neighborhoods.error = neighborhoodsData.error || 'Erro desconhecido'
+          }
+        } else {
+          results.neighborhoods.success = true
+          results.neighborhoods.count = 0
+        }
+      } catch (e) {
+        results.neighborhoods.error = String(e)
+        console.error("[Admin v94] Erro bairros:", e)
+      }
+      
+      // 4. SALVAR CONFIG LEGACY (para campos que ainda nao foram migrados)
       const configToSave = { ...config, products: [] }
       await fetch("/api/config", {
         method: "POST",
@@ -382,16 +530,27 @@ export default function AdminPage() {
         body: JSON.stringify({ password: sessionPassword, config: configToSave }),
       })
       
-      // Cache local
-      localStorage.setItem('pk-products', JSON.stringify(config.products))
+      // Resultado final
+      const allSuccess = results.storeSettings.success && results.products.success
       
-      setSaveSuccess(true)
-      showToast(`Salvo (${productsData.count} produtos)`)
-      setTimeout(() => setSaveSuccess(false), 3000)
+      if (allSuccess) {
+        setSaveSuccess(true)
+        const parts = ['config']
+        if (results.products.count > 0) parts.push(`${results.products.count} produtos`)
+        if (results.neighborhoods.count > 0) parts.push(`${results.neighborhoods.count} bairros`)
+        showToast(`Salvo v94: ${parts.join(', ')}`)
+        setTimeout(() => setSaveSuccess(false), 3000)
+      } else {
+        const errors = []
+        if (!results.storeSettings.success) errors.push(`config: ${results.storeSettings.error}`)
+        if (!results.products.success) errors.push(`produtos: ${results.products.error}`)
+        if (!results.neighborhoods.success && results.neighborhoods.error) errors.push(`bairros: ${results.neighborhoods.error}`)
+        showToast("Erro: " + errors.join("; "))
+      }
       
     } catch (error) {
-      console.error("[Admin] Erro:", error)
-      showToast("Erro ao salvar")
+      console.error("[Admin v94] Erro geral:", error)
+      showToast("Erro ao salvar: " + String(error))
     } finally {
       setSaving(false)
     }
@@ -915,7 +1074,7 @@ export default function AdminPage() {
   // ========== PAINEL ADMIN ==========
   return (
     <div className="min-h-screen bg-background">
-      <AdminHeader newOrdersCount={newOrdersCount} soundActivated={soundActivated} soundEnabled={soundEnabled} saving={saving} saveSuccess={saveSuccess} onRefresh={() => loadOrdersWithNotification()} onActivateSound={activateSound} onTestSound={playTestSound} onToggleSound={() => setSoundEnabled(!soundEnabled)} onSave={handleSave} onLogout={handleLogout} onMarkAsSeen={markOrdersAsSeen} />
+      <AdminHeader storeName={storeSettings.storeName} newOrdersCount={newOrdersCount} soundActivated={soundActivated} soundEnabled={soundEnabled} saving={saving} saveSuccess={saveSuccess} onRefresh={() => loadOrdersWithNotification()} onActivateSound={activateSound} onTestSound={playTestSound} onToggleSound={() => setSoundEnabled(!soundEnabled)} onSave={handleSave} onLogout={handleLogout} onMarkAsSeen={markOrdersAsSeen} />
       {saveSuccess && <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-2.5 text-center text-sm font-medium animate-in slide-in-from-top shadow-lg">Alteracoes salvas com sucesso!</div>}
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
         {loading ? (
@@ -931,7 +1090,7 @@ export default function AdminPage() {
             <Link href="/" className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm font-medium"><ArrowLeft className="w-4 h-4" /> Ver Loja</Link>
 
             <div className="bg-card/80 rounded-2xl p-4 sm:p-6 border border-border/50 shadow-xl">
-              {activeTab === "store" && <AdminStoreSettings />}
+              {activeTab === "store" && <AdminStoreSettings settings={storeSettings} isLoading={loading} onSettingsChange={setStoreSettings} />}
               {activeTab === "products" && <AdminProductsSettings products={config.products} expandedProduct={expandedProduct} onExpandedProductChange={setExpandedProduct} onAddProduct={addProduct} onUpdateProduct={updateProduct} onRemoveProduct={removeProduct} onMoveProduct={moveProduct} />}
               {activeTab === "banner" && <AdminBannerSettings config={config} onConfigChange={setConfig} />}
               {activeTab === "hours" && <AdminHoursSettings config={config} onConfigChange={setConfig} />}
@@ -1190,6 +1349,11 @@ export default function AdminPage() {
 
         {/* Toast de notificacao */}
         {toastMessage && <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-foreground text-background rounded-xl shadow-2xl z-50 animate-in slide-in-from-bottom">{toastMessage}</div>}
+
+        {/* Marca de versao v94 */}
+        <div className="fixed bottom-2 right-2 text-xs text-muted-foreground/50 font-mono">
+          Admin v94 - Supabase Only
+        </div>
 
         {/* Modais */}
         <AdminModals confirmEntregador={confirmEntregador} onCancelEntregador={() => setConfirmEntregador(null)} onConfirmEntregador={confirmAssignEntregador} showDeleteConfirm={showDeleteConfirm} onCancelDelete={() => setShowDeleteConfirm(null)} onConfirmDelete={deleteSingleOrder} deleteLoading={deleteLoading} showTabWarning={showTabWarning} onDismissTabWarning={() => setShowTabWarning(false)} onDeselectAllOrders={deselectAllOrders} showDeleteMultiple={showDeleteMultiple} selectedOrdersCount={selectedOrders.size} onCancelDeleteMultiple={() => setShowDeleteMultiple(false)} onConfirmDeleteMultiple={deleteMultipleOrders} showArchiveConfirm={showArchiveConfirm} onCancelArchive={() => setShowArchiveConfirm(false)} onConfirmArchive={archiveAllOrders} manualCopyText={manualCopyText} onCloseManualCopy={() => setManualCopyText(null)} manualEntregadorLink={manualEntregadorLink} onCloseEntregadorLink={() => setManualEntregadorLink(null)} deleteProductId={deleteProductId !== null ? String(deleteProductId) : null} onCancelDeleteProduct={() => setDeleteProductId(null)} onConfirmDeleteProduct={confirmDeleteProduct} />
