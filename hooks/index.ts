@@ -30,6 +30,14 @@ export type { UseOrdersOptions, UseOrdersReturn } from './useOrders'
 export { useProducts } from './useProducts'
 export type { UseProductsOptions, UseProductsReturn } from './useProducts'
 
+// Admin Products (compatibilidade com formato legado)
+export { useAdminProducts } from './useAdminProducts'
+export type { LegacyProduct, UseAdminProductsReturn } from './useAdminProducts'
+
+// Public Products (loja publica)
+export { usePublicProducts } from './usePublicProducts'
+export type { PublicProduct, UsePublicProductsReturn } from './usePublicProducts'
+
 // Customer
 export { useCustomer } from './useCustomer'
 export type { UseCustomerReturn } from './useCustomer'
