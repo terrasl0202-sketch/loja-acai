@@ -38,6 +38,7 @@ export const STORAGE_KEYS = {
   // Orders
   ORDERS: 'pk-orders',
   CART: 'pk-cart',
+  PENDING_ORDER: 'pk-order-in-progress', // Pedido em andamento (checkout)
   
   // Customers
   CUSTOMERS: 'pk-customers',
@@ -64,6 +65,26 @@ export const STORAGE_KEYS = {
   // Tracking
   DELIVERY_TOKEN: 'delivery-token',
   TRACKING_SESSION: 'tracking-session',
+} as const
+
+// =============================================================================
+// CHECKOUT NAMESPACE (conveniencia)
+// =============================================================================
+
+/**
+ * Chaves especificas do checkout agrupadas
+ */
+export const CHECKOUT_KEYS = {
+  CART: STORAGE_KEYS.CART,
+  PENDING_ORDER: STORAGE_KEYS.PENDING_ORDER,
+  CUSTOMER_SESSION: STORAGE_KEYS.CUSTOMER_SESSION,
+  CUSTOMER_DATA: STORAGE_KEYS.CUSTOMER_DATA,
+} as const
+
+// Adiciona CHECKOUT como alias no STORAGE_KEYS para acesso facil
+export const STORAGE_KEYS_WITH_CHECKOUT = {
+  ...STORAGE_KEYS,
+  CHECKOUT: CHECKOUT_KEYS,
 } as const
 
 // Type for storage keys

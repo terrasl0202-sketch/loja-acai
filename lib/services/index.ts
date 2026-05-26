@@ -37,6 +37,8 @@ export { orderService } from './order-service'
 export { customerService } from './customer-service'
 export { productService } from './product-service'
 export { deliveryService } from './delivery-service'
+export { checkoutStorageService } from './checkout-storage-service'
+export { customerSessionService } from './customer-session-service'
 
 // =============================================================================
 // CONVENIENCE RE-EXPORTS
