@@ -27,9 +27,10 @@ interface AdminStoreSettingsProps {
   settings: StoreSettingsData
   isLoading: boolean
   onSettingsChange: (settings: StoreSettingsData) => void
+  onPendingChanges?: (hasChanges: boolean, pendingSettings: StoreSettingsData) => void
 }
 
-export function AdminStoreSettings({ settings, isLoading, onSettingsChange }: AdminStoreSettingsProps) {
+export function AdminStoreSettings({ settings, isLoading, onSettingsChange, onPendingChanges }: AdminStoreSettingsProps) {
   // Estado local do formulario - NAO salva automaticamente
   const [localValues, setLocalValues] = useState<StoreSettingsData>({
     storeName: '',
@@ -44,6 +45,9 @@ export function AdminStoreSettings({ settings, isLoading, onSettingsChange }: Ad
     storeOpen: false,
     manualControl: false,
   })
+  
+  // Flag para saber se há mudanças pendentes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   
   // Sincroniza com props apenas no load inicial ou quando settings muda externamente
   useEffect(() => {
@@ -61,15 +65,23 @@ export function AdminStoreSettings({ settings, isLoading, onSettingsChange }: Ad
         storeOpen: settings.storeOpen ?? false,
         manualControl: settings.manualControl ?? false,
       })
+      setHasUnsavedChanges(false)
     }
   }, [settings, isLoading])
 
   // Handler para mudanca de campo - atualiza APENAS estado local
-  // Propaga para o pai via onSettingsChange para que handleSave tenha acesso
+  // NAO propaga para o pai imediatamente (header nao muda enquanto digita)
+  // Usa onPendingChanges para que handleSave tenha acesso aos valores editados
   const handleFieldChange = (field: keyof StoreSettingsData, value: string | boolean) => {
     const newValues = { ...localValues, [field]: value }
     setLocalValues(newValues)
-    onSettingsChange(newValues) // Propaga para o estado do Admin (nao salva)
+    setHasUnsavedChanges(true)
+    
+    // Informa o pai sobre mudanças pendentes (para handleSave usar)
+    // MAS NAO atualiza o header - o pai deve armazenar separadamente
+    if (onPendingChanges) {
+      onPendingChanges(true, newValues)
+    }
   }
 
   // Toggle aberto/fechado

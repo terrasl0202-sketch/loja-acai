@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { 
   Lock, 
   Loader2,
@@ -109,6 +109,8 @@ export default function AdminPage() {
   const [archivedSearchQuery, setArchivedSearchQuery] = useState("")
   
   // ========== ESTADO DE STORE SETTINGS (v94 - Supabase Only) ==========
+  // storeSettings: valores SALVOS (usados no header)
+  // pendingStoreSettings: valores EDITADOS no formulario (usados no handleSave)
   const [storeSettings, setStoreSettings] = useState({
     storeName: '',
     subtitle: '',
@@ -122,6 +124,9 @@ export default function AdminPage() {
     storeOpen: false,
     manualControl: false,
   })
+  
+  // Valores pendentes do formulario (header NAO muda enquanto digita)
+  const pendingStoreSettingsRef = useRef(storeSettings)
   
   // ========== ESTADOS DE UI/MODAIS ==========
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -249,19 +254,19 @@ export default function AdminPage() {
       const settingsRes = await fetch('/api/store-settings')
       const settingsData = await settingsRes.json()
       if (settingsData.success && settingsData.settings) {
-        console.log("[Admin v94] Store settings carregados do Supabase")
+        console.log("[Admin v94] Store settings carregados do Supabase:", settingsData.settings.storeName)
         setStoreSettings({
-          storeName: settingsData.settings.store_name || '',
+          storeName: settingsData.settings.storeName || '',
           subtitle: settingsData.settings.subtitle || '',
           slogan: settingsData.settings.slogan || '',
-          closedMessage: settingsData.settings.closed_message || '',
+          closedMessage: settingsData.settings.closedMessage || '',
           whatsapp: settingsData.settings.whatsapp || '',
           instagram: settingsData.settings.instagram || '',
           address: settingsData.settings.address || '',
-          openTime: settingsData.settings.open_time || '',
-          closeTime: settingsData.settings.close_time || '',
-          storeOpen: settingsData.settings.store_open ?? false,
-          manualControl: settingsData.settings.manual_control ?? false,
+          openTime: settingsData.settings.openTime || '',
+          closeTime: settingsData.settings.closeTime || '',
+          storeOpen: settingsData.settings.storeOpen ?? false,
+          manualControl: settingsData.settings.manualControl ?? false,
         })
       }
       
@@ -302,6 +307,13 @@ export default function AdminPage() {
       setLoading(false)
     }
   }, [sessionPassword])
+
+  // Sincroniza o ref quando storeSettings e carregado do Supabase
+  useEffect(() => {
+    if (storeSettings.storeName) {
+      pendingStoreSettingsRef.current = storeSettings
+    }
+  }, [storeSettings])
 
   const loadOrders = useCallback(async () => {
     try {
@@ -434,29 +446,33 @@ export default function AdminPage() {
     
     try {
       // 1. SALVAR STORE-SETTINGS NO SUPABASE
-      console.log("[Admin v94] Salvando store-settings...")
+      // Usa pendingStoreSettingsRef que contem os valores editados no formulario
+      const settingsToSave = pendingStoreSettingsRef.current
+      console.log("[Admin v94] Salvando store-settings:", settingsToSave.storeName)
       try {
         const settingsRes = await fetch("/api/store-settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            store_name: storeSettings.storeName,
-            subtitle: storeSettings.subtitle,
-            slogan: storeSettings.slogan,
-            closed_message: storeSettings.closedMessage,
-            whatsapp: storeSettings.whatsapp,
-            instagram: storeSettings.instagram,
-            address: storeSettings.address,
-            open_time: storeSettings.openTime,
-            close_time: storeSettings.closeTime,
-            store_open: storeSettings.storeOpen,
-            manual_control: storeSettings.manualControl,
+            store_name: settingsToSave.storeName,
+            subtitle: settingsToSave.subtitle,
+            slogan: settingsToSave.slogan,
+            closed_message: settingsToSave.closedMessage,
+            whatsapp: settingsToSave.whatsapp,
+            instagram: settingsToSave.instagram,
+            address: settingsToSave.address,
+            open_time: settingsToSave.openTime,
+            close_time: settingsToSave.closeTime,
+            store_open: settingsToSave.storeOpen,
+            manual_control: settingsToSave.manualControl,
           }),
         })
         const settingsData = await settingsRes.json()
         if (settingsData.success) {
           results.storeSettings.success = true
-          console.log("[Admin v94] Store settings salvos")
+          // Atualiza o estado global (header) SOMENTE apos salvar com sucesso
+          setStoreSettings(settingsToSave)
+          console.log("[Admin v94] Store settings salvos - header atualizado")
         } else {
           results.storeSettings.error = settingsData.error || 'Erro desconhecido'
           console.error("[Admin v94] Erro store-settings:", results.storeSettings.error)
@@ -1090,7 +1106,7 @@ export default function AdminPage() {
             <Link href="/" className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm font-medium"><ArrowLeft className="w-4 h-4" /> Ver Loja</Link>
 
             <div className="bg-card/80 rounded-2xl p-4 sm:p-6 border border-border/50 shadow-xl">
-              {activeTab === "store" && <AdminStoreSettings settings={storeSettings} isLoading={loading} onSettingsChange={setStoreSettings} />}
+              {activeTab === "store" && <AdminStoreSettings settings={storeSettings} isLoading={loading} onSettingsChange={() => {}} onPendingChanges={(_, pending) => { pendingStoreSettingsRef.current = pending }} />}
               {activeTab === "products" && <AdminProductsSettings products={config.products} expandedProduct={expandedProduct} onExpandedProductChange={setExpandedProduct} onAddProduct={addProduct} onUpdateProduct={updateProduct} onRemoveProduct={removeProduct} onMoveProduct={moveProduct} />}
               {activeTab === "banner" && <AdminBannerSettings config={config} onConfigChange={setConfig} />}
               {activeTab === "hours" && <AdminHoursSettings config={config} onConfigChange={setConfig} />}
