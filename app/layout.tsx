@@ -9,9 +9,11 @@ const poppins = Poppins({
   variable: "--font-sans"
 });
 
+// Metadados estaticos - nome da loja eh carregado dinamicamente nos componentes
 export const metadata: Metadata = {
-  title: 'P.K Paulo e Karina Gostosuras | Açaí Delivery',
-  description: 'Os melhores açaís da região! Peça agora pelo WhatsApp.',
+  title: 'Acai da Terra | Delivery de Acai Premium',
+  description: 'Peca o melhor acai da cidade! Cremoso, fresquinho e com entrega rapida.',
+  keywords: ['acai', 'delivery', 'acai cremoso', 'acai delivery'],
   generator: 'v0.app',
   icons: {
     icon: [
@@ -29,6 +31,12 @@ export const metadata: Metadata = {
       },
     ],
     apple: '/apple-icon.png',
+  },
+  openGraph: {
+    title: 'Acai da Terra | Delivery de Acai Premium',
+    description: 'Peca o melhor acai da cidade! Cremoso, fresquinho e com entrega rapida.',
+    siteName: 'Acai da Terra',
+    type: 'website',
   },
 }
 
