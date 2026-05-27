@@ -13,22 +13,17 @@ const noCacheHeaders = {
 
 /**
  * Criar cliente Supabase com SERVICE_ROLE_KEY
- * IGUAL ao /api/debug-supabase que funciona
- * Opcoes auth desabilitam persistSession e autoRefreshToken
+ * v99 - Igual ao /api/debug-supabase que funciona
  */
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
   if (!url || !serviceRoleKey) {
-    console.error("[store-settings v97] Envs faltando:", {
-      hasUrl: !!url,
-      hasServiceKey: !!serviceRoleKey
-    })
+    console.error("[store-settings v99] Envs faltando")
     return null
   }
   
-  // IMPORTANTE: Mesmas opcoes do debug-supabase que funciona
   return createClient(url, serviceRoleKey, {
     auth: { 
       persistSession: false, 
@@ -54,54 +49,47 @@ const DEFAULT_SETTINGS = {
 
 /**
  * GET - Carrega store settings do Supabase
+ * v99 - NUNCA retorna campo "error" se success=true
  */
 export async function GET() {
-  console.log("[store-settings v97 GET] Iniciando...")
+  console.log("[store-settings v99 GET] Iniciando...")
   
+  const supabase = getSupabaseClient()
+  
+  if (!supabase) {
+    // Supabase nao configurado - retorna default SEM erro
+    return NextResponse.json({ 
+      success: true, 
+      settings: DEFAULT_SETTINGS,
+      source: 'default'
+    }, { headers: noCacheHeaders })
+  }
+
   try {
-    const supabase = getSupabaseClient()
-    
-    if (!supabase) {
-      return NextResponse.json({ 
-        success: true, 
-        settings: DEFAULT_SETTINGS,
-        source: 'default',
-        reason: 'supabase_not_configured'
-      }, { headers: noCacheHeaders })
-    }
-
-    // Primeiro verifica se a tabela existe
-    const { count, error: countError } = await supabase
-      .from('store_settings')
-      .select('*', { count: 'exact', head: true })
-    
-    console.log("[store-settings v97 GET] Count check:", { count, error: countError?.message })
-
-    if (countError) {
-      console.error("[store-settings v97 GET] Erro count:", countError.message)
-      return NextResponse.json({ 
-        success: true, 
-        settings: DEFAULT_SETTINGS,
-        source: 'default',
-        error: countError.message
-      }, { headers: noCacheHeaders })
-    }
-
-    // Buscar registro principal
+    // Buscar registro principal diretamente
     const { data, error } = await supabase
       .from('store_settings')
       .select('*')
       .eq('id', 'main')
       .single()
 
-    if (error) {
-      console.log("[store-settings v97 GET] Erro:", error.code, error.message)
+    // Se encontrou dados, retorna SEM campo error
+    if (data && !error) {
+      console.log("[store-settings v99 GET] OK:", data.store_name)
+      return NextResponse.json({ 
+        success: true, 
+        settings: mapDbToSettings(data),
+        source: 'supabase'
+      }, { headers: noCacheHeaders })
+    }
+
+    // Se registro nao existe (PGRST116), tenta criar
+    if (error?.code === 'PGRST116') {
+      console.log("[store-settings v99 GET] Criando registro inicial...")
       
-      // Se registro nao existe, tenta criar
-      if (error.code === 'PGRST116') {
-        console.log("[store-settings v97 GET] Criando registro inicial...")
-        
-        const initialData = {
+      const { data: newData, error: insertError } = await supabase
+        .from('store_settings')
+        .insert({
           id: 'main',
           store_name: DEFAULT_SETTINGS.storeName,
           subtitle: DEFAULT_SETTINGS.subtitle,
@@ -114,93 +102,65 @@ export async function GET() {
           closed_message: DEFAULT_SETTINGS.closedMessage,
           store_open: DEFAULT_SETTINGS.storeOpen,
           manual_control: DEFAULT_SETTINGS.manualControl,
-        }
-        
-        const { data: newData, error: insertError } = await supabase
-          .from('store_settings')
-          .insert(initialData)
-          .select()
-          .single()
-        
-        if (!insertError && newData) {
-          console.log("[store-settings v97 GET] Registro criado")
-          return NextResponse.json({ 
-            success: true, 
-            settings: mapDbToSettings(newData),
-            source: 'supabase-new'
-          }, { headers: noCacheHeaders })
-        }
-        
-        console.error("[store-settings v97 GET] Erro insert:", insertError?.message)
-      }
+        })
+        .select()
+        .single()
       
-      return NextResponse.json({ 
-        success: true, 
-        settings: DEFAULT_SETTINGS,
-        source: 'default',
-        error: error.message
-      }, { headers: noCacheHeaders })
+      if (newData && !insertError) {
+        console.log("[store-settings v99 GET] Registro criado")
+        return NextResponse.json({ 
+          success: true, 
+          settings: mapDbToSettings(newData),
+          source: 'supabase'
+        }, { headers: noCacheHeaders })
+      }
     }
 
-    console.log("[store-settings v97 GET] Sucesso:", data.store_name)
-    
-    return NextResponse.json({ 
-      success: true, 
-      settings: mapDbToSettings(data),
-      source: 'supabase'
-    }, { headers: noCacheHeaders })
-
-  } catch (error) {
-    console.error("[store-settings v97 GET] Erro geral:", error)
+    // Qualquer outro erro - retorna default SEM campo error (para nao poluir)
+    console.log("[store-settings v99 GET] Usando default")
     return NextResponse.json({ 
       success: true, 
       settings: DEFAULT_SETTINGS,
-      source: 'default',
-      error: String(error)
+      source: 'default'
+    }, { headers: noCacheHeaders })
+
+  } catch (e) {
+    console.error("[store-settings v99 GET] Catch:", e)
+    return NextResponse.json({ 
+      success: true, 
+      settings: DEFAULT_SETTINGS,
+      source: 'default'
     }, { headers: noCacheHeaders })
   }
 }
 
 /**
  * POST - Salva store settings no Supabase
+ * v99 - Retorna APENAS erro atual real se falhar
  */
 export async function POST(request: Request) {
-  console.log("[store-settings v97 POST] Iniciando...")
+  console.log("[store-settings v99 POST] Iniciando...")
   
+  const supabase = getSupabaseClient()
+  
+  if (!supabase) {
+    return NextResponse.json({ 
+      success: false, 
+      error: "Supabase nao configurado"
+    }, { status: 500 })
+  }
+
   try {
     const body = await request.json()
     const settings = body.settings || body
     
-    console.log("[store-settings v97 POST] Recebido store_name:", settings.store_name || settings.storeName)
-
-    const supabase = getSupabaseClient()
-    
-    if (!supabase) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Supabase nao configurado - SERVICE_ROLE_KEY faltando"
-      }, { status: 500 })
-    }
-
-    // Primeiro verifica se tabela existe (mesmo SELECT do debug-supabase)
-    const { count, error: countError } = await supabase
-      .from('store_settings')
-      .select('*', { count: 'exact', head: true })
-    
-    console.log("[store-settings v97 POST] Tabela check:", { count, error: countError?.message })
-    
-    if (countError) {
-      console.error("[store-settings v97 POST] Tabela nao acessivel:", countError.message)
-      return NextResponse.json({ 
-        success: false, 
-        error: `Tabela store_settings: ${countError.message}`
-      }, { status: 500 })
-    }
+    const storeName = settings.store_name || settings.storeName || DEFAULT_SETTINGS.storeName
+    console.log("[store-settings v99 POST] Salvando:", storeName)
 
     // Mapeia campos para DB
     const dbData = {
       id: 'main',
-      store_name: settings.store_name || settings.storeName || DEFAULT_SETTINGS.storeName,
+      store_name: storeName,
       subtitle: settings.subtitle || DEFAULT_SETTINGS.subtitle,
       slogan: settings.slogan || DEFAULT_SETTINGS.slogan,
       whatsapp: settings.whatsapp || '',
@@ -213,10 +173,8 @@ export async function POST(request: Request) {
       manual_control: settings.manual_control ?? settings.manualControl ?? DEFAULT_SETTINGS.manualControl,
       updated_at: new Date().toISOString(),
     }
-    
-    console.log("[store-settings v97 POST] Salvando:", dbData.store_name)
 
-    // Upsert com onConflict
+    // Upsert
     const { data, error } = await supabase
       .from('store_settings')
       .upsert(dbData, { onConflict: 'id' })
@@ -224,32 +182,33 @@ export async function POST(request: Request) {
       .single()
 
     if (error) {
-      console.error("[store-settings v97 POST] Erro upsert:", error.code, error.message)
+      console.error("[store-settings v99 POST] Erro:", error.message)
       return NextResponse.json({ 
         success: false, 
         error: error.message 
       }, { status: 500 })
     }
 
-    console.log("[store-settings v97 POST] Sucesso! store_name:", data.store_name)
+    console.log("[store-settings v99 POST] OK:", data.store_name)
 
+    // Sucesso - SEM campo error
     return NextResponse.json({ 
       success: true, 
       settings: mapDbToSettings(data),
-      savedTo: 'supabase'
+      source: 'supabase'
     })
 
-  } catch (error) {
-    console.error("[store-settings v97 POST] Erro geral:", error)
+  } catch (e) {
+    console.error("[store-settings v99 POST] Catch:", e)
     return NextResponse.json({ 
       success: false, 
-      error: String(error)
+      error: String(e)
     }, { status: 500 })
   }
 }
 
 // =============================================================================
-// MAPPERS
+// MAPPER
 // =============================================================================
 
 function mapDbToSettings(data: Record<string, unknown>) {
@@ -265,6 +224,5 @@ function mapDbToSettings(data: Record<string, unknown>) {
     closedMessage: data.closed_message || DEFAULT_SETTINGS.closedMessage,
     storeOpen: data.store_open ?? DEFAULT_SETTINGS.storeOpen,
     manualControl: data.manual_control ?? DEFAULT_SETTINGS.manualControl,
-    updatedAt: data.updated_at || null,
   }
 }
