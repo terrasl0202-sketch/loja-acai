@@ -13,14 +13,14 @@ const noCacheHeaders = {
 
 /**
  * Criar cliente Supabase com SERVICE_ROLE_KEY
- * v99 - Igual ao /api/debug-supabase que funciona
+ * v100 - Igual ao /api/debug-supabase que funciona
  */
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
   if (!url || !serviceRoleKey) {
-    console.error("[store-settings v99] Envs faltando")
+    console.error("[store-settings v100] Envs faltando")
     return null
   }
   
@@ -32,7 +32,7 @@ function getSupabaseClient() {
   })
 }
 
-// Valores padrao
+// Valores padrao - SOMENTE usado se Supabase falhar
 const DEFAULT_SETTINGS = {
   storeName: 'Acai da Terra',
   subtitle: 'Delivery de Acai',
@@ -49,15 +49,15 @@ const DEFAULT_SETTINGS = {
 
 /**
  * GET - Carrega store settings do Supabase
- * v99 - NUNCA retorna campo "error" se success=true
+ * v100 - source:"supabase" OBRIGATORIO se dados vierem do banco
  */
 export async function GET() {
-  console.log("[store-settings v99 GET] Iniciando...")
+  console.log("[store-settings v100 GET] Iniciando...")
   
   const supabase = getSupabaseClient()
   
   if (!supabase) {
-    // Supabase nao configurado - retorna default SEM erro
+    console.log("[store-settings v100] using default - no client")
     return NextResponse.json({ 
       success: true, 
       settings: DEFAULT_SETTINGS,
@@ -66,16 +66,23 @@ export async function GET() {
   }
 
   try {
-    // Buscar registro principal diretamente
+    // Buscar registro principal
     const { data, error } = await supabase
       .from('store_settings')
       .select('*')
       .eq('id', 'main')
       .single()
 
-    // Se encontrou dados, retorna SEM campo error
-    if (data && !error) {
-      console.log("[store-settings v99 GET] OK:", data.store_name)
+    console.log("[store-settings v100 GET] query result:", { 
+      hasData: !!data, 
+      hasError: !!error,
+      errorCode: error?.code,
+      storeName: data?.store_name 
+    })
+
+    // CASO 1: Dados encontrados - OBRIGATORIO retornar source: "supabase"
+    if (data) {
+      console.log("[store-settings v100] using supabase - data found:", data.store_name)
       return NextResponse.json({ 
         success: true, 
         settings: mapDbToSettings(data),
@@ -83,9 +90,9 @@ export async function GET() {
       }, { headers: noCacheHeaders })
     }
 
-    // Se registro nao existe (PGRST116), tenta criar
+    // CASO 2: Registro nao existe (PGRST116) - criar e retornar source: "supabase"
     if (error?.code === 'PGRST116') {
-      console.log("[store-settings v99 GET] Criando registro inicial...")
+      console.log("[store-settings v100] Criando registro inicial...")
       
       const { data: newData, error: insertError } = await supabase
         .from('store_settings')
@@ -106,18 +113,20 @@ export async function GET() {
         .select()
         .single()
       
-      if (newData && !insertError) {
-        console.log("[store-settings v99 GET] Registro criado")
+      if (newData) {
+        console.log("[store-settings v100] using supabase - created new")
         return NextResponse.json({ 
           success: true, 
           settings: mapDbToSettings(newData),
           source: 'supabase'
         }, { headers: noCacheHeaders })
       }
+      
+      console.error("[store-settings v100] Insert failed:", insertError?.message)
     }
 
-    // Qualquer outro erro - retorna default SEM campo error (para nao poluir)
-    console.log("[store-settings v99 GET] Usando default")
+    // CASO 3: Erro real do Supabase - SOMENTE aqui usa default
+    console.log("[store-settings v100] using default - error:", error?.message)
     return NextResponse.json({ 
       success: true, 
       settings: DEFAULT_SETTINGS,
@@ -125,7 +134,7 @@ export async function GET() {
     }, { headers: noCacheHeaders })
 
   } catch (e) {
-    console.error("[store-settings v99 GET] Catch:", e)
+    console.error("[store-settings v100] using default - catch:", e)
     return NextResponse.json({ 
       success: true, 
       settings: DEFAULT_SETTINGS,
@@ -136,10 +145,10 @@ export async function GET() {
 
 /**
  * POST - Salva store settings no Supabase
- * v99 - Retorna APENAS erro atual real se falhar
+ * v100 - Retorna source:"supabase" se salvou com sucesso
  */
 export async function POST(request: Request) {
-  console.log("[store-settings v99 POST] Iniciando...")
+  console.log("[store-settings v100 POST] Iniciando...")
   
   const supabase = getSupabaseClient()
   
@@ -155,7 +164,7 @@ export async function POST(request: Request) {
     const settings = body.settings || body
     
     const storeName = settings.store_name || settings.storeName || DEFAULT_SETTINGS.storeName
-    console.log("[store-settings v99 POST] Salvando:", storeName)
+    console.log("[store-settings v100 POST] Salvando:", storeName)
 
     // Mapeia campos para DB
     const dbData = {
@@ -182,16 +191,15 @@ export async function POST(request: Request) {
       .single()
 
     if (error) {
-      console.error("[store-settings v99 POST] Erro:", error.message)
+      console.error("[store-settings v100 POST] Erro:", error.message)
       return NextResponse.json({ 
         success: false, 
         error: error.message 
       }, { status: 500 })
     }
 
-    console.log("[store-settings v99 POST] OK:", data.store_name)
+    console.log("[store-settings v100 POST] OK - saved to supabase:", data.store_name)
 
-    // Sucesso - SEM campo error
     return NextResponse.json({ 
       success: true, 
       settings: mapDbToSettings(data),
@@ -199,7 +207,7 @@ export async function POST(request: Request) {
     })
 
   } catch (e) {
-    console.error("[store-settings v99 POST] Catch:", e)
+    console.error("[store-settings v100 POST] Catch:", e)
     return NextResponse.json({ 
       success: false, 
       error: String(e)
