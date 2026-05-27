@@ -247,67 +247,154 @@ export default function AdminPage() {
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true)
-      console.log("[Admin v100] loadConfig - Carregando dados do Supabase...")
+      console.log("[Admin v102] loadConfig - Carregando TODOS os dados do Supabase...")
       
-      // 1. Carregar config geral (legacy - para produtos/delivery que ainda estao la)
-      const configRes = await fetch(`/api/config?admin=true&password=${encodeURIComponent(sessionPassword)}`)
-      const configData = await configRes.json()
-      let baseConfig = configData.success && configData.config ? configData.config : defaultConfig
+      // Iniciar com config default
+      let baseConfig = { ...defaultConfig }
       
-      // 2. Carregar store-settings do Supabase
-      console.log("[Admin v100] Carregando store-settings...")
+      // 1. Carregar store-settings COMPLETO do Supabase (inclui banner, payment, whatsapp, etc)
+      console.log("[Admin v102] Carregando store-settings...")
       const settingsRes = await fetch('/api/store-settings')
       const settingsData = await settingsRes.json()
       if (settingsData.success && settingsData.settings) {
-        console.log("[Admin v100] Store settings carregados do Supabase:", settingsData.settings.storeName)
+        const s = settingsData.settings
+        console.log("[Admin v102] Store settings carregados:", s.storeName)
+        
+        // Store settings basicos
         setStoreSettings({
-          storeName: settingsData.settings.storeName || '',
-          subtitle: settingsData.settings.subtitle || '',
-          slogan: settingsData.settings.slogan || '',
-          closedMessage: settingsData.settings.closedMessage || '',
-          whatsapp: settingsData.settings.whatsapp || '',
-          instagram: settingsData.settings.instagram || '',
-          address: settingsData.settings.address || '',
-          openTime: settingsData.settings.openTime || '',
-          closeTime: settingsData.settings.closeTime || '',
-          storeOpen: settingsData.settings.storeOpen ?? false,
-          manualControl: settingsData.settings.manualControl ?? false,
+          storeName: s.storeName || '',
+          subtitle: s.subtitle || '',
+          slogan: s.slogan || '',
+          closedMessage: s.closedMessage || '',
+          whatsapp: s.whatsapp || '',
+          instagram: s.instagram || '',
+          address: s.address || '',
+          openTime: s.openTime || '',
+          closeTime: s.closeTime || '',
+          storeOpen: s.storeOpen ?? false,
+          manualControl: s.manualControl ?? false,
         })
+        
+        // Atualizar baseConfig com dados expandidos
+        baseConfig.storeName = s.storeName || baseConfig.storeName
+        
+        // Banner
+        if (s.banner) {
+          baseConfig.banner = {
+            ...baseConfig.banner,
+            mainText: s.banner.mainText || baseConfig.banner.mainText,
+            secondaryText: s.banner.secondaryText || baseConfig.banner.secondaryText,
+            promoActive: s.banner.promoActive ?? baseConfig.banner.promoActive,
+            promoPrice: s.banner.promoPrice ?? baseConfig.banner.promoPrice,
+            promoText: s.banner.promoText || baseConfig.banner.promoText,
+            imageUrl: s.banner.imageUrl || baseConfig.banner.imageUrl,
+          }
+        }
+        
+        // Store Hours
+        if (s.storeHours) {
+          baseConfig.storeHours = {
+            ...baseConfig.storeHours,
+            isOpen: s.storeHours.isOpen ?? baseConfig.storeHours.isOpen,
+            manualControl: s.storeHours.manualControl ?? baseConfig.storeHours.manualControl,
+            openTime: s.storeHours.openTime || baseConfig.storeHours.openTime,
+            closeTime: s.storeHours.closeTime || baseConfig.storeHours.closeTime,
+            closedMessage: s.storeHours.closedMessage || baseConfig.storeHours.closedMessage,
+            abandonedOrderMinutes: s.storeHours.abandonedOrderMinutes ?? baseConfig.storeHours.abandonedOrderMinutes,
+            autoArchiveDays: s.storeHours.autoArchiveDays ?? baseConfig.storeHours.autoArchiveDays,
+          }
+        }
+        
+        // Delivery (configuracoes basicas, bairros vem separado)
+        if (s.delivery) {
+          baseConfig.delivery = {
+            ...baseConfig.delivery,
+            enabled: s.delivery.enabled ?? baseConfig.delivery.enabled,
+            defaultFee: s.delivery.defaultFee ?? baseConfig.delivery.defaultFee,
+            minimumOrder: s.delivery.minimumOrder ?? baseConfig.delivery.minimumOrder,
+            estimatedTime: s.delivery.estimatedTime || baseConfig.delivery.estimatedTime,
+            pickupEnabled: s.delivery.pickupEnabled ?? baseConfig.delivery.pickupEnabled,
+          }
+        }
+        
+        // Payment
+        if (s.payment) {
+          baseConfig.payment = {
+            ...baseConfig.payment,
+            minValueForAsaas: s.payment.minValueForAsaas ?? baseConfig.payment.minValueForAsaas,
+            pixManualEnabled: s.payment.pixManualEnabled ?? baseConfig.payment.pixManualEnabled,
+            pixAsaasEnabled: s.payment.pixAsaasEnabled ?? baseConfig.payment.pixAsaasEnabled,
+            pixExpirationMinutes: s.payment.pixExpirationMinutes ?? baseConfig.payment.pixExpirationMinutes,
+          }
+        }
+        
+        // PIX Manual
+        if (s.pixManual) {
+          baseConfig.pixManual = {
+            ...baseConfig.pixManual,
+            key: s.pixManual.key || baseConfig.pixManual.key,
+            keyFull: s.pixManual.keyFull || s.pixManual.key || baseConfig.pixManual.keyFull,
+            receiverName: s.pixManual.receiverName || baseConfig.pixManual.receiverName,
+          }
+        }
+        
+        // WhatsApp config
+        if (s.whatsappConfig) {
+          baseConfig.whatsapp = {
+            ...baseConfig.whatsapp,
+            number: s.whatsappConfig.number || s.whatsapp || baseConfig.whatsapp.number,
+            defaultMessage: s.whatsappConfig.defaultMessage || baseConfig.whatsapp.defaultMessage,
+            receiptMessage: s.whatsappConfig.receiptMessage || baseConfig.whatsapp.receiptMessage,
+            supportEnabled: s.whatsappConfig.supportEnabled ?? baseConfig.whatsapp.supportEnabled,
+          }
+        }
       }
       
-      // 3. Carregar produtos do Supabase
-      console.log("[Admin v100] Carregando produtos...")
+      // 2. Carregar produtos do Supabase
+      console.log("[Admin v102] Carregando produtos...")
       const productsRes = await fetch('/api/products')
       const productsData = await productsRes.json()
       if (productsData.success && Array.isArray(productsData.products) && productsData.products.length > 0) {
-        console.log(`[Admin v100] ${productsData.products.length} produtos carregados`)
-        baseConfig = { ...baseConfig, products: productsData.products }
+        console.log(`[Admin v102] ${productsData.products.length} produtos carregados`)
+        baseConfig.products = productsData.products
       }
       
-      // 4. Carregar bairros do Supabase
-      console.log("[Admin v100] Carregando bairros...")
+      // 3. Carregar bairros do Supabase
+      console.log("[Admin v102] Carregando bairros...")
       const neighborhoodsRes = await fetch('/api/neighborhoods')
       const neighborhoodsData = await neighborhoodsRes.json()
       if (neighborhoodsData.success && Array.isArray(neighborhoodsData.neighborhoods) && neighborhoodsData.neighborhoods.length > 0) {
-        console.log(`[Admin v100] ${neighborhoodsData.neighborhoods.length} bairros carregados`)
+        console.log(`[Admin v102] ${neighborhoodsData.neighborhoods.length} bairros carregados`)
         const neighborhoodFees = neighborhoodsData.neighborhoods.map((n: { name: string; deliveryFee?: number; fee?: number; active: boolean }) => ({
           name: n.name,
           fee: n.deliveryFee ?? n.fee ?? 0,
           active: n.active
         }))
-        baseConfig = { 
-          ...baseConfig, 
-          delivery: { 
-            ...baseConfig.delivery, 
-            neighborhoodFees 
-          } 
-        }
+        baseConfig.delivery = { ...baseConfig.delivery, neighborhoodFees }
+      }
+      
+      // 4. Carregar cupons do Supabase
+      console.log("[Admin v102] Carregando cupons...")
+      const couponsRes = await fetch('/api/coupons')
+      const couponsData = await couponsRes.json()
+      if (couponsData.success && Array.isArray(couponsData.coupons)) {
+        console.log(`[Admin v102] ${couponsData.coupons.length} cupons carregados`)
+        baseConfig.coupons = couponsData.coupons
+      }
+      
+      // 5. Carregar entregadores do Supabase
+      console.log("[Admin v102] Carregando entregadores...")
+      const entregadoresRes = await fetch('/api/entregadores')
+      const entregadoresData = await entregadoresRes.json()
+      if (entregadoresData.success && Array.isArray(entregadoresData.entregadores)) {
+        console.log(`[Admin v102] ${entregadoresData.entregadores.length} entregadores carregados`)
+        baseConfig.entregadores = entregadoresData.entregadores
       }
       
       setConfig(baseConfig)
-      console.log("[Admin v100] Dados carregados com sucesso")
+      console.log("[Admin v102] TODOS os dados carregados com sucesso do Supabase")
     } catch (error) {
-      console.error("[Admin v100] Erro ao carregar:", error)
+      console.error("[Admin v102] Erro ao carregar:", error)
     } finally {
       setLoading(false)
     }
@@ -435,12 +522,12 @@ export default function AdminPage() {
     localStorage.removeItem("admin_session")
   }
 
-  // ========== SALVAR CONFIGURACOES v96 ==========
-  // Tudo salvo via APIs server-side no Supabase
+  // ========== SALVAR CONFIGURACOES v102 ==========
+  // TUDO salvo via APIs server-side no Supabase
   // Toast verde mostra "Salvo no Supabase" em caso de sucesso
   // Erro mostra APENAS o erro real atual da API
   const handleSave = async () => {
-    console.log("[Admin v100] handleSave iniciado")
+    console.log("[Admin v102] handleSave iniciado - Salvando TUDO no Supabase")
     setSaving(true)
     setSaveSuccess(false)
     
@@ -448,17 +535,21 @@ export default function AdminPage() {
       storeSettings: { success: false, error: '' },
       products: { success: false, count: 0, error: '' },
       neighborhoods: { success: false, count: 0, error: '' },
+      coupons: { success: false, count: 0, error: '' },
+      entregadores: { success: false, count: 0, error: '' },
     }
     
     try {
-      // 1. SALVAR STORE-SETTINGS NO SUPABASE
+      // 1. SALVAR STORE-SETTINGS COMPLETO NO SUPABASE
+      // Inclui: dados basicos, banner, horario, entrega, pagamento, whatsapp
       const settingsToSave = pendingStoreSettingsRef.current
-      console.log("[Admin v100] Salvando store-settings:", settingsToSave.storeName)
+      console.log("[Admin v102] Salvando store-settings completo:", settingsToSave.storeName)
       try {
         const settingsRes = await fetch("/api/store-settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            // Dados basicos
             store_name: settingsToSave.storeName,
             subtitle: settingsToSave.subtitle,
             slogan: settingsToSave.slogan,
@@ -470,10 +561,28 @@ export default function AdminPage() {
             close_time: settingsToSave.closeTime,
             store_open: settingsToSave.storeOpen,
             manual_control: settingsToSave.manualControl,
+            // Banner
+            banner: config.banner,
+            // Horario avancado
+            storeHours: config.storeHours,
+            // Entrega (config basica, bairros vao separado)
+            delivery: {
+              enabled: config.delivery?.enabled,
+              defaultFee: config.delivery?.defaultFee,
+              minimumOrder: config.delivery?.minimumOrder,
+              estimatedTime: config.delivery?.estimatedTime,
+              pickupEnabled: config.delivery?.pickupEnabled,
+            },
+            // Pagamento
+            payment: config.payment,
+            // PIX Manual
+            pixManual: config.pixManual,
+            // WhatsApp config
+            whatsappConfig: config.whatsapp,
           }),
         })
         const settingsData = await settingsRes.json()
-        console.log("[Admin v100] store-settings response:", settingsData)
+        console.log("[Admin v102] store-settings response:", settingsData)
         if (settingsData.success) {
           results.storeSettings.success = true
           setStoreSettings(settingsToSave)
@@ -485,7 +594,7 @@ export default function AdminPage() {
       }
       
       // 2. SALVAR PRODUTOS NO SUPABASE
-      console.log("[Admin v100] Salvando produtos...")
+      console.log("[Admin v102] Salvando produtos...")
       try {
         const productsRes = await fetch("/api/products", {
           method: "POST",
@@ -493,7 +602,7 @@ export default function AdminPage() {
           body: JSON.stringify({ products: config.products }),
         })
         const productsData = await productsRes.json()
-        console.log("[Admin v100] products response:", productsData)
+        console.log("[Admin v102] products response:", productsData)
         if (productsData.success) {
           results.products.success = true
           results.products.count = productsData.count || config.products.length
@@ -505,7 +614,7 @@ export default function AdminPage() {
       }
       
       // 3. SALVAR BAIRROS NO SUPABASE
-      console.log("[Admin v100] Salvando bairros...")
+      console.log("[Admin v102] Salvando bairros...")
       try {
         const neighborhoodFees = config.delivery?.neighborhoodFees || []
         if (neighborhoodFees.length > 0) {
@@ -522,7 +631,7 @@ export default function AdminPage() {
             body: JSON.stringify({ neighborhoods: neighborhoodsToSave }),
           })
           const neighborhoodsData = await neighborhoodsRes.json()
-          console.log("[Admin v100] neighborhoods response:", neighborhoodsData)
+          console.log("[Admin v102] neighborhoods response:", neighborhoodsData)
           if (neighborhoodsData.success) {
             results.neighborhoods.success = true
             results.neighborhoods.count = neighborhoodsData.count || neighborhoodFees.length
@@ -537,31 +646,71 @@ export default function AdminPage() {
         results.neighborhoods.error = String(e)
       }
       
-      // 4. SALVAR CONFIG LEGACY
-      const configToSave = { ...config, products: [] }
-      await fetch("/api/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: sessionPassword, config: configToSave }),
-      })
+      // 4. SALVAR CUPONS NO SUPABASE
+      console.log("[Admin v102] Salvando cupons...")
+      try {
+        const coupons = config.coupons || []
+        const couponsRes = await fetch("/api/coupons", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ coupons }),
+        })
+        const couponsData = await couponsRes.json()
+        console.log("[Admin v102] coupons response:", couponsData)
+        if (couponsData.success) {
+          results.coupons.success = true
+          results.coupons.count = couponsData.count || coupons.length
+        } else {
+          results.coupons.error = couponsData.error || 'Erro cupons'
+        }
+      } catch (e) {
+        results.coupons.error = String(e)
+      }
       
-      // RESULTADO FINAL v96
-      const allSuccess = results.storeSettings.success && results.products.success
-      console.log("[Admin v100] Resultado:", results)
+      // 5. SALVAR ENTREGADORES NO SUPABASE
+      console.log("[Admin v102] Salvando entregadores...")
+      try {
+        const entregadores = config.entregadores || []
+        const entregadoresRes = await fetch("/api/entregadores", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entregadores }),
+        })
+        const entregadoresData = await entregadoresRes.json()
+        console.log("[Admin v102] entregadores response:", entregadoresData)
+        if (entregadoresData.success) {
+          results.entregadores.success = true
+          results.entregadores.count = entregadoresData.count || entregadores.length
+        } else {
+          results.entregadores.error = entregadoresData.error || 'Erro entregadores'
+        }
+      } catch (e) {
+        results.entregadores.error = String(e)
+      }
+      
+      // RESULTADO FINAL v102
+      const allSuccess = results.storeSettings.success && results.products.success && results.coupons.success && results.entregadores.success
+      console.log("[Admin v102] Resultado:", results)
       
       if (allSuccess) {
         setSaveSuccess(true)
-        // Toast verde de sucesso
-        showToast(`Salvo no Supabase (${results.products.count} produtos, ${results.neighborhoods.count} bairros)`)
+        // Toast verde de sucesso com todos os contadores
+        const parts = []
+        if (results.products.count > 0) parts.push(`${results.products.count} produtos`)
+        if (results.neighborhoods.count > 0) parts.push(`${results.neighborhoods.count} bairros`)
+        if (results.coupons.count > 0) parts.push(`${results.coupons.count} cupons`)
+        if (results.entregadores.count > 0) parts.push(`${results.entregadores.count} entregadores`)
+        const summary = parts.length > 0 ? ` (${parts.join(', ')})` : ''
+        showToast(`Salvo no Supabase${summary}`)
         setTimeout(() => setSaveSuccess(false), 3000)
       } else {
         // Mostra APENAS erro real atual - sem concatenar erros antigos
-        const firstError = results.storeSettings.error || results.products.error || results.neighborhoods.error || 'Erro desconhecido'
+        const firstError = results.storeSettings.error || results.products.error || results.neighborhoods.error || results.coupons.error || results.entregadores.error || 'Erro desconhecido'
         showToast(firstError)
       }
       
     } catch (error) {
-      console.error("[Admin v100] Erro geral:", error)
+      console.error("[Admin v102] Erro geral:", error)
       showToast(String(error))
     } finally {
       setSaving(false)
