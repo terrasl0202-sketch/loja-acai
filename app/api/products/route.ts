@@ -1,13 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-// Cria Supabase client dinamicamente (dentro das funcoes)
+// Cria Supabase client dinamicamente - retorna null se nao configurado
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Supabase nao configurado')
+    console.error("[products v96] Envs faltando:", { hasUrl: !!supabaseUrl, hasKey: !!supabaseServiceKey })
+    return null
   }
   
   return createClient(supabaseUrl, supabaseServiceKey)
@@ -81,10 +82,18 @@ function mapFrontendToDb(product: FrontendProduct) {
  * GET - Lista todos os produtos do Supabase
  */
 export async function GET() {
-  console.log("[products GET] Carregando produtos do Supabase...")
+  console.log("[products v96 GET] Carregando produtos...")
   
   try {
     const supabase = getSupabase()
+    
+    if (!supabase) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Supabase nao configurado",
+        source: 'config_error'
+      }, { status: 500 })
+    }
     
     const { data, error } = await supabase
       .from('products')
@@ -92,7 +101,7 @@ export async function GET() {
       .order('sort_order', { ascending: true })
     
     if (error) {
-      console.error("[products GET] Erro Supabase:", error)
+      console.error("[products v96 GET] Erro:", error.message)
       return NextResponse.json({ 
         success: false, 
         error: error.message,
@@ -124,38 +133,42 @@ export async function GET() {
  * POST - Salva todos os produtos (substitui lista completa)
  */
 export async function POST(request: Request) {
-  console.log("[products POST] Salvando produtos no Supabase...")
+  console.log("[products v96 POST] Salvando produtos...")
   
   try {
     const supabase = getSupabase()
+    
+    if (!supabase) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Supabase nao configurado",
+        source: 'config_error'
+      }, { status: 500 })
+    }
     
     const body = await request.json()
     const products: FrontendProduct[] = body.products || body
     
     if (!Array.isArray(products)) {
-      console.error("[products POST] Dados invalidos - nao e array")
       return NextResponse.json({ 
         success: false, 
         error: "Produtos deve ser um array" 
       }, { status: 400 })
     }
     
-    console.log(`[products POST] Recebidos ${products.length} produtos para salvar`)
-    
-    // Estrategia: deletar todos e inserir novos (mais simples e garante consistencia)
-    // Isso evita problemas de IDs duplicados ou orphans
+    console.log(`[products v96 POST] ${products.length} produtos para salvar`)
     
     // 1. Deletar todos os produtos existentes
     const { error: deleteError } = await supabase
       .from('products')
       .delete()
-      .gte('id', 0) // Deleta todos
+      .gte('id', 0)
     
     if (deleteError) {
-      console.error("[products POST] Erro ao deletar:", deleteError)
+      console.error("[products v96 POST] Erro delete:", deleteError.message)
       return NextResponse.json({ 
         success: false, 
-        error: `Erro ao limpar produtos: ${deleteError.message}` 
+        error: deleteError.message 
       }, { status: 500 })
     }
     
@@ -214,10 +227,18 @@ export async function POST(request: Request) {
  * PUT - Atualiza um produto especifico
  */
 export async function PUT(request: Request) {
-  console.log("[products PUT] Atualizando produto...")
+  console.log("[products v96 PUT] Atualizando produto...")
   
   try {
     const supabase = getSupabase()
+    
+    if (!supabase) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Supabase nao configurado",
+        source: 'config_error'
+      }, { status: 500 })
+    }
     
     const body = await request.json()
     const product: FrontendProduct = body.product || body
@@ -229,7 +250,7 @@ export async function PUT(request: Request) {
       }, { status: 400 })
     }
     
-    console.log(`[products PUT] Atualizando produto ID ${product.id}: ${product.name}`)
+    console.log(`[products v96 PUT] Atualizando produto ID ${product.id}: ${product.name}`)
     
     const { data, error } = await supabase
       .from('products')
@@ -268,10 +289,18 @@ export async function PUT(request: Request) {
  * DELETE - Remove um produto
  */
 export async function DELETE(request: Request) {
-  console.log("[products DELETE] Removendo produto...")
+  console.log("[products v96 DELETE] Removendo produto...")
   
   try {
     const supabase = getSupabase()
+    
+    if (!supabase) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Supabase nao configurado",
+        source: 'config_error'
+      }, { status: 500 })
+    }
     
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -283,7 +312,7 @@ export async function DELETE(request: Request) {
       }, { status: 400 })
     }
     
-    console.log(`[products DELETE] Removendo produto ID ${id}`)
+    console.log(`[products v96 DELETE] Removendo produto ID ${id}`)
     
     const { error } = await supabase
       .from('products')

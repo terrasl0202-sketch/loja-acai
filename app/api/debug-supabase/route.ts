@@ -8,7 +8,7 @@ import { createClient } from "@supabase/supabase-js"
  */
 export async function GET() {
   const timestamp = new Date().toISOString()
-  const buildLabel = "debug-v95"
+  const buildLabel = "debug-v96"
   
   // 1. Verificar variáveis de ambiente (sem expor valores)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

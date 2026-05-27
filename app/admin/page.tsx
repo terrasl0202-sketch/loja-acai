@@ -247,7 +247,7 @@ export default function AdminPage() {
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true)
-      console.log("[Admin v94] loadConfig - Carregando dados do Supabase...")
+      console.log("[Admin v96] loadConfig - Carregando dados do Supabase...")
       
       // 1. Carregar config geral (legacy - para produtos/delivery que ainda estao la)
       const configRes = await fetch(`/api/config?admin=true&password=${encodeURIComponent(sessionPassword)}`)
@@ -255,11 +255,11 @@ export default function AdminPage() {
       let baseConfig = configData.success && configData.config ? configData.config : defaultConfig
       
       // 2. Carregar store-settings do Supabase
-      console.log("[Admin v94] Carregando store-settings...")
+      console.log("[Admin v96] Carregando store-settings...")
       const settingsRes = await fetch('/api/store-settings')
       const settingsData = await settingsRes.json()
       if (settingsData.success && settingsData.settings) {
-        console.log("[Admin v94] Store settings carregados do Supabase:", settingsData.settings.storeName)
+        console.log("[Admin v96] Store settings carregados do Supabase:", settingsData.settings.storeName)
         setStoreSettings({
           storeName: settingsData.settings.storeName || '',
           subtitle: settingsData.settings.subtitle || '',
@@ -276,20 +276,20 @@ export default function AdminPage() {
       }
       
       // 3. Carregar produtos do Supabase
-      console.log("[Admin v94] Carregando produtos...")
+      console.log("[Admin v96] Carregando produtos...")
       const productsRes = await fetch('/api/products')
       const productsData = await productsRes.json()
       if (productsData.success && Array.isArray(productsData.products) && productsData.products.length > 0) {
-        console.log(`[Admin v94] ${productsData.products.length} produtos carregados`)
+        console.log(`[Admin v96] ${productsData.products.length} produtos carregados`)
         baseConfig = { ...baseConfig, products: productsData.products }
       }
       
       // 4. Carregar bairros do Supabase
-      console.log("[Admin v94] Carregando bairros...")
+      console.log("[Admin v96] Carregando bairros...")
       const neighborhoodsRes = await fetch('/api/neighborhoods')
       const neighborhoodsData = await neighborhoodsRes.json()
       if (neighborhoodsData.success && Array.isArray(neighborhoodsData.neighborhoods) && neighborhoodsData.neighborhoods.length > 0) {
-        console.log(`[Admin v94] ${neighborhoodsData.neighborhoods.length} bairros carregados`)
+        console.log(`[Admin v96] ${neighborhoodsData.neighborhoods.length} bairros carregados`)
         const neighborhoodFees = neighborhoodsData.neighborhoods.map((n: { name: string; deliveryFee?: number; fee?: number; active: boolean }) => ({
           name: n.name,
           fee: n.deliveryFee ?? n.fee ?? 0,
@@ -305,9 +305,9 @@ export default function AdminPage() {
       }
       
       setConfig(baseConfig)
-      console.log("[Admin v94] Dados carregados com sucesso")
+      console.log("[Admin v96] Dados carregados com sucesso")
     } catch (error) {
-      console.error("[Admin v94] Erro ao carregar:", error)
+      console.error("[Admin v96] Erro ao carregar:", error)
     } finally {
       setLoading(false)
     }
@@ -435,11 +435,12 @@ export default function AdminPage() {
     localStorage.removeItem("admin_session")
   }
 
-  // ========== SALVAR CONFIGURACOES v94 ==========
+  // ========== SALVAR CONFIGURACOES v96 ==========
   // Tudo salvo via APIs server-side no Supabase
-  // NAO usa localStorage como fonte principal
+  // Toast verde mostra "Salvo no Supabase" em caso de sucesso
+  // Erro mostra APENAS o erro real atual da API
   const handleSave = async () => {
-    console.log("[Admin v94] handleSave iniciado")
+    console.log("[Admin v96] handleSave iniciado")
     setSaving(true)
     setSaveSuccess(false)
     
@@ -451,9 +452,8 @@ export default function AdminPage() {
     
     try {
       // 1. SALVAR STORE-SETTINGS NO SUPABASE
-      // Usa pendingStoreSettingsRef que contem os valores editados no formulario
       const settingsToSave = pendingStoreSettingsRef.current
-      console.log("[Admin v94] Salvando store-settings:", settingsToSave.storeName)
+      console.log("[Admin v96] Salvando store-settings:", settingsToSave.storeName)
       try {
         const settingsRes = await fetch("/api/store-settings", {
           method: "POST",
@@ -473,22 +473,19 @@ export default function AdminPage() {
           }),
         })
         const settingsData = await settingsRes.json()
+        console.log("[Admin v96] store-settings response:", settingsData)
         if (settingsData.success) {
           results.storeSettings.success = true
-          // Atualiza o estado global (header) SOMENTE apos salvar com sucesso
           setStoreSettings(settingsToSave)
-          console.log("[Admin v94] Store settings salvos - header atualizado")
         } else {
-          results.storeSettings.error = settingsData.error || 'Erro desconhecido'
-          console.error("[Admin v94] Erro store-settings:", results.storeSettings.error)
+          results.storeSettings.error = settingsData.error || 'Erro store-settings'
         }
       } catch (e) {
         results.storeSettings.error = String(e)
-        console.error("[Admin v94] Erro store-settings:", e)
       }
       
       // 2. SALVAR PRODUTOS NO SUPABASE
-      console.log("[Admin v94] Salvando produtos...")
+      console.log("[Admin v96] Salvando produtos...")
       try {
         const productsRes = await fetch("/api/products", {
           method: "POST",
@@ -496,21 +493,19 @@ export default function AdminPage() {
           body: JSON.stringify({ products: config.products }),
         })
         const productsData = await productsRes.json()
+        console.log("[Admin v96] products response:", productsData)
         if (productsData.success) {
           results.products.success = true
           results.products.count = productsData.count || config.products.length
-          console.log("[Admin v94] Produtos salvos:", results.products.count)
         } else {
-          results.products.error = productsData.error || 'Erro desconhecido'
-          console.error("[Admin v94] Erro produtos:", results.products.error)
+          results.products.error = productsData.error || 'Erro produtos'
         }
       } catch (e) {
         results.products.error = String(e)
-        console.error("[Admin v94] Erro produtos:", e)
       }
       
       // 3. SALVAR BAIRROS NO SUPABASE
-      console.log("[Admin v94] Salvando bairros...")
+      console.log("[Admin v96] Salvando bairros...")
       try {
         const neighborhoodFees = config.delivery?.neighborhoodFees || []
         if (neighborhoodFees.length > 0) {
@@ -527,12 +522,12 @@ export default function AdminPage() {
             body: JSON.stringify({ neighborhoods: neighborhoodsToSave }),
           })
           const neighborhoodsData = await neighborhoodsRes.json()
+          console.log("[Admin v96] neighborhoods response:", neighborhoodsData)
           if (neighborhoodsData.success) {
             results.neighborhoods.success = true
             results.neighborhoods.count = neighborhoodsData.count || neighborhoodFees.length
-            console.log("[Admin v94] Bairros salvos:", results.neighborhoods.count)
           } else {
-            results.neighborhoods.error = neighborhoodsData.error || 'Erro desconhecido'
+            results.neighborhoods.error = neighborhoodsData.error || 'Erro bairros'
           }
         } else {
           results.neighborhoods.success = true
@@ -540,10 +535,9 @@ export default function AdminPage() {
         }
       } catch (e) {
         results.neighborhoods.error = String(e)
-        console.error("[Admin v94] Erro bairros:", e)
       }
       
-      // 4. SALVAR CONFIG LEGACY (para campos que ainda nao foram migrados)
+      // 4. SALVAR CONFIG LEGACY
       const configToSave = { ...config, products: [] }
       await fetch("/api/config", {
         method: "POST",
@@ -551,27 +545,24 @@ export default function AdminPage() {
         body: JSON.stringify({ password: sessionPassword, config: configToSave }),
       })
       
-      // Resultado final
+      // RESULTADO FINAL v96
       const allSuccess = results.storeSettings.success && results.products.success
+      console.log("[Admin v96] Resultado:", results)
       
       if (allSuccess) {
         setSaveSuccess(true)
-        const parts = ['config']
-        if (results.products.count > 0) parts.push(`${results.products.count} produtos`)
-        if (results.neighborhoods.count > 0) parts.push(`${results.neighborhoods.count} bairros`)
-        showToast(`Salvo v94: ${parts.join(', ')}`)
+        // Toast verde de sucesso
+        showToast(`Salvo no Supabase (${results.products.count} produtos, ${results.neighborhoods.count} bairros)`)
         setTimeout(() => setSaveSuccess(false), 3000)
       } else {
-        const errors = []
-        if (!results.storeSettings.success) errors.push(`config: ${results.storeSettings.error}`)
-        if (!results.products.success) errors.push(`produtos: ${results.products.error}`)
-        if (!results.neighborhoods.success && results.neighborhoods.error) errors.push(`bairros: ${results.neighborhoods.error}`)
-        showToast("Erro: " + errors.join("; "))
+        // Mostra APENAS erro real atual - sem concatenar erros antigos
+        const firstError = results.storeSettings.error || results.products.error || results.neighborhoods.error || 'Erro desconhecido'
+        showToast(firstError)
       }
       
     } catch (error) {
-      console.error("[Admin v94] Erro geral:", error)
-      showToast("Erro ao salvar: " + String(error))
+      console.error("[Admin v96] Erro geral:", error)
+      showToast(String(error))
     } finally {
       setSaving(false)
     }
@@ -1373,7 +1364,7 @@ export default function AdminPage() {
 
         {/* Marca de versao v94 */}
         <div className="fixed bottom-2 right-2 text-xs text-muted-foreground/50 font-mono">
-          Admin v94 - Supabase Only
+          Admin v96 - Supabase Only
         </div>
 
         {/* Modais */}

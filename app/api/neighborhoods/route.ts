@@ -1,17 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-// Cria Supabase client dinamicamente
+// Cria Supabase client dinamicamente - retorna null se nao configurado
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("[neighborhoods] Variaveis de ambiente:", {
-      hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseServiceKey
-    })
-    throw new Error('Supabase nao configurado')
+    console.error("[neighborhoods v96] Envs faltando:", { hasUrl: !!supabaseUrl, hasKey: !!supabaseServiceKey })
+    return null
   }
   
   return createClient(supabaseUrl, supabaseServiceKey)
@@ -70,10 +67,19 @@ const FALLBACK_NEIGHBORHOODS: FrontendNeighborhood[] = [
  * GET - Lista todos os bairros
  */
 export async function GET() {
-  console.log("[neighborhoods GET] Carregando bairros do Supabase...")
+  console.log("[neighborhoods v96 GET] Carregando bairros...")
   
   try {
     const supabase = getSupabase()
+    
+    if (!supabase) {
+      return NextResponse.json({ 
+        success: true, 
+        neighborhoods: FALLBACK_NEIGHBORHOODS,
+        source: 'fallback',
+        error: 'Supabase nao configurado'
+      })
+    }
     
     const { data, error } = await supabase
       .from('neighborhoods')
@@ -81,7 +87,7 @@ export async function GET() {
       .order('sort_order', { ascending: true })
     
     if (error) {
-      console.error("[neighborhoods GET] Erro Supabase:", error)
+      console.error("[neighborhoods v96 GET] Erro:", error.message)
       return NextResponse.json({ 
         success: true, 
         neighborhoods: FALLBACK_NEIGHBORHOODS,
@@ -91,7 +97,7 @@ export async function GET() {
     }
     
     const neighborhoods = (data || []).map(mapDbToFrontend)
-    console.log(`[neighborhoods GET] ${neighborhoods.length} bairros carregados do Supabase`)
+    console.log(`[neighborhoods v96 GET] ${neighborhoods.length} bairros carregados`)
     
     return NextResponse.json({ 
       success: true, 
@@ -100,7 +106,7 @@ export async function GET() {
     })
     
   } catch (error) {
-    console.error("[neighborhoods GET] Erro:", error)
+    console.error("[neighborhoods v96 GET] Erro:", error)
     return NextResponse.json({ 
       success: true, 
       neighborhoods: FALLBACK_NEIGHBORHOODS,
@@ -114,10 +120,18 @@ export async function GET() {
  * POST - Salva todos os bairros (substitui)
  */
 export async function POST(request: Request) {
-  console.log("[neighborhoods POST] Salvando bairros no Supabase...")
+  console.log("[neighborhoods v96 POST] Salvando bairros...")
   
   try {
     const supabase = getSupabase()
+    
+    if (!supabase) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Supabase nao configurado",
+        source: 'config_error'
+      }, { status: 500 })
+    }
     
     const body = await request.json()
     const neighborhoods: FrontendNeighborhood[] = body.neighborhoods || body
@@ -129,22 +143,21 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
     
-    console.log(`[neighborhoods POST] Recebidos ${neighborhoods.length} bairros`)
+    console.log(`[neighborhoods v96 POST] ${neighborhoods.length} bairros`)
     
     // Deletar todos os bairros existentes
     const { error: deleteError } = await supabase
       .from('neighborhoods')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000') // Deleta todos
+      .neq('id', '00000000-0000-0000-0000-000000000000')
     
     if (deleteError) {
-      console.error("[neighborhoods POST] Erro ao deletar:", deleteError)
+      console.error("[neighborhoods v96 POST] Erro delete:", deleteError.message)
     }
     
     // Inserir novos bairros
     if (neighborhoods.length > 0) {
       const toInsert = neighborhoods.map((n, i) => mapFrontendToDb(n, i))
-      console.log("[neighborhoods POST] Inserindo:", toInsert.map(n => n.name))
       
       const { data, error: insertError } = await supabase
         .from('neighborhoods')
@@ -152,14 +165,14 @@ export async function POST(request: Request) {
         .select()
       
       if (insertError) {
-        console.error("[neighborhoods POST] Erro ao inserir:", insertError)
+        console.error("[neighborhoods v96 POST] Erro insert:", insertError.message)
         return NextResponse.json({ 
           success: false, 
           error: insertError.message 
         }, { status: 500 })
       }
       
-      console.log(`[neighborhoods POST] ${data?.length || 0} bairros salvos`)
+      console.log(`[neighborhoods v96 POST] ${data?.length || 0} salvos`)
       
       return NextResponse.json({ 
         success: true, 
@@ -189,10 +202,18 @@ export async function POST(request: Request) {
  * PUT - Atualiza um bairro especifico
  */
 export async function PUT(request: Request) {
-  console.log("[neighborhoods PUT] Atualizando bairro...")
+  console.log("[neighborhoods v96 PUT] Atualizando bairro...")
   
   try {
     const supabase = getSupabase()
+    
+    if (!supabase) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Supabase nao configurado",
+        source: 'config_error'
+      }, { status: 500 })
+    }
     
     const body = await request.json()
     const neighborhood: FrontendNeighborhood = body.neighborhood || body
@@ -248,10 +269,18 @@ export async function PUT(request: Request) {
  * DELETE - Remove um bairro
  */
 export async function DELETE(request: Request) {
-  console.log("[neighborhoods DELETE] Removendo bairro...")
+  console.log("[neighborhoods v96 DELETE] Removendo bairro...")
   
   try {
     const supabase = getSupabase()
+    
+    if (!supabase) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Supabase nao configurado",
+        source: 'config_error'
+      }, { status: 500 })
+    }
     
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
