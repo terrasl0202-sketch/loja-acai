@@ -98,25 +98,28 @@ export async function POST(request: Request) {
     // Deletar cupons antigos
     await supabase.from('coupons').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     
-    // Inserir novos
+    // Inserir novos - gerar UUID para cada cupom
     const couponsToSave = body.coupons.map((c: {
       id?: string
       code: string
       type?: string
+      discountType?: string
       value?: number
+      discountValue?: number
       active?: boolean
       minimumOrder?: number
+      minOrderValue?: number
       maxUses?: number
       currentUses?: number
       validFrom?: string
       validUntil?: string
     }) => ({
-      id: c.id && c.id.startsWith('coupon-') ? undefined : c.id, // Gerar novo UUID se ID for temporario
+      id: (c.id && !c.id.startsWith('coupon-')) ? c.id : crypto.randomUUID(),
       code: c.code.toUpperCase(),
-      discount_type: c.type || 'percentage',
-      discount_value: c.value || 0,
+      discount_type: c.discountType || c.type || 'percentage',
+      discount_value: c.discountValue ?? c.value ?? 0,
       active: c.active ?? true,
-      min_order_value: c.minimumOrder || 0,
+      min_order_value: c.minOrderValue ?? c.minimumOrder ?? 0,
       max_uses: c.maxUses || 0,
       current_uses: c.currentUses || 0,
       valid_from: c.validFrom || null,
@@ -147,11 +150,12 @@ export async function POST(request: Request) {
   // Se veio cupom unico, fazer upsert
   if (body.code) {
     const couponToSave = {
+      id: (body.id && !body.id.startsWith('coupon-')) ? body.id : crypto.randomUUID(),
       code: body.code.toUpperCase(),
-      discount_type: body.type || 'percentage',
-      discount_value: body.value || 0,
+      discount_type: body.discountType || body.type || 'percentage',
+      discount_value: body.discountValue ?? body.value ?? 0,
       active: body.active ?? true,
-      min_order_value: body.minimumOrder || 0,
+      min_order_value: body.minOrderValue ?? body.minimumOrder ?? 0,
       max_uses: body.maxUses || 0,
       current_uses: body.currentUses || 0,
       valid_from: body.validFrom || null,

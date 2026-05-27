@@ -110,7 +110,7 @@ export async function POST(request: Request) {
     // Deletar entregadores antigos
     await supabase.from('entregadores').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     
-    // Inserir novos
+    // Inserir novos - gerar UUID para cada entregador
     const entregadoresToSave = body.entregadores.map((e: {
       id?: string
       nome: string
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
       const existingToken = e.id ? existingTokens.get(e.id) : null
       
       return {
-        id: isNewId ? undefined : e.id, // Gerar novo UUID se ID for temporario
+        id: isNewId ? crypto.randomUUID() : e.id,
         name: e.nome,
         phone: e.whatsapp,
         active: e.status !== 'inativo',
@@ -157,9 +157,10 @@ export async function POST(request: Request) {
     })
   }
   
-  // Se veio entregador unico, fazer upsert
+  // Se veio entregador unico, fazer insert
   if (body.nome || body.name) {
     const entregadorToSave = {
+      id: (body.id && !body.id.startsWith('entregador-')) ? body.id : crypto.randomUUID(),
       name: body.nome || body.name,
       phone: body.whatsapp || body.phone,
       active: body.status !== 'inativo',
