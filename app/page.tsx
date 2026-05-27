@@ -77,44 +77,35 @@ export default function Home() {
     closedMessage: string
   } | null>(null)
   
-  // Carrega status da loja do localStorage
+  // Atualiza status da loja periodicamente do Supabase (a cada 30s)
   useEffect(() => {
     if (!isClient) return
     
-    function loadStoreStatus() {
+    const refreshStoreStatus = async () => {
       try {
-        const saved = localStorage.getItem('pk-store-status')
-        if (saved) {
-          const data = JSON.parse(saved)
+        const res = await fetch('/api/store-settings', { cache: 'no-store' })
+        const data = await res.json()
+        if (data.success && data.settings) {
+          const s = data.settings
           setStoreStatusData({
-            storeOpen: data.storeOpen ?? true,
-            manualControl: data.manualControl ?? false,
-            openTime: data.openTime || '14:00',
-            closeTime: data.closeTime || '22:00',
-            closedMessage: data.closedMessage || 'Estamos fechados no momento.'
-          })
-        } else {
-          // Default se nao houver nada salvo
-          setStoreStatusData({
-            storeOpen: true,
-            manualControl: false,
-            openTime: '14:00',
-            closeTime: '22:00',
-            closedMessage: 'Estamos fechados no momento.'
+            storeOpen: s.storeOpen ?? true,
+            manualControl: s.manualControl ?? false,
+            openTime: s.openTime || s.storeHours?.openTime || '10:00',
+            closeTime: s.closeTime || s.storeHours?.closeTime || '22:00',
+            closedMessage: s.closedMessage || s.storeHours?.closedMessage || 'Estamos fechados no momento.'
           })
         }
       } catch (err) {
-        console.error('[Store] Erro ao carregar status:', err)
+        console.error('[Store] Erro ao atualizar status:', err)
       }
     }
     
-    loadStoreStatus()
-    // Recarrega a cada 2 segundos para capturar mudancas do admin IMEDIATAMENTE
-    const interval = setInterval(loadStoreStatus, 2000)
+    // Atualiza a cada 30 segundos
+    const interval = setInterval(refreshStoreStatus, 30000)
     return () => clearInterval(interval)
   }, [isClient])
 
-  // Verifica horario de funcionamento usando dados do localStorage
+  // Verifica horario de funcionamento usando dados do Supabase
   const isWithinBusinessHoursLocal = useCallback(() => {
     if (!storeStatusData) return true
     
@@ -983,15 +974,137 @@ export default function Home() {
     }
   }, [pixCooldownEnd])
 
-  // Carregar config do site
+  // Carregar config do site - FONTE: SUPABASE via APIs
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const response = await fetch("/api/config", { cache: "no-store" })
-        const data = await response.json()
-        if (data.success && data.config) {
-          setSiteConfig(data.config)
+        // 1. Carregar store-settings do Supabase (fonte principal)
+        const [settingsRes, productsRes, neighborhoodsRes, couponsRes] = await Promise.all([
+          fetch("/api/store-settings", { cache: "no-store" }),
+          fetch("/api/products", { cache: "no-store" }),
+          fetch("/api/neighborhoods", { cache: "no-store" }),
+          fetch("/api/coupons", { cache: "no-store" }),
+        ])
+        
+        const [settingsData, productsData, neighborhoodsData, couponsData] = await Promise.all([
+          settingsRes.json(),
+          productsRes.json(),
+          neighborhoodsRes.json(),
+          couponsRes.json(),
+        ])
+        
+        // Montar config a partir das APIs do Supabase
+        const newConfig: SiteConfig = { ...defaultConfig }
+        
+        // Store settings
+        if (settingsData.success && settingsData.settings) {
+          const s = settingsData.settings
+          newConfig.storeName = s.storeName || defaultConfig.storeName
+          
+          // Banner
+          if (s.banner) {
+            newConfig.banner = {
+              ...defaultConfig.banner,
+              mainText: s.banner.mainText || defaultConfig.banner.mainText,
+              secondaryText: s.banner.secondaryText || defaultConfig.banner.secondaryText,
+              promoActive: s.banner.promoActive ?? defaultConfig.banner.promoActive,
+              promoPrice: s.banner.promoPrice ?? defaultConfig.banner.promoPrice,
+              promoText: s.banner.promoText || defaultConfig.banner.promoText,
+              imageUrl: s.banner.imageUrl || defaultConfig.banner.imageUrl,
+            }
+          }
+          
+          // Store Hours
+          if (s.storeHours) {
+            newConfig.storeHours = {
+              ...defaultConfig.storeHours,
+              isOpen: s.storeHours.isOpen ?? defaultConfig.storeHours.isOpen,
+              manualControl: s.storeHours.manualControl ?? defaultConfig.storeHours.manualControl,
+              openTime: s.storeHours.openTime || defaultConfig.storeHours.openTime,
+              closeTime: s.storeHours.closeTime || defaultConfig.storeHours.closeTime,
+              closedMessage: s.storeHours.closedMessage || defaultConfig.storeHours.closedMessage,
+            }
+          }
+          
+          // Delivery
+          if (s.delivery) {
+            newConfig.delivery = {
+              ...defaultConfig.delivery,
+              enabled: s.delivery.enabled ?? defaultConfig.delivery.enabled,
+              defaultFee: s.delivery.defaultFee ?? defaultConfig.delivery.defaultFee,
+              minimumOrder: s.delivery.minimumOrder ?? defaultConfig.delivery.minimumOrder,
+              estimatedTime: s.delivery.estimatedTime || defaultConfig.delivery.estimatedTime,
+              pickupEnabled: s.delivery.pickupEnabled ?? defaultConfig.delivery.pickupEnabled,
+            }
+          }
+          
+          // Payment
+          if (s.payment) {
+            newConfig.payment = {
+              ...defaultConfig.payment,
+              minValueForAsaas: s.payment.minValueForAsaas ?? defaultConfig.payment.minValueForAsaas,
+              pixManualEnabled: s.payment.pixManualEnabled ?? defaultConfig.payment.pixManualEnabled,
+              pixAsaasEnabled: s.payment.pixAsaasEnabled ?? defaultConfig.payment.pixAsaasEnabled,
+              pixExpirationMinutes: s.payment.pixExpirationMinutes ?? defaultConfig.payment.pixExpirationMinutes,
+            }
+          }
+          
+          // PIX Manual
+          if (s.pixManual) {
+            newConfig.pixManual = {
+              ...defaultConfig.pixManual,
+              key: s.pixManual.key || defaultConfig.pixManual.key,
+              keyFull: s.pixManual.keyFull || s.pixManual.key || defaultConfig.pixManual.keyFull,
+              receiverName: s.pixManual.receiverName || defaultConfig.pixManual.receiverName,
+            }
+          }
+          
+          // WhatsApp
+          if (s.whatsappConfig) {
+            newConfig.whatsapp = {
+              ...defaultConfig.whatsapp,
+              number: s.whatsappConfig.number || s.whatsapp || defaultConfig.whatsapp.number,
+              defaultMessage: s.whatsappConfig.defaultMessage || defaultConfig.whatsapp.defaultMessage,
+              receiptMessage: s.whatsappConfig.receiptMessage || defaultConfig.whatsapp.receiptMessage,
+              supportEnabled: s.whatsappConfig.supportEnabled ?? defaultConfig.whatsapp.supportEnabled,
+            }
+          } else if (s.whatsapp) {
+            newConfig.whatsapp = { ...defaultConfig.whatsapp, number: s.whatsapp }
+          }
+          
+          // Status da loja - USAR DADOS DO SUPABASE
+          setStoreStatusData({
+            storeOpen: s.storeOpen ?? true,
+            manualControl: s.manualControl ?? false,
+            openTime: s.openTime || s.storeHours?.openTime || '10:00',
+            closeTime: s.closeTime || s.storeHours?.closeTime || '22:00',
+            closedMessage: s.closedMessage || s.storeHours?.closedMessage || 'Estamos fechados no momento.'
+          })
         }
+        
+        // Produtos
+        if (productsData.success && Array.isArray(productsData.products)) {
+          newConfig.products = productsData.products
+        }
+        
+        // Bairros
+        if (neighborhoodsData.success && Array.isArray(neighborhoodsData.neighborhoods)) {
+          newConfig.delivery = {
+            ...newConfig.delivery,
+            neighborhoodFees: neighborhoodsData.neighborhoods.map((n: { name: string; deliveryFee?: number; fee?: number; active: boolean }) => ({
+              name: n.name,
+              fee: n.deliveryFee ?? n.fee ?? 0,
+              active: n.active
+            }))
+          }
+        }
+        
+        // Cupons
+        if (couponsData.success && Array.isArray(couponsData.coupons)) {
+          newConfig.coupons = couponsData.coupons
+        }
+        
+        setSiteConfig(newConfig)
       } catch (error) {
         console.error("Erro ao carregar config:", error)
       } finally {
