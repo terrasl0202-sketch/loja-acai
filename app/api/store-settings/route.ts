@@ -2,41 +2,46 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 /**
- * /api/store-settings v100 MINIMALISTA
+ * /api/store-settings v101
  * 
- * - SEM fallback
- * - SEM default
- * - SEM mock
- * - SEM cache
- * - SEM recovery
- * - Apenas Supabase direto
+ * IDENTICO ao /api/debug-supabase
+ * - Mesmas envs
+ * - Mesmo createClient
+ * - Mesmas options
+ * - Debug info para comparar
  */
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  
-  if (!url || !key) {
-    return null
-  }
-  
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  })
-}
+const BUILD_LABEL = "store-settings-v101"
 
 // GET - Busca store_settings do Supabase
 export async function GET() {
-  console.log("[store-settings v100] GET")
+  // Copiar EXATAMENTE do debug-supabase
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
-  const supabase = getSupabase()
+  // Debug info - IDENTICO ao debug-supabase
+  const debugInfo = {
+    buildLabel: BUILD_LABEL,
+    hostname: supabaseUrl ? new URL(supabaseUrl).hostname : null,
+    serviceRoleExists: !!serviceRoleKey,
+    keyPrefix: serviceRoleKey ? serviceRoleKey.substring(0, 10) : null,
+    timestamp: new Date().toISOString(),
+  }
   
-  if (!supabase) {
+  console.log(`[${BUILD_LABEL}] GET - hostname: ${debugInfo.hostname}`)
+  
+  if (!supabaseUrl || !serviceRoleKey) {
     return NextResponse.json({ 
       success: false, 
-      error: "SUPABASE_NOT_CONFIGURED" 
+      error: "SUPABASE_NOT_CONFIGURED",
+      debug: debugInfo
     }, { status: 500 })
   }
+  
+  // Criar cliente IDENTICO ao debug-supabase
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  })
   
   const { data, error } = await supabase
     .from('store_settings')
@@ -45,18 +50,21 @@ export async function GET() {
     .single()
   
   if (error) {
-    console.log("[store-settings v100] GET error:", error.message)
+    console.log(`[${BUILD_LABEL}] GET error: ${error.code} - ${error.message}`)
     return NextResponse.json({ 
       success: false, 
-      error: error.message 
+      error: error.message,
+      errorCode: error.code,
+      debug: debugInfo
     }, { status: 500 })
   }
   
-  console.log("[store-settings v100] GET OK:", data.store_name)
+  console.log(`[${BUILD_LABEL}] GET OK: ${data.store_name}`)
   
   return NextResponse.json({
     success: true,
     source: "supabase",
+    debug: debugInfo,
     settings: {
       storeName: data.store_name || '',
       subtitle: data.subtitle || '',
@@ -75,16 +83,33 @@ export async function GET() {
 
 // POST - Salva store_settings no Supabase
 export async function POST(request: Request) {
-  console.log("[store-settings v100] POST")
+  // Copiar EXATAMENTE do debug-supabase
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
-  const supabase = getSupabase()
+  // Debug info
+  const debugInfo = {
+    buildLabel: BUILD_LABEL,
+    hostname: supabaseUrl ? new URL(supabaseUrl).hostname : null,
+    serviceRoleExists: !!serviceRoleKey,
+    keyPrefix: serviceRoleKey ? serviceRoleKey.substring(0, 10) : null,
+    timestamp: new Date().toISOString(),
+  }
   
-  if (!supabase) {
+  console.log(`[${BUILD_LABEL}] POST - hostname: ${debugInfo.hostname}`)
+  
+  if (!supabaseUrl || !serviceRoleKey) {
     return NextResponse.json({ 
       success: false, 
-      error: "SUPABASE_NOT_CONFIGURED" 
+      error: "SUPABASE_NOT_CONFIGURED",
+      debug: debugInfo
     }, { status: 500 })
   }
+  
+  // Criar cliente IDENTICO ao debug-supabase
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  })
   
   const body = await request.json()
   
@@ -104,7 +129,7 @@ export async function POST(request: Request) {
     updated_at: new Date().toISOString(),
   }
   
-  console.log("[store-settings v100] POST saving:", dataToSave.store_name)
+  console.log(`[${BUILD_LABEL}] POST saving: ${dataToSave.store_name}`)
   
   const { data, error } = await supabase
     .from('store_settings')
@@ -113,18 +138,21 @@ export async function POST(request: Request) {
     .single()
   
   if (error) {
-    console.log("[store-settings v100] POST error:", error.message)
+    console.log(`[${BUILD_LABEL}] POST error: ${error.code} - ${error.message}`)
     return NextResponse.json({ 
       success: false, 
-      error: error.message 
+      error: error.message,
+      errorCode: error.code,
+      debug: debugInfo
     }, { status: 500 })
   }
   
-  console.log("[store-settings v100] POST OK:", data.store_name)
+  console.log(`[${BUILD_LABEL}] POST OK: ${data.store_name}`)
   
   return NextResponse.json({
     success: true,
     source: "supabase",
+    debug: debugInfo,
     settings: {
       storeName: data.store_name || '',
       subtitle: data.subtitle || '',
