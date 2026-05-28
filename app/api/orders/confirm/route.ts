@@ -15,13 +15,20 @@ function getSupabase() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    
+    // Log do payload completo recebido
+    console.log("[orders/confirm] Payload recebido:", JSON.stringify(body))
+    
     const { paymentId, orderId, asaasPaymentId, orderCode } = body
     
     // Aceita varios identificadores
     const effectivePaymentId = paymentId || asaasPaymentId
     const effectiveOrderCode = orderCode || orderId
 
+    console.log("[orders/confirm] effectiveOrderCode:", effectiveOrderCode, "effectivePaymentId:", effectivePaymentId)
+
     if (!effectivePaymentId && !effectiveOrderCode) {
+      console.log("[orders/confirm] ERRO: nenhum identificador fornecido")
       return NextResponse.json({ error: "paymentId, orderId ou orderCode obrigatorio" }, { status: 400 })
     }
 

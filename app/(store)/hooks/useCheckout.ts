@@ -225,24 +225,34 @@ export function useCheckout(
             }
 
             // Atualizar pedido como confirmado no Supabase
-            console.log("[useCheckout] Pix confirmado! Atualizando Supabase. orderId:", currentOrderId, "paymentId:", paymentId)
-            try {
-              const confirmResponse = await fetch("/api/orders/confirm", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  orderId: currentOrderId,
-                  asaasPaymentId: paymentId,
-                }),
-              })
-              const confirmData = await confirmResponse.json()
-              if (confirmData.success) {
-                console.log("[useCheckout] Supabase atualizado com sucesso! status:", confirmData.order?.status)
-              } else {
-                console.error("[useCheckout] Erro ao atualizar Supabase:", confirmData.error)
+            console.log("[useCheckout] Pix confirmado! orderCode:", currentOrderId, "paymentId:", paymentId)
+            
+            if (!currentOrderId) {
+              console.error("[useCheckout] ERRO CRITICO: orderCode esta vazio!")
+            } else {
+              try {
+                const confirmPayload = {
+                  orderCode: currentOrderId,  // PK20260528... - campo principal
+                  paymentId: paymentId,       // pay_xxx do Asaas
+                }
+                console.log("[useCheckout] Enviando para /api/orders/confirm:", JSON.stringify(confirmPayload))
+                
+                const confirmResponse = await fetch("/api/orders/confirm", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(confirmPayload),
+                })
+                const confirmData = await confirmResponse.json()
+                console.log("[useCheckout] Resposta da API:", JSON.stringify(confirmData))
+                
+                if (confirmData.success) {
+                  console.log("[useCheckout] Supabase atualizado! status:", confirmData.order?.status)
+                } else {
+                  console.error("[useCheckout] Erro ao atualizar Supabase:", confirmData.error)
+                }
+              } catch (confirmError) {
+                console.error("[useCheckout] Erro de rede ao confirmar:", confirmError)
               }
-            } catch (confirmError) {
-              console.error("[useCheckout] Erro de rede ao confirmar:", confirmError)
             }
           }
         } catch (error) {
