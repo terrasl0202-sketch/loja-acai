@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
-import { get, list } from "@vercel/blob"
-import type { SiteConfig, Order } from "@/lib/config-types"
-
-const CONFIG_PREFIX = "pk-config-"
-const ORDERS_PREFIX = "pk-orders-"
+import { createClient } from "@supabase/supabase-js"
 
 // Evitar cache
 export const dynamic = "force-dynamic"
 export const revalidate = 0
+
+// Cria Supabase client
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return null
+  }
+  
+  return createClient(supabaseUrl, supabaseServiceKey)
+}
 
 // GET: Verificar token e retornar dados do entregador (sem PIN)
 export async function GET(
@@ -16,30 +24,22 @@ export async function GET(
 ) {
   try {
     const { token } = await params
-
-    // Carregar config para encontrar entregador
-    let config: SiteConfig | null = null
-    const { blobs } = await list({ prefix: CONFIG_PREFIX })
     
-    if (blobs.length > 0) {
-      const latestBlob = blobs.sort(
-        (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-      )[0]
-      const result = await get(latestBlob.pathname, { access: "private" })
-      if (result && result.stream) {
-        const text = await new Response(result.stream).text()
-        config = JSON.parse(text) as SiteConfig
-      }
+    const supabase = getSupabase()
+    if (!supabase) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
 
-    if (!config) {
-      return NextResponse.json({ error: "Config not found" }, { status: 404 })
-    }
+    // Buscar entregador pelo token no Supabase
+    const { data: entregador, error } = await supabase
+      .from('entregadores')
+      .select('id, name, phone, active, vehicle')
+      .eq('token', token)
+      .eq('active', true)
+      .single()
 
-    // Encontrar entregador pelo token
-    const entregador = (config.entregadores || []).find(e => e.token === token)
-    
-    if (!entregador) {
+    if (error || !entregador) {
+      console.error("[entregador GET] Token nao encontrado:", token)
       return NextResponse.json({ error: "Entregador not found" }, { status: 404 })
     }
 
@@ -48,8 +48,8 @@ export async function GET(
       success: true,
       entregador: {
         id: entregador.id,
-        nome: entregador.nome,
-        status: entregador.status,
+        nome: entregador.name,
+        status: entregador.active ? 'ativo' : 'inativo',
       }
     })
   } catch (error) {
@@ -68,29 +68,20 @@ export async function POST(
     const body = await request.json()
     const { pin } = body
 
-    // Carregar config
-    let config: SiteConfig | null = null
-    const { blobs: configBlobs } = await list({ prefix: CONFIG_PREFIX })
-    
-    if (configBlobs.length > 0) {
-      const latestBlob = configBlobs.sort(
-        (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-      )[0]
-      const result = await get(latestBlob.pathname, { access: "private" })
-      if (result && result.stream) {
-        const text = await new Response(result.stream).text()
-        config = JSON.parse(text) as SiteConfig
-      }
+    const supabase = getSupabase()
+    if (!supabase) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
 
-    if (!config) {
-      return NextResponse.json({ error: "Config not found" }, { status: 404 })
-    }
+    // Buscar entregador pelo token no Supabase
+    const { data: entregador, error: entregadorError } = await supabase
+      .from('entregadores')
+      .select('*')
+      .eq('token', token)
+      .eq('active', true)
+      .single()
 
-    // Encontrar entregador pelo token
-    const entregador = (config.entregadores || []).find(e => e.token === token)
-    
-    if (!entregador) {
+    if (entregadorError || !entregador) {
       return NextResponse.json({ error: "Entregador not found" }, { status: 404 })
     }
 
@@ -99,49 +90,40 @@ export async function POST(
       return NextResponse.json({ error: "PIN incorreto" }, { status: 401 })
     }
 
-    // Carregar pedidos
-    let orders: Order[] = []
-    const { blobs: orderBlobs } = await list({ prefix: ORDERS_PREFIX })
-    
-    if (orderBlobs.length > 0) {
-      const latestBlob = orderBlobs.sort(
-        (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-      )[0]
-      const result = await get(latestBlob.pathname, { access: "private" })
-      if (result && result.stream) {
-        const text = await new Response(result.stream).text()
-        orders = JSON.parse(text) as Order[]
-      }
+    // Buscar pedidos atribuidos ao entregador
+    const { data: orders, error: ordersError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('entregador_id', entregador.id)
+      .in('status', ['delivering', 'preparing'])
+      .order('created_at', { ascending: false })
+
+    if (ordersError) {
+      console.error("[entregador POST] Erro ao buscar pedidos:", ordersError)
     }
 
-    // Filtrar pedidos do entregador (status delivering ou preparing com entregador atribuido)
-    const pedidosEntregador = orders.filter(o => 
-      o.entregadorId === entregador.id && 
-      (o.status === "delivering" || (o.status === "preparing" && o.entregadorId))
-    )
-
-    // Retornar dados seguros (sem expor telefone completo do cliente para pedidos nao em entrega)
-    const pedidosSeguros = pedidosEntregador.map(o => ({
+    // Mapear pedidos para formato do frontend
+    const pedidosSeguros = (orders || []).map(o => ({
       id: o.id,
-      customerName: o.customerName,
-      customerPhone: o.customerPhone,
+      customerName: o.customer_name,
+      customerPhone: o.customer_phone,
       address: o.address,
       neighborhood: o.neighborhood,
       reference: o.reference,
       items: o.items,
       total: o.total,
-      paymentMethod: o.paymentMethod,
+      paymentMethod: o.payment_method,
       observation: o.observation,
       status: o.status,
-      saiuParaEntregaEm: o.saiuParaEntregaEm,
-      createdAt: o.createdAt,
+      saiuParaEntregaEm: o.saiu_para_entrega_em,
+      createdAt: o.created_at,
     }))
 
     return NextResponse.json({
       success: true,
       entregador: {
         id: entregador.id,
-        nome: entregador.nome,
+        nome: entregador.name,
       },
       pedidos: pedidosSeguros
     })

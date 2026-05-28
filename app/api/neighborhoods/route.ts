@@ -22,7 +22,6 @@ interface DbNeighborhood {
   active: boolean
   sort_order: number
   created_at: string
-  updated_at: string
 }
 
 // Tipo do bairro no frontend
@@ -52,8 +51,7 @@ function mapFrontendToDb(front: FrontendNeighborhood, index: number) {
     name: front.name,
     delivery_fee: front.deliveryFee ?? front.fee ?? 0,
     active: front.active !== false,
-    sort_order: front.order ?? index,
-    updated_at: new Date().toISOString()
+    sort_order: front.order ?? index
   }
 }
 
@@ -226,8 +224,7 @@ export async function PUT(request: Request) {
       name: neighborhood.name,
       delivery_fee: neighborhood.deliveryFee ?? neighborhood.fee ?? 0,
       active: neighborhood.active,
-      sort_order: neighborhood.order ?? 0,
-      updated_at: new Date().toISOString()
+      sort_order: neighborhood.order ?? 0
     }
     
     const { data, error } = await supabase
