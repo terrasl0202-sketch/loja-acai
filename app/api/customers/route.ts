@@ -18,9 +18,9 @@ function getSupabase() {
   return createClient(url, key)
 }
 
-// Funcao para gerar ID unico
-function generateId(): string {
-  return `cust_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+// Funcao para gerar codigo publico do cliente (nao UUID)
+function generateCustomerCode(): string {
+  return `CUST${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 5).toUpperCase()}`
 }
 
 // Interface do cliente no banco
@@ -135,8 +135,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Telefone ja cadastrado" }, { status: 400, headers: noCacheHeaders })
       }
       
+      // NAO enviar id - deixar Supabase gerar UUID automaticamente
       const newCustomer = {
-        id: generateId(),
+        customer_code: generateCustomerCode(), // Codigo publico
         name,
         phone: normalizedPhone,
         pin,
@@ -148,25 +149,36 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       }
       
-      const { error: insertError } = await supabase.from('customers').insert(newCustomer)
+      console.log("[customers POST] Criando conta para:", normalizedPhone)
+      
+      const { data: inserted, error: insertError } = await supabase
+        .from('customers')
+        .insert(newCustomer)
+        .select()
+        .single()
       
       if (insertError) {
-        console.error("[customers POST] Erro ao criar conta:", insertError)
+        console.error("[customers POST] Erro ao criar conta:", insertError.message, insertError.details)
         return NextResponse.json({ error: `Erro ao criar conta: ${insertError.message}` }, { status: 500, headers: noCacheHeaders })
       }
       
+      if (!inserted) {
+        return NextResponse.json({ error: "Erro ao criar conta: sem retorno" }, { status: 500, headers: noCacheHeaders })
+      }
+      
       const publicData = {
-        id: newCustomer.id,
-        name: newCustomer.name,
-        phone: newCustomer.phone,
+        id: inserted.id, // UUID gerado pelo Supabase
+        customerCode: inserted.customer_code,
+        name: inserted.name,
+        phone: inserted.phone,
         totalOrders: 0,
         totalSpent: 0,
         isVip: false,
         favorites: [],
-        createdAt: newCustomer.created_at,
+        createdAt: inserted.created_at,
       }
       
-      console.log("[customers POST] Conta criada:", publicData.id)
+      console.log("[customers POST] Conta criada com UUID:", inserted.id)
       return NextResponse.json({ 
         success: true, 
         customer: publicData,

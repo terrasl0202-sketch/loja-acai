@@ -331,12 +331,21 @@ export async function POST(request: NextRequest) {
 
       // Inserir no Supabase
       const dbOrder = frontendToDb(newOrder)
-      const { error } = await supabase.from('orders').insert(dbOrder)
+      console.log("[orders POST] Inserindo no Supabase:", JSON.stringify(dbOrder, null, 2).slice(0, 500))
+      
+      const { data: insertedOrder, error } = await supabase
+        .from('orders')
+        .insert(dbOrder)
+        .select()
+        .single()
 
-      if (error) throw error
+      if (error) {
+        console.error("[orders POST] ERRO INSERT:", error.message, error.details, error.hint)
+        throw error
+      }
 
-      console.log("[orders POST] Pedido criado no Supabase:", publicOrderId)
-      return NextResponse.json({ success: true, order: newOrder, source: 'supabase' })
+      console.log("[orders POST] Pedido criado no Supabase com sucesso! ID:", insertedOrder?.id, "OrderCode:", insertedOrder?.order_code)
+      return NextResponse.json({ success: true, order: newOrder, orderId: insertedOrder?.id, source: 'supabase' })
 
     } catch (error) {
       console.error("[orders POST] Erro Supabase, salvando no Blob:", error)
