@@ -173,6 +173,12 @@ export async function POST(request: NextRequest) {
 
     console.log("[orders POST] Criando pedido com order_code:", publicOrderId)
 
+    // Determinar status inicial baseado no metodo de pagamento
+    // Cartao, Dinheiro, Pix Manual = ja confirmado (Aguardando Preparo)
+    // Pix Asaas = aguardando pagamento
+    const isPixAsaas = order.paymentMethod === "PIX Asaas" || order.isPixAutomatic
+    const initialStatus = isPixAsaas ? "pending" : "confirmed"
+
     // Criar objeto do pedido (id sera gerado pelo Supabase)
     const newOrder: Order = {
       id: '', // Sera preenchido apos insert
@@ -189,8 +195,8 @@ export async function POST(request: NextRequest) {
       neighborhood: order.neighborhood,
       reference: order.reference,
       observation: order.observation,
-      status: "pending",
-      paymentStatus: "pending",
+      status: initialStatus,
+      paymentStatus: isPixAsaas ? "pending" : "confirmed",
       createdAt: new Date().toISOString(),
     }
 

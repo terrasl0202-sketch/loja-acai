@@ -19,6 +19,25 @@ const statusConfig = {
   pending: { label: "Pendente", bg: "bg-yellow-500/20", text: "text-yellow-500" },
 }
 
+// Helper para formatar itens do pedido
+function formatItems(items: CustomerOrder['items']): string {
+  if (typeof items === 'string') return items
+  if (Array.isArray(items)) {
+    return items.map((item) => {
+      const name = item.productName || item.name || 'Produto'
+      const qty = item.quantity || 1
+      const subtotal = item.subtotal || ((item.price || 0) * qty)
+      return `${qty}x ${name} - R$ ${subtotal.toFixed(2)}`
+    }).join(', ')
+  }
+  return 'Sem itens'
+}
+
+// Helper para obter codigo do pedido
+function getOrderCode(order: CustomerOrder): string {
+  return order.orderCode || order.id
+}
+
 export function MyOrdersModal({ orders, loadingOrders, onClose, onRepeatOrder }: MyOrdersModalProps) {
   return (
     <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -64,7 +83,7 @@ export function MyOrdersModal({ orders, loadingOrders, onClose, onRepeatOrder }:
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono text-muted-foreground bg-secondary/50 px-2 py-1 rounded-lg">
-                          #{order.id.slice(-6).toUpperCase()}
+                          #{getOrderCode(order).slice(-8).toUpperCase()}
                         </span>
                         {isActive && (
                           <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
@@ -76,7 +95,7 @@ export function MyOrdersModal({ orders, loadingOrders, onClose, onRepeatOrder }:
                     </div>
                     
                     {/* Itens */}
-                    <p className="text-sm text-foreground line-clamp-2 leading-relaxed">{order.items}</p>
+                    <p className="text-sm text-foreground line-clamp-2 leading-relaxed">{formatItems(order.items)}</p>
                     
                     {/* Info */}
                     <div className="flex items-center justify-between text-xs">
@@ -107,7 +126,7 @@ export function MyOrdersModal({ orders, loadingOrders, onClose, onRepeatOrder }:
                       )}
                       {isActive && (
                         <a
-                          href={`/pedido/${order.id}`}
+                          href={`/pedido/${getOrderCode(order)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex-1 py-2.5 text-sm bg-secondary text-foreground rounded-xl hover:bg-secondary/80 transition-colors font-medium text-center flex items-center justify-center gap-2"

@@ -7,19 +7,34 @@ import Link from "next/link"
 
 interface PublicOrder {
   id: string
+  orderCode?: string
   customerName: string
-  items: string
+  items: string | Array<{ productName?: string; name?: string; quantity: number; price: number; subtotal?: number }>
   itemsDetailed?: { productName: string; quantity: number; price: number; subtotal: number }[]
   total: number
   paymentMethod: string
-  deliveryType: string
+  deliveryType?: string
   neighborhood?: string
   status: "pending" | "confirmed" | "preparing" | "delivering" | "completed" | "cancelled"
-  paymentStatus: "pending" | "confirmed" | "failed"
+  paymentStatus?: "pending" | "confirmed" | "failed"
   createdAt: string
   confirmedAt?: string
   saiuParaEntregaEm?: string
   entregadorNome?: string
+}
+
+// Helper para formatar itens do pedido
+function formatItems(items: PublicOrder['items']): string {
+  if (typeof items === 'string') return items
+  if (Array.isArray(items)) {
+    return items.map(item => {
+      const name = item.productName || item.name || 'Produto'
+      const qty = item.quantity || 1
+      const subtotal = item.subtotal || (item.price * qty)
+      return `${qty}x ${name} - R$ ${subtotal.toFixed(2)}`
+    }).join(', ')
+  }
+  return 'Sem itens'
 }
 
 interface StoreSettings {
@@ -435,7 +450,7 @@ export default function PedidoPage() {
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-foreground whitespace-pre-line line-clamp-3">{order.items}</p>
+                <p className="text-sm text-foreground whitespace-pre-line line-clamp-3">{formatItems(order.items)}</p>
               )}
             </div>
 

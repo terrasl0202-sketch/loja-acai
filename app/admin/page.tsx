@@ -1010,7 +1010,8 @@ export default function AdminPage() {
   }
 
   const sendTrackingLinkToCustomer = (order: Order) => {
-    const link = getOrderTrackingLink(order.id)
+    const orderCode = getOrderCode(order)
+    const link = getOrderTrackingLink(orderCode)
     const phone = normalizePhoneForWhatsApp(order.customerPhone)
     const message = `Ola!\n\nAcompanhe seu pedido em tempo real:\n\n${link}`
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank")
@@ -1018,15 +1019,17 @@ export default function AdminPage() {
 
   // ========== FUNCOES DE COPIA ==========
   const copyOrderData = async (order: Order) => {
-    const text = `Pedido: ${order.id}\nCliente: ${order.customerName}\nTelefone: ${order.customerPhone}\nEndereco: ${order.address || "N/A"}\nBairro: ${order.neighborhood || "N/A"}\nReferencia: ${order.reference || "N/A"}\nItens: ${order.items}\nTotal: R$ ${order.total.toFixed(2)}\nPagamento: ${order.paymentMethod}\nStatus: ${getPaymentStatusLabel(order.paymentStatus)}`
+    const orderCode = getOrderCode(order)
+    const text = `Pedido: ${orderCode}\nCliente: ${order.customerName}\nTelefone: ${order.customerPhone}\nEndereco: ${order.address || "N/A"}\nBairro: ${order.neighborhood || "N/A"}\nReferencia: ${order.reference || "N/A"}\nItens: ${formatOrderItems(order)}\nTotal: R$ ${order.total.toFixed(2)}\nPagamento: ${order.paymentMethod}\nStatus: ${getPaymentStatusLabel(order.paymentStatus)}`
     await copyToClipboardRobust(text, () => { setCopiedOrderId(order.id); setTimeout(() => setCopiedOrderId(null), 2000) }, (t) => setManualCopyText(t))
   }
 
-  const copyTrackingLink = async (orderId: string) => {
-    const link = getOrderTrackingLink(orderId)
+  const copyTrackingLink = async (order: Order) => {
+    const orderCode = getOrderCode(order)
+    const link = getOrderTrackingLink(orderCode)
     try {
       await navigator.clipboard.writeText(link)
-      setCopiedLinkId(orderId)
+      setCopiedLinkId(order.id)
       showToast("Link copiado!")
       setTimeout(() => setCopiedLinkId(null), 2000)
     } catch { setManualCopyText(link) }
@@ -1271,13 +1274,13 @@ export default function AdminPage() {
                   <div className="space-y-3">
                     {ordersPendingPayment.map((order) => (
                       <div key={order.id} className={`p-4 rounded-xl border border-border bg-secondary/30 transition-all ${pulsingOrders.has(order.id) ? "ring-2 ring-red-500 animate-pulse" : ""}`}>
-                        <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><span className="px-3 py-1 text-xs font-medium rounded-full bg-yellow-500/20 text-yellow-400">Aguardando Pagamento</span></div>
+                        <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{getOrderCode(order)}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><span className="px-3 py-1 text-xs font-medium rounded-full bg-yellow-500/20 text-yellow-400">Aguardando Pagamento</span></div>
                         <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p><p className="text-sm text-muted-foreground">{order.customerPhone}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p><p className="text-xs text-muted-foreground">{order.paymentMethod}</p></div></div>
-                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{formatOrderItems(order)}</p></div>
                         {order.address && <div className="mb-3"><p className="text-xs text-muted-foreground">Endereco</p><p className="text-sm text-foreground">{order.address}</p></div>}
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
                           <button onClick={() => updatePaymentStatus(order.id, "confirmed", true)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Confirmar Pagamento</button>
-                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>{copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}</button>
+                          <button onClick={() => copyTrackingLink(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>{copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}</button>
                           <button onClick={() => sendTrackingLinkToCustomer(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2"><ExternalLink className="w-4 h-4" /> Enviar Link</button>
                           <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Ban className="w-4 h-4" /> Cancelar</button>
                         </div>
@@ -1294,14 +1297,14 @@ export default function AdminPage() {
                   <div className="space-y-3">
                     {ordersPaidWaiting.map((order) => (
                       <div key={order.id} className={`p-4 rounded-xl border border-border bg-secondary/30 transition-all ${pulsingOrders.has(order.id) ? "ring-2 ring-green-500 animate-pulse" : ""}`}>
-                        <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>{order.paidAt && <p className="text-xs text-green-400">Pago em: {new Date(order.paidAt).toLocaleString("pt-BR")}</p>}</div><span className="px-3 py-1 text-xs font-medium rounded-full bg-green-500/20 text-green-400">{order.confirmedAutomatically ? "PIX Auto" : order.manuallyConfirmed ? "Manual" : "Pago"}</span></div>
+                        <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{getOrderCode(order)}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>{order.paidAt && <p className="text-xs text-green-400">Pago em: {new Date(order.paidAt).toLocaleString("pt-BR")}</p>}</div><span className="px-3 py-1 text-xs font-medium rounded-full bg-green-500/20 text-green-400">{order.confirmedAutomatically ? "PIX Auto" : order.manuallyConfirmed ? "Manual" : "Pago"}</span></div>
                         <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p><p className="text-sm text-muted-foreground">{order.customerPhone}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p></div></div>
-                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{formatOrderItems(order)}</p></div>
                         {order.address && <div className="mb-3"><p className="text-xs text-muted-foreground">Endereco</p><p className="text-sm text-foreground">{order.address}</p>{order.neighborhood && <p className="text-xs text-muted-foreground">Bairro: {order.neighborhood}</p>}</div>}
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
                           <button onClick={() => updateOrderStatus(order.id, "preparing")} className="px-4 py-2 text-sm font-medium rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-all flex items-center gap-2"><ChefHat className="w-4 h-4" /> Iniciar Preparo</button>
                           <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>{copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}</button>
-                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>{copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}</button>
+                          <button onClick={() => copyTrackingLink(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>{copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}</button>
                           <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"><Phone className="w-4 h-4" /> WhatsApp</button>
                           <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Ban className="w-4 h-4" /> Cancelar</button>
                         </div>
@@ -1318,9 +1321,9 @@ export default function AdminPage() {
                   <div className="space-y-3">
                     {ordersPreparing.map((order) => (
                       <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30">
-                        <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><span className="px-3 py-1 text-xs font-medium rounded-full bg-blue-500/20 text-blue-400">Em Preparacao</span></div>
+                        <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{getOrderCode(order)}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><span className="px-3 py-1 text-xs font-medium rounded-full bg-blue-500/20 text-blue-400">Em Preparacao</span></div>
                         <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p><p className="text-sm text-muted-foreground">{order.customerPhone}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p></div></div>
-                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{formatOrderItems(order)}</p></div>
                         {order.address && <div className="mb-3"><p className="text-xs text-muted-foreground">Endereco</p><p className="text-sm text-foreground">{order.address}</p></div>}
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
                           {order.deliveryType === "entrega" ? (
@@ -1352,7 +1355,7 @@ export default function AdminPage() {
                             <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all flex items-center gap-2"><PackageCheck className="w-4 h-4" /> Finalizar (Retirada)</button>
                           )}
                           <button onClick={() => copyOrderData(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedOrderId === order.id ? "bg-green-500/20 text-green-400" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>{copiedOrderId === order.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedOrderId === order.id ? "Copiado!" : "Copiar"}</button>
-                          <button onClick={() => copyTrackingLink(order.id)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>{copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}</button>
+                          <button onClick={() => copyTrackingLink(order)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${copiedLinkId === order.id ? "bg-green-500/20 text-green-400" : "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"}`}>{copiedLinkId === order.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copiedLinkId === order.id ? "Copiado!" : "Link"}</button>
                           <button onClick={() => sendTrackingLinkToCustomer(order)} className="px-4 py-2 text-sm font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2"><ExternalLink className="w-4 h-4" /> Enviar Link</button>
                           <button onClick={() => openCustomerWhatsApp(order.customerPhone)} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"><Phone className="w-4 h-4" /> WhatsApp</button>
                           <button onClick={() => updateOrderStatus(order.id, "cancelled")} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Ban className="w-4 h-4" /> Cancelar</button>
@@ -1382,10 +1385,10 @@ export default function AdminPage() {
                       const corTempo = tempoInfo ? tempoInfo.minutos > 40 ? "border-red-500/50 bg-red-500/5" : tempoInfo.minutos > 20 ? "border-yellow-500/50 bg-yellow-500/5" : "border-border bg-secondary/30" : "border-border bg-secondary/30"
                       return (
                         <div key={order.id} className={`p-4 rounded-xl border ${corTempo}`}>
-                          <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><div className="flex items-center gap-2">{tempoInfo && <span className={`px-3 py-1 text-xs font-medium rounded-full ${tempoInfo.minutos > 40 ? "bg-red-500/20 text-red-400" : tempoInfo.minutos > 20 ? "bg-yellow-500/20 text-yellow-400" : "bg-purple-500/20 text-purple-400"}`}>{tempoInfo.texto}</span>}</div></div>
+                          <div className="flex items-start justify-between mb-3"><div><p className="font-bold text-foreground">{getOrderCode(order)}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><div className="flex items-center gap-2">{tempoInfo && <span className={`px-3 py-1 text-xs font-medium rounded-full ${tempoInfo.minutos > 40 ? "bg-red-500/20 text-red-400" : tempoInfo.minutos > 20 ? "bg-yellow-500/20 text-yellow-400" : "bg-purple-500/20 text-purple-400"}`}>{tempoInfo.texto}</span>}</div></div>
                           <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p><p className="text-sm text-muted-foreground">{order.customerPhone}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-foreground">R$ {order.total.toFixed(2)}</p></div></div>
                           {order.entregadorNome && <div className="mb-3 p-2 bg-purple-500/10 rounded-lg border border-purple-500/20"><p className="text-xs text-muted-foreground">Entregador</p><p className="text-sm text-foreground font-medium">{order.entregadorNome}</p></div>}
-                          <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                          <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{formatOrderItems(order)}</p></div>
                           {order.address && <div className="mb-3"><p className="text-xs text-muted-foreground">Endereco</p><p className="text-sm text-foreground">{order.address}</p>{order.neighborhood && <p className="text-xs text-muted-foreground">Bairro: {order.neighborhood}</p>}</div>}
                           <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
                             <button onClick={() => updateOrderStatus(order.id, "completed")} className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-2"><PackageCheck className="w-4 h-4" /> Finalizar</button>
@@ -1414,9 +1417,9 @@ export default function AdminPage() {
                   <div className="space-y-3">
                     {ordersCompleted.map((order) => (
                       <div key={order.id} className="p-4 rounded-xl border border-border bg-secondary/30 opacity-80">
-                        <div className="flex items-start gap-3 mb-3"><input type="checkbox" checked={selectedOrders.has(order.id)} onChange={() => toggleOrderSelection(order.id, "orders-completed")} className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary" /><div className="flex-1"><div className="flex items-start justify-between"><div><p className="font-bold text-foreground">{order.id}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><span className="px-3 py-1 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Finalizado</span></div></div></div>
+                        <div className="flex items-start gap-3 mb-3"><input type="checkbox" checked={selectedOrders.has(order.id)} onChange={() => toggleOrderSelection(order.id, "orders-completed")} className="w-5 h-5 mt-1 rounded border-border bg-input accent-primary" /><div className="flex-1"><div className="flex items-start justify-between"><div><p className="font-bold text-foreground">{getOrderCode(order)}</p><p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString("pt-BR")}</p></div><span className="px-3 py-1 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Finalizado</span></div></div></div>
                         <div className="grid sm:grid-cols-2 gap-4 mb-3"><div><p className="text-xs text-muted-foreground">Cliente</p><p className="text-sm text-foreground">{order.customerName}</p></div><div><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold text-green-400">R$ {order.total.toFixed(2)}</p></div></div>
-                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{order.items}</p></div>
+                        <div className="mb-3"><p className="text-xs text-muted-foreground">Itens</p><p className="text-sm text-foreground">{formatOrderItems(order)}</p></div>
                         <div className="flex flex-wrap gap-2 pt-3 border-t border-border"><button onClick={() => setShowDeleteConfirm(order.id)} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-2"><Trash2 className="w-4 h-4" /> Excluir</button></div>
                       </div>
                     ))}

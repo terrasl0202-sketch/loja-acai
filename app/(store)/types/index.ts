@@ -51,7 +51,8 @@ export interface PixData {
 
 export interface CustomerOrder {
   id: string
-  items: string
+  orderCode?: string
+  items: string | Array<{ productName?: string; name?: string; quantity?: number; price?: number; subtotal?: number }>
   itemsDetailed?: {
     productId: number
     productName: string
@@ -60,10 +61,10 @@ export interface CustomerOrder {
   }[]
   total: number
   status: string
-  paymentStatus: string
+  paymentStatus?: string
   paymentMethod?: string
   createdAt: string
-  deliveryType: string
+  deliveryType?: string
   address?: string
   neighborhood?: string
 }
