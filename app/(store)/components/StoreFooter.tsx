@@ -22,7 +22,7 @@ export function StoreFooter() {
       <footer className="border-t border-border mt-8 pb-24">
         <div className="max-w-lg mx-auto px-4 py-8 text-center">
           <p className="text-xs text-muted-foreground">
-            {currentYear} Acai da Terra
+            {currentYear} Carregando...
           </p>
         </div>
       </footer>
@@ -74,7 +74,7 @@ export function StoreFooter() {
         {/* Copyright */}
         <div className="text-center pt-4 border-t border-border/50">
           <p className="text-xs text-muted-foreground">
-            {currentYear} {storeName || 'Acai da Terra'}. Todos os direitos reservados.
+            {currentYear} {storeName || 'Delivery'}. Todos os direitos reservados.
           </p>
           <p className="text-[10px] text-muted-foreground/60 mt-2 tracking-wider">
             DEVELOPED BY <span className="font-semibold text-foreground/50">AILTON</span>

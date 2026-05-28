@@ -11,7 +11,7 @@ const poppins = Poppins({
 
 // Metadados estaticos - nome da loja eh carregado dinamicamente nos componentes
 export const metadata: Metadata = {
-  title: 'Acai da Terra | Delivery de Acai Premium',
+  title: 'Delivery de Acai Premium',
   description: 'Peca o melhor acai da cidade! Cremoso, fresquinho e com entrega rapida.',
   keywords: ['acai', 'delivery', 'acai cremoso', 'acai delivery'],
   generator: 'v0.app',
@@ -33,9 +33,9 @@ export const metadata: Metadata = {
     apple: '/apple-icon.png',
   },
   openGraph: {
-    title: 'Acai da Terra | Delivery de Acai Premium',
+    title: 'Delivery de Acai Premium',
     description: 'Peca o melhor acai da cidade! Cremoso, fresquinho e com entrega rapida.',
-    siteName: 'Acai da Terra',
+    siteName: 'Delivery',
     type: 'website',
   },
 }

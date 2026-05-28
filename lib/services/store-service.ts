@@ -46,14 +46,46 @@ class StoreService {
   
   /**
    * Carrega as configuracoes da loja
-   * Fonte unica de verdade: localStorage pk-store-status
+   * Fonte unica de verdade: SUPABASE via /api/store-settings
    */
   async getSettings(): Promise<StoreSettings> {
     try {
-      const saved = await storage.get<StoreSettings>(STORAGE_KEYS.STORE_STATUS)
+      // Buscar do Supabase via API
+      const response = await fetch('/api/store-settings', { cache: 'no-store' })
+      const data = await response.json()
       
+      if (data.success && data.settings) {
+        const s = data.settings
+        
+        // Converter formato da API para StoreSettings
+        const settings: StoreSettings = {
+          storeName: s.storeName || DEFAULT_STORE_SETTINGS.storeName,
+          subtitle: s.subtitle || DEFAULT_STORE_SETTINGS.subtitle,
+          slogan: s.slogan || DEFAULT_STORE_SETTINGS.slogan,
+          storeOpen: s.storeOpen ?? DEFAULT_STORE_SETTINGS.storeOpen,
+          manualControl: s.manualControl ?? DEFAULT_STORE_SETTINGS.manualControl,
+          openTime: s.openTime || s.storeHours?.openTime || DEFAULT_STORE_SETTINGS.openTime,
+          closeTime: s.closeTime || s.storeHours?.closeTime || DEFAULT_STORE_SETTINGS.closeTime,
+          closedMessage: s.closedMessage || s.storeHours?.closedMessage || DEFAULT_STORE_SETTINGS.closedMessage,
+          whatsapp: s.whatsappConfig?.number || s.whatsapp || DEFAULT_STORE_SETTINGS.whatsapp,
+          instagram: s.instagram || DEFAULT_STORE_SETTINGS.instagram,
+          address: s.address || DEFAULT_STORE_SETTINGS.address,
+          deliveryEnabled: s.delivery?.enabled ?? DEFAULT_STORE_SETTINGS.deliveryEnabled,
+          pickupEnabled: s.delivery?.pickupEnabled ?? DEFAULT_STORE_SETTINGS.pickupEnabled,
+          minOrderValue: s.delivery?.minimumOrder ?? DEFAULT_STORE_SETTINGS.minOrderValue,
+          pixEnabled: s.payment?.pixManualEnabled ?? DEFAULT_STORE_SETTINGS.pixEnabled,
+          cardEnabled: s.payment?.cardEnabled ?? DEFAULT_STORE_SETTINGS.cardEnabled,
+          cashEnabled: s.payment?.cashEnabled ?? DEFAULT_STORE_SETTINGS.cashEnabled,
+          updatedAt: s.updatedAt || new Date().toISOString(),
+        }
+        
+        this.cachedSettings = settings
+        return settings
+      }
+      
+      // Fallback para localStorage se API falhar
+      const saved = await storage.get<StoreSettings>(STORAGE_KEYS.STORE_STATUS)
       if (saved) {
-        // Merge com defaults para garantir todos os campos
         this.cachedSettings = { ...DEFAULT_STORE_SETTINGS, ...saved }
         return this.cachedSettings
       }
@@ -61,13 +93,25 @@ class StoreService {
       return DEFAULT_STORE_SETTINGS
     } catch (error) {
       console.error('[StoreService] Erro ao carregar settings:', error)
+      
+      // Fallback para localStorage em caso de erro
+      try {
+        const saved = await storage.get<StoreSettings>(STORAGE_KEYS.STORE_STATUS)
+        if (saved) {
+          this.cachedSettings = { ...DEFAULT_STORE_SETTINGS, ...saved }
+          return this.cachedSettings
+        }
+      } catch {
+        // Ignora erro do fallback
+      }
+      
       return DEFAULT_STORE_SETTINGS
     }
   }
   
   /**
    * Salva as configuracoes da loja
-   * Atualiza localStorage e notifica listeners
+   * Salva no SUPABASE via /api/store-settings
    */
   async saveSettings(partial: Partial<StoreSettings>): Promise<StoreSettings> {
     try {
@@ -79,6 +123,32 @@ class StoreService {
         updatedAt: new Date().toISOString()
       }
       
+      // Salvar no Supabase via API
+      const response = await fetch('/api/store-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          store_name: updated.storeName,
+          subtitle: updated.subtitle,
+          slogan: updated.slogan,
+          store_open: updated.storeOpen,
+          manual_control: updated.manualControl,
+          open_time: updated.openTime,
+          close_time: updated.closeTime,
+          closed_message: updated.closedMessage,
+          whatsapp: updated.whatsapp,
+          instagram: updated.instagram,
+          address: updated.address,
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Erro ao salvar no Supabase')
+      }
+      
+      // Tambem salva no localStorage como cache
       await storage.set(STORAGE_KEYS.STORE_STATUS, updated)
       
       this.cachedSettings = updated
@@ -179,18 +249,47 @@ class StoreService {
   
   /**
    * Inicia polling para detectar mudancas externas
-   * Util quando admin e storefront estao em abas diferentes
+   * Busca do Supabase periodicamente
    */
-  startPolling(intervalMs: number = 2000): void {
+  startPolling(intervalMs: number = 30000): void {
     if (this.pollInterval) return
     
     this.pollInterval = setInterval(async () => {
-      const settings = await this.getSettings()
-      
-      // Verifica se mudou
-      if (JSON.stringify(settings) !== JSON.stringify(this.cachedSettings)) {
-        this.cachedSettings = settings
-        this.notifyListeners(settings)
+      try {
+        const response = await fetch('/api/store-settings', { cache: 'no-store' })
+        const data = await response.json()
+        
+        if (data.success && data.settings) {
+          const s = data.settings
+          const settings: StoreSettings = {
+            storeName: s.storeName || DEFAULT_STORE_SETTINGS.storeName,
+            subtitle: s.subtitle || DEFAULT_STORE_SETTINGS.subtitle,
+            slogan: s.slogan || DEFAULT_STORE_SETTINGS.slogan,
+            storeOpen: s.storeOpen ?? DEFAULT_STORE_SETTINGS.storeOpen,
+            manualControl: s.manualControl ?? DEFAULT_STORE_SETTINGS.manualControl,
+            openTime: s.openTime || s.storeHours?.openTime || DEFAULT_STORE_SETTINGS.openTime,
+            closeTime: s.closeTime || s.storeHours?.closeTime || DEFAULT_STORE_SETTINGS.closeTime,
+            closedMessage: s.closedMessage || s.storeHours?.closedMessage || DEFAULT_STORE_SETTINGS.closedMessage,
+            whatsapp: s.whatsappConfig?.number || s.whatsapp || DEFAULT_STORE_SETTINGS.whatsapp,
+            instagram: s.instagram || DEFAULT_STORE_SETTINGS.instagram,
+            address: s.address || DEFAULT_STORE_SETTINGS.address,
+            deliveryEnabled: s.delivery?.enabled ?? DEFAULT_STORE_SETTINGS.deliveryEnabled,
+            pickupEnabled: s.delivery?.pickupEnabled ?? DEFAULT_STORE_SETTINGS.pickupEnabled,
+            minOrderValue: s.delivery?.minimumOrder ?? DEFAULT_STORE_SETTINGS.minOrderValue,
+            pixEnabled: s.payment?.pixManualEnabled ?? DEFAULT_STORE_SETTINGS.pixEnabled,
+            cardEnabled: s.payment?.cardEnabled ?? DEFAULT_STORE_SETTINGS.cardEnabled,
+            cashEnabled: s.payment?.cashEnabled ?? DEFAULT_STORE_SETTINGS.cashEnabled,
+            updatedAt: s.updatedAt || new Date().toISOString(),
+          }
+          
+          // Verifica se mudou
+          if (JSON.stringify(settings) !== JSON.stringify(this.cachedSettings)) {
+            this.cachedSettings = settings
+            this.notifyListeners(settings)
+          }
+        }
+      } catch (error) {
+        console.error('[StoreService] Erro no polling:', error)
       }
     }, intervalMs)
   }
