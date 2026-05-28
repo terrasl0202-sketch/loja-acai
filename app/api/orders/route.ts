@@ -24,131 +24,94 @@ const noCacheHeaders = {
 
 // ============ MAPPERS FRONTEND <-> DB ============
 
+// Interface minima para leitura do banco
 interface DbOrder {
   id: string
   order_code: string | null
   customer_name: string
-  customer_phone: string
-  customer_address: string | null
-  customer_number: string | null
-  customer_reference: string | null
+  customer_phone: string | null
+  address: string | null
   neighborhood: string | null
-  delivery_type: string
-  payment_method: string
+  payment_method: string | null
   items: unknown
-  items_text: string | null
-  items_detailed: unknown
-  subtotal: number
-  delivery_fee: number
-  discount: number
   total: number
   status: string
-  payment_status: string
-  is_pix_automatic: boolean
-  manually_confirmed: boolean
-  confirmed_automatically: boolean
-  entregador_id: string | null
-  entregador_nome: string | null
-  entregador_whatsapp: string | null
-  saiu_para_entrega_em: string | null
-  entregue_em: string | null
-  cancelado_em: string | null
-  motivo_cancelamento: string | null
-  historico_entrega: unknown
-  customer_id: string | null
-  confirmed_at: string | null
-  paid_at: string | null
-  observation: string | null
-  asaas_payment_id: string | null
-  asaas_pix_code: string | null
-  asaas_qr_code_url: string | null
-  notes: string | null
-  pix_id: string | null
-  pix_status: string | null
   created_at: string
-  updated_at: string
 }
 
 function dbToFrontend(db: DbOrder): Order {
   return {
     id: db.id,
-    orderCode: db.order_code || db.id, // Codigo publico
+    orderCode: db.order_code || db.id,
     customerName: db.customer_name,
-    customerPhone: db.customer_phone,
-    customerId: db.customer_id || undefined,
-    items: db.items_text || JSON.stringify(db.items || []),
-    itemsDetailed: Array.isArray(db.items_detailed) ? db.items_detailed as Order['itemsDetailed'] : [],
+    customerPhone: db.customer_phone || '',
+    items: JSON.stringify(db.items || []),
+    itemsDetailed: Array.isArray(db.items) ? db.items as Order['itemsDetailed'] : [],
     total: Number(db.total),
-    paymentMethod: db.payment_method,
-    deliveryType: db.delivery_type,
-    address: db.customer_address || undefined,
+    paymentMethod: db.payment_method || 'Dinheiro',
+    deliveryType: 'delivery',
+    address: db.address || undefined,
     neighborhood: db.neighborhood || undefined,
-    reference: db.customer_reference || undefined,
-    observation: db.observation || undefined,
-    status: db.status as Order['status'],
-    paymentStatus: (db.payment_status || 'pending') as Order['paymentStatus'],
+    status: (db.status || 'pending') as Order['status'],
+    paymentStatus: 'pending',
     createdAt: db.created_at,
-    confirmedAt: db.confirmed_at || undefined,
-    paidAt: db.paid_at || undefined,
-    asaasPaymentId: db.asaas_payment_id || undefined,
-    asaasPixCode: db.asaas_pix_code || undefined,
-    asaasQrCodeUrl: db.asaas_qr_code_url || undefined,
-  isPixAutomatic: db.is_pix_automatic,
-  manuallyConfirmed: db.manually_confirmed,
-  confirmedAutomatically: db.confirmed_automatically,
-  entregadorId: db.entregador_id || undefined,
-    entregadorNome: db.entregador_nome || undefined,
-    entregadorWhatsapp: db.entregador_whatsapp || undefined,
-    saiuParaEntregaEm: db.saiu_para_entrega_em || undefined,
-    entregueEm: db.entregue_em || undefined,
-    canceladoEm: db.cancelado_em || undefined,
-    motivoCancelamento: db.motivo_cancelamento || undefined,
-    historicoEntrega: Array.isArray(db.historico_entrega) ? db.historico_entrega as Order['historicoEntrega'] : [],
   }
 }
 
-// ============ WHITELIST DE COLUNAS PERMITIDAS ============
-// Apenas colunas que CERTAMENTE existem na tabela orders do Supabase
+// ============ WHITELIST DE COLUNAS REAIS ============
+// A tabela orders PRECISA ser criada no Supabase com este SQL:
+/*
+CREATE TABLE orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_code TEXT,
+  customer_name TEXT NOT NULL,
+  customer_phone TEXT,
+  address TEXT,
+  neighborhood TEXT,
+  payment_method TEXT,
+  items JSONB DEFAULT '[]',
+  total DECIMAL(10,2) NOT NULL DEFAULT 0,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_orders_order_code ON orders(order_code);
+CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
+*/
+
+// Apenas estas 11 colunas sao enviadas no insert
 const ALLOWED_COLUMNS = [
   'id',
   'order_code',
   'customer_name',
   'customer_phone',
-  'customer_address',
+  'address',
   'neighborhood',
-  'delivery_type',
   'payment_method',
-  'items_detailed',
+  'items',
   'total',
   'status',
-  'payment_status',
-  'observation',
-  'notes',
   'created_at',
 ] as const
 
 function frontendToDb(order: Order): Record<string, unknown> {
-  // Montar objeto APENAS com campos da whitelist
-  // NAO usar spread, NAO adicionar campos dinamicos
+  // APENAS colunas da whitelist - nenhum campo adicional
   const dbOrder: Record<string, unknown> = {
     id: order.id,
     order_code: order.orderCode || order.id,
     customer_name: order.customerName || 'Cliente',
     customer_phone: order.customerPhone || '',
-    customer_address: order.address || null,
+    address: order.address || null,
     neighborhood: order.neighborhood || null,
-    delivery_type: order.deliveryType || 'delivery',
     payment_method: order.paymentMethod || 'Dinheiro',
-    items_detailed: order.itemsDetailed || [],
+    items: order.itemsDetailed || [],
     total: order.total || 0,
     status: order.status || 'pending',
-    payment_status: order.paymentStatus || 'pending',
-    observation: order.observation || null,
-    notes: null,
     created_at: new Date().toISOString(),
   }
   
-  // Remover campos undefined (Supabase nao aceita undefined)
+  // Filtrar apenas colunas permitidas
   const cleanOrder: Record<string, unknown> = {}
   for (const key of ALLOWED_COLUMNS) {
     if (dbOrder[key] !== undefined) {
@@ -156,7 +119,7 @@ function frontendToDb(order: Order): Record<string, unknown> {
     }
   }
   
-  console.log("[orders] Campos enviados:", Object.keys(cleanOrder).join(', '))
+  console.log("[orders] INSERT colunas:", Object.keys(cleanOrder).join(', '))
   
   return cleanOrder
 }
@@ -284,7 +247,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { password, orderId, status, paymentStatus, manuallyConfirmed, entregadorId, entregadorNome, entregadorWhatsapp, historicoEntrega, limparEntregador } = body
+    const { password, orderId, status } = body
 
     if (password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -294,73 +257,26 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "orderId required" }, { status: 400 })
     }
 
-    console.log("[orders PATCH] Atualizando pedido:", orderId, { status, paymentStatus, manuallyConfirmed })
+    console.log("[orders PATCH] Atualizando pedido:", orderId, { status })
 
     const supabase = getSupabase()
       
-    // Buscar pedido atual
-    const { data: currentOrder, error: fetchError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('id', orderId)
-        .single()
-
-      if (fetchError || !currentOrder) {
-        console.error("[orders PATCH] Pedido nao encontrado no Supabase:", orderId)
-        throw new Error('Pedido nao encontrado')
-      }
-
-      // Preparar atualizacoes
-      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
-
-      if (status !== undefined) {
-        updates.status = status
-        if (status === "delivering") {
-          updates.saiu_para_entrega_em = new Date().toISOString()
-        }
-      }
-
-      if (paymentStatus !== undefined) {
-        // Nunca regredir de confirmed para pending
-        if (currentOrder.payment_status === "confirmed" && paymentStatus === "pending") {
-          console.log("[orders PATCH] Impedida regressao de payment_status")
-        } else {
-          updates.payment_status = paymentStatus
-          if (paymentStatus === "confirmed") {
-            updates.confirmed_at = new Date().toISOString()
-          }
-        }
-      }
-
-      if (manuallyConfirmed !== undefined) {
-        updates.manually_confirmed = manuallyConfirmed
-        if (manuallyConfirmed) {
-          updates.payment_status = "confirmed"
-          updates.status = "confirmed"
-          updates.confirmed_at = new Date().toISOString()
-          updates.paid_at = new Date().toISOString()
-      }
+    // Apenas atualizar status (unica coluna garantida)
+    const updates: Record<string, unknown> = {}
+    if (status !== undefined) {
+      updates.status = status
     }
 
-    if (entregadorId !== undefined) updates.entregador_id = entregadorId
-      if (entregadorNome !== undefined) updates.entregador_nome = entregadorNome
-      if (entregadorWhatsapp !== undefined) updates.entregador_whatsapp = entregadorWhatsapp
-      if (historicoEntrega !== undefined) updates.historico_entrega = historicoEntrega
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "Nenhum campo para atualizar" }, { status: 400 })
+    }
 
-      if (limparEntregador === true) {
-        updates.entregador_id = null
-        updates.entregador_nome = null
-        updates.entregador_whatsapp = null
-        updates.saiu_para_entrega_em = null
-      }
-
-      // Atualizar no Supabase
-      const { data: updated, error: updateError } = await supabase
-        .from('orders')
-        .update(updates)
-        .eq('id', orderId)
-        .select()
-        .single()
+    const { data: updated, error: updateError } = await supabase
+      .from('orders')
+      .update(updates)
+      .eq('id', orderId)
+      .select()
+      .single()
 
     if (updateError) {
       console.error("[orders PATCH] Erro update:", updateError.message)
@@ -368,7 +284,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const order = dbToFrontend(updated)
-    console.log("[orders PATCH] Pedido atualizado no Supabase:", orderId)
+    console.log("[orders PATCH] Pedido atualizado:", orderId)
       
     return NextResponse.json({ success: true, order, source: 'supabase' })
 
