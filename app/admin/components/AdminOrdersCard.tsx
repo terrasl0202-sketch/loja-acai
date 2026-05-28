@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ShoppingBag, Search, Trash2, Calendar, ChevronRight, ChevronDown, ClockIcon, CheckCircle2, ChefHat, Truck, PackageCheck, Ban, AlertCircle, FolderArchive } from "lucide-react"
+import { ShoppingBag, Search, Trash2, Calendar, ChevronRight, ChevronDown, ClockIcon, CheckCircle2, ChefHat, Truck, PackageCheck, Ban, AlertCircle, FolderArchive, Link2, Send, MessageCircle, X, Loader2 } from "lucide-react"
 import type { Order } from "@/lib/config-types"
 
 type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
@@ -25,21 +25,32 @@ interface AdminOrdersCardProps {
   onSearch: () => void
   onClearSearch: () => void
   onTabChange: (tab: TabType) => void
+  // Callbacks de acoes
+  onConfirmPayment?: (order: Order) => void
+  onStartPreparing?: (order: Order) => void
+  onStartDelivery?: (order: Order) => void
+  onFinishOrder?: (order: Order) => void
+  onCancelOrder?: (order: Order) => void
+  onCopyLink?: (order: Order) => void
+  onSendLink?: (order: Order) => void
+  onWhatsApp?: (order: Order) => void
+  onRefresh?: () => void
+  formatOrderItems?: (order: Order) => string
+  getOrderCode?: (order: Order) => string
 }
 
 const statusItems = [
-  { id: "orders-pending" as TabType, icon: ClockIcon, label: "Aguardando Pagamento", color: "text-yellow-500", bgBadge: "bg-yellow-500/20 text-yellow-400" },
-  { id: "orders-paid" as TabType, icon: CheckCircle2, label: "Aguardando Preparo", color: "text-green-500", bgBadge: "bg-green-500/20 text-green-400" },
-  { id: "orders-preparing" as TabType, icon: ChefHat, label: "Em Preparacao", color: "text-blue-500", bgBadge: "bg-blue-500/20 text-blue-400" },
-  { id: "orders-delivering" as TabType, icon: Truck, label: "Saiu p/ Entrega", color: "text-purple-500", bgBadge: "bg-purple-500/20 text-purple-400" },
-  { id: "orders-completed" as TabType, icon: PackageCheck, label: "Finalizados", color: "text-emerald-500", bgBadge: "bg-emerald-500/20 text-emerald-400" },
-  { id: "orders-cancelled" as TabType, icon: Ban, label: "Cancelados", color: "text-red-500", bgBadge: "bg-red-500/20 text-red-400" },
-  { id: "orders-abandoned" as TabType, icon: AlertCircle, label: "Abandonados", color: "text-orange-500", bgBadge: "bg-orange-500/20 text-orange-400" },
-  { id: "orders-archived" as TabType, icon: FolderArchive, label: "Arquivados", color: "text-slate-400", bgBadge: "bg-slate-500/20 text-slate-400" },
+  { id: "orders-pending" as TabType, icon: ClockIcon, label: "Aguardando Pagamento", color: "text-yellow-500", bgBadge: "bg-yellow-500/20 text-yellow-400", statusLabel: "Aguardando Pagamento" },
+  { id: "orders-paid" as TabType, icon: CheckCircle2, label: "Aguardando Preparo", color: "text-green-500", bgBadge: "bg-green-500/20 text-green-400", statusLabel: "Pago - Aguardando Preparo" },
+  { id: "orders-preparing" as TabType, icon: ChefHat, label: "Em Preparacao", color: "text-blue-500", bgBadge: "bg-blue-500/20 text-blue-400", statusLabel: "Em Preparacao" },
+  { id: "orders-delivering" as TabType, icon: Truck, label: "Saiu p/ Entrega", color: "text-purple-500", bgBadge: "bg-purple-500/20 text-purple-400", statusLabel: "Saiu para Entrega" },
+  { id: "orders-completed" as TabType, icon: PackageCheck, label: "Finalizados", color: "text-emerald-500", bgBadge: "bg-emerald-500/20 text-emerald-400", statusLabel: "Finalizado" },
+  { id: "orders-cancelled" as TabType, icon: Ban, label: "Cancelados", color: "text-red-500", bgBadge: "bg-red-500/20 text-red-400", statusLabel: "Cancelado" },
+  { id: "orders-abandoned" as TabType, icon: AlertCircle, label: "Abandonados", color: "text-orange-500", bgBadge: "bg-orange-500/20 text-orange-400", statusLabel: "Abandonado" },
+  { id: "orders-archived" as TabType, icon: FolderArchive, label: "Arquivados", color: "text-slate-400", bgBadge: "bg-slate-500/20 text-slate-400", statusLabel: "Arquivado" },
 ]
 
 export function AdminOrdersCard({
-  activeTab,
   searchInput,
   dateFilter,
   searchQuery,
@@ -57,8 +68,18 @@ export function AdminOrdersCard({
   onSearch,
   onClearSearch,
   onTabChange,
+  onConfirmPayment,
+  onStartPreparing,
+  onStartDelivery,
+  onFinishOrder,
+  onCancelOrder,
+  onCopyLink,
+  onSendLink,
+  onWhatsApp,
+  onRefresh,
+  formatOrderItems,
+  getOrderCode,
 }: AdminOrdersCardProps) {
-  // Estado para controlar qual aba esta expandida (submenu)
   const [expandedTab, setExpandedTab] = useState<TabType | null>(null)
 
   const getBadgeCount = (id: TabType): number => {
@@ -90,22 +111,32 @@ export function AdminOrdersCard({
   }
 
   const handleTabClick = (tabId: TabType) => {
-    // Toggle expandir/recolher
     if (expandedTab === tabId) {
       setExpandedTab(null)
     } else {
       setExpandedTab(tabId)
-      onTabChange(tabId) // Tambem atualiza a aba ativa para detalhes
+      onTabChange(tabId)
     }
   }
 
-  const formatOrderCode = (order: Order): string => {
+  const formatCode = (order: Order): string => {
+    if (getOrderCode) return getOrderCode(order)
     return order.orderCode || order.id?.toString().slice(-8) || 'N/A'
+  }
+
+  const formatItems = (order: Order): string => {
+    if (formatOrderItems) return formatOrderItems(order)
+    // items e sempre string conforme o tipo Order
+    return order.items || 'Sem itens'
+  }
+
+  const isDelivery = (order: Order): boolean => {
+    return order.deliveryType === "entrega" || (order.address !== undefined && order.address !== null && !order.address.includes("Retirada"))
   }
 
   return (
     <div className="bg-[#12121c]/80 backdrop-blur-sm rounded-2xl border border-white/5 overflow-hidden shadow-2xl">
-      {/* Header do bloco Pedidos */}
+      {/* Header */}
       <div className="p-4 flex items-center justify-between border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center">
@@ -116,7 +147,11 @@ export function AdminOrdersCard({
             <p className="text-[10px] text-gray-500">Clique para expandir</p>
           </div>
         </div>
-        <span className="text-xs text-gray-500">Toque para ver lista</span>
+        {onRefresh && (
+          <button onClick={onRefresh} className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 text-purple-400 font-medium text-xs rounded-xl hover:bg-purple-600/30 transition-all">
+            <Loader2 className="w-3 h-3" /> Atualizar
+          </button>
+        )}
       </div>
 
       {/* Busca e Filtros */}
@@ -133,21 +168,14 @@ export function AdminOrdersCard({
               className="w-full pl-10 pr-4 py-2.5 text-sm bg-[#1a1a2e] border border-white/5 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500/50"
             />
           </div>
-          <button
-            onClick={onSearch}
-            className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white font-medium text-sm rounded-xl hover:bg-purple-500 transition-all"
-          >
+          <button onClick={onSearch} className="px-4 py-2.5 bg-purple-600 text-white text-sm rounded-xl hover:bg-purple-500 transition-all">
             <Search className="w-4 h-4" />
           </button>
-          <button
-            onClick={onClearSearch}
-            className="flex items-center gap-2 px-3 py-2.5 bg-[#1a1a2e] text-gray-300 font-medium text-sm rounded-xl hover:bg-[#252538] transition-all border border-white/5"
-          >
+          <button onClick={onClearSearch} className="px-3 py-2.5 bg-[#1a1a2e] text-gray-300 text-sm rounded-xl hover:bg-[#252538] border border-white/5">
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Filtro por periodo */}
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-gray-500" />
           <select
@@ -164,12 +192,12 @@ export function AdminOrdersCard({
         </div>
         {searchQuery && (
           <p className="text-xs text-center text-gray-500">
-            {activeOrdersCount > 0 ? `${activeOrdersCount} pedido(s) encontrado(s)` : "Nenhum pedido encontrado"}
+            {activeOrdersCount > 0 ? `${activeOrdersCount} pedido(s)` : "Nenhum pedido"}
           </p>
         )}
       </div>
 
-      {/* Status dos Pedidos - MENU EXPANSIVEL */}
+      {/* Menu Expansivel */}
       <div className="p-2">
         {statusItems.map((tab) => {
           const isExpanded = expandedTab === tab.id
@@ -178,13 +206,10 @@ export function AdminOrdersCard({
           
           return (
             <div key={tab.id} className="mb-1">
-              {/* Botao da Aba */}
               <button
                 onClick={() => handleTabClick(tab.id)}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
-                  isExpanded
-                    ? "bg-primary/20 border border-primary/30"
-                    : "hover:bg-white/5"
+                  isExpanded ? "bg-primary/20 border border-primary/30" : "hover:bg-white/5"
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -192,50 +217,133 @@ export function AdminOrdersCard({
                   <span className="text-white font-medium text-sm">{tab.label}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${tab.bgBadge}`}>
-                    {count}
-                  </span>
-                  {isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                  )}
+                  <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${tab.bgBadge}`}>{count}</span>
+                  {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
                 </div>
               </button>
               
-              {/* Lista de Pedidos Expandida */}
+              {/* Cards Completos Expandidos */}
               {isExpanded && (
-                <div className="mt-1 ml-2 mr-2 mb-2 p-2 bg-[#1a1a2e]/50 rounded-xl border border-white/5 max-h-[300px] overflow-y-auto">
+                <div className="mt-2 space-y-3 max-h-[600px] overflow-y-auto p-2">
                   {orders.length === 0 ? (
-                    <p className="text-xs text-center text-gray-500 py-4">Nenhum pedido</p>
+                    <p className="text-xs text-center text-gray-500 py-8">Nenhum pedido nesta categoria</p>
                   ) : (
-                    <div className="space-y-2">
-                      {orders.slice(0, 10).map((order) => (
-                        <div
-                          key={order.id}
-                          onClick={() => onTabChange(tab.id)}
-                          className="p-3 bg-[#12121c] rounded-lg border border-white/5 cursor-pointer hover:border-primary/30 transition-all"
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-mono text-primary">#{formatOrderCode(order).slice(-8).toUpperCase()}</span>
-                            <span className="text-[10px] text-gray-500">
-                              {new Date(order.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                            </span>
+                    orders.map((order) => (
+                      <div key={order.id} className="p-4 bg-[#1a1a2e] rounded-xl border border-white/10">
+                        {/* Header do Card */}
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="font-bold text-white text-sm">{formatCode(order)}</p>
+                            <p className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleString("pt-BR")}</p>
                           </div>
-                          <p className="text-sm text-white font-medium truncate">{order.customerName}</p>
-                          <p className="text-xs text-gray-400 truncate">{order.customerPhone}</p>
-                          <div className="flex items-center justify-between mt-2">
-                            <span className="text-xs text-emerald-400 font-bold">R$ {order.total?.toFixed(2)}</span>
-                            <span className="text-[10px] text-gray-500">{order.paymentMethod}</span>
+                          <span className={`px-2.5 py-1 text-[10px] font-medium rounded-full ${tab.bgBadge}`}>
+                            {tab.statusLabel}
+                          </span>
+                        </div>
+
+                        {/* Info do Cliente */}
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <p className="text-[10px] text-gray-500">Cliente</p>
+                            <p className="text-sm text-white">{order.customerName}</p>
+                            <p className="text-xs text-gray-400">{order.customerPhone}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-500">Total</p>
+                            <p className="text-lg font-bold text-emerald-400">R$ {order.total?.toFixed(2)}</p>
+                            <p className="text-[10px] text-gray-500">{order.paymentMethod}</p>
                           </div>
                         </div>
-                      ))}
-                      {orders.length > 10 && (
-                        <p className="text-xs text-center text-primary py-2 cursor-pointer hover:underline" onClick={() => onTabChange(tab.id)}>
-                          Ver todos os {orders.length} pedidos
-                        </p>
-                      )}
-                    </div>
+
+                        {/* Itens */}
+                        <div className="mb-3">
+                          <p className="text-[10px] text-gray-500">Itens</p>
+                          <p className="text-xs text-white">{formatItems(order)}</p>
+                        </div>
+
+                        {/* Endereco */}
+                        {order.address && (
+                          <div className="mb-3">
+                            <p className="text-[10px] text-gray-500">Endereco</p>
+                            <p className="text-xs text-white">{order.address}</p>
+                            {order.neighborhood && <p className="text-[10px] text-gray-500">Bairro: {order.neighborhood}</p>}
+                          </div>
+                        )}
+
+                        {/* Tipo de Entrega */}
+                        <div className="mb-3">
+                          <span className={`px-2 py-1 text-[10px] rounded-lg ${isDelivery(order) ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                            {isDelivery(order) ? 'Entrega' : 'Retirada'}
+                          </span>
+                        </div>
+
+                        {/* Botoes de Acao */}
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-white/5">
+                          {/* Link / Enviar Link / WhatsApp */}
+                          {onCopyLink && (
+                            <button onClick={() => onCopyLink(order)} className="flex items-center gap-1 px-3 py-2 text-xs bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/30">
+                              <Link2 className="w-3 h-3" /> Link
+                            </button>
+                          )}
+                          {onSendLink && (
+                            <button onClick={() => onSendLink(order)} className="flex items-center gap-1 px-3 py-2 text-xs bg-green-600/20 text-green-400 rounded-lg hover:bg-green-600/30">
+                              <Send className="w-3 h-3" /> Enviar
+                            </button>
+                          )}
+                          {onWhatsApp && (
+                            <button onClick={() => onWhatsApp(order)} className="flex items-center gap-1 px-3 py-2 text-xs bg-emerald-600/20 text-emerald-400 rounded-lg hover:bg-emerald-600/30">
+                              <MessageCircle className="w-3 h-3" /> WhatsApp
+                            </button>
+                          )}
+
+                          {/* Acoes por Status */}
+                          {tab.id === "orders-pending" && onConfirmPayment && (
+                            <button onClick={() => onConfirmPayment(order)} className="flex items-center gap-1 px-3 py-2 text-xs bg-green-600 text-white rounded-lg hover:bg-green-500">
+                              <CheckCircle2 className="w-3 h-3" /> Confirmar Pagamento
+                            </button>
+                          )}
+
+                          {tab.id === "orders-paid" && onStartPreparing && (
+                            <button onClick={() => onStartPreparing(order)} className="flex items-center gap-1 px-3 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-500">
+                              <ChefHat className="w-3 h-3" /> Iniciar Preparo
+                            </button>
+                          )}
+
+                          {tab.id === "orders-preparing" && (
+                            <>
+                              {isDelivery(order) ? (
+                                // ENTREGA - mostrar "Saiu para Entrega"
+                                onStartDelivery && (
+                                  <button onClick={() => onStartDelivery(order)} className="flex items-center gap-1 px-3 py-2 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-500">
+                                    <Truck className="w-3 h-3" /> Saiu para Entrega
+                                  </button>
+                                )
+                              ) : (
+                                // RETIRADA - mostrar "Finalizar Retirada"
+                                onFinishOrder && (
+                                  <button onClick={() => onFinishOrder(order)} className="flex items-center gap-1 px-3 py-2 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-500">
+                                    <PackageCheck className="w-3 h-3" /> Finalizar Retirada
+                                  </button>
+                                )
+                              )}
+                            </>
+                          )}
+
+                          {tab.id === "orders-delivering" && onFinishOrder && (
+                            <button onClick={() => onFinishOrder(order)} className="flex items-center gap-1 px-3 py-2 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-500">
+                              <PackageCheck className="w-3 h-3" /> Finalizar Entrega
+                            </button>
+                          )}
+
+                          {/* Cancelar */}
+                          {onCancelOrder && !["orders-completed", "orders-cancelled", "orders-archived"].includes(tab.id) && (
+                            <button onClick={() => onCancelOrder(order)} className="flex items-center gap-1 px-3 py-2 text-xs bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30">
+                              <X className="w-3 h-3" /> Cancelar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               )}
