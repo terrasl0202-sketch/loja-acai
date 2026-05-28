@@ -1571,7 +1571,7 @@ https://www.pkgostosuras.shop/pedido/${orderId}
     // Registrar pedido
     await registerOrder("PIX Asaas")
 
-    const whatsappUrl = `https://api.whatsapp.com/send?phone=5511918505799&text=${encodeURIComponent(message)}`
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")
     
     // Resetar loja apos enviar para WhatsApp
@@ -1612,7 +1612,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
     // Registrar pedido
     await registerOrder("PIX Manual")
 
-    const whatsappUrl = `https://api.whatsapp.com/send?phone=5511918505799&text=${encodeURIComponent(message)}`
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")
     
     // Resetar loja apos enviar para WhatsApp
@@ -1675,7 +1675,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
     // Registrar pedido
     await registerOrder(pagamentoTexto)
 
-    const whatsappUrl = `https://api.whatsapp.com/send?phone=5511918505799&text=${encodeURIComponent(message)}`
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")
     
     // Resetar loja apos enviar para WhatsApp
@@ -2523,7 +2523,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                         `Observacao: ${formData.observacao || "Nenhuma"}\n\n` +
                                         `Vou enviar o comprovante agora.`
                                       )
-                                      window.open(`https://api.whatsapp.com/send?phone=5511918505799&text=${message}`, "_blank")
+                                      window.open(`https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${message}`, "_blank")
                                       
                                       // Resetar loja apos enviar para WhatsApp
                                       resetStoreAfterOrder()

@@ -1,8 +1,5 @@
-import { put, list, get } from "@vercel/blob"
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
-import { type Customer } from "@/lib/config-types"
-
-const CUSTOMERS_PREFIX = "pk-customers-"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -13,40 +10,33 @@ const noCacheHeaders = {
   "Expires": "0",
 }
 
+// Supabase client
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return null
+  return createClient(url, key)
+}
+
 // Funcao para gerar ID unico
 function generateId(): string {
   return `cust_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 }
 
-// Funcao para carregar clientes (usando get para blobs privados)
-async function loadCustomers(): Promise<Customer[]> {
-  try {
-    const { blobs } = await list({ prefix: CUSTOMERS_PREFIX })
-    if (blobs.length === 0) return []
-    
-    const latestBlob = blobs.sort(
-      (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-    )[0]
-    
-    // Usar get() para blobs privados - METODO QUE FUNCIONA
-    const result = await get(latestBlob.pathname, { access: "private" })
-    if (result && result.stream) {
-      const text = await new Response(result.stream).text()
-      return JSON.parse(text)
-    }
-  } catch (error) {
-    console.error("Erro ao carregar clientes:", error)
-  }
-  return []
-}
-
-// Funcao para salvar clientes
-async function saveCustomers(customers: Customer[]): Promise<void> {
-  const fileName = `${CUSTOMERS_PREFIX}${Date.now()}.json`
-  await put(fileName, JSON.stringify(customers), {
-    access: "private",
-    contentType: "application/json",
-  })
+// Interface do cliente no banco
+interface DbCustomer {
+  id: string
+  name: string
+  phone: string
+  pin: string
+  total_orders: number
+  total_spent: number
+  is_vip: boolean
+  favorites: string[]
+  saved_address?: string
+  last_order_at?: string
+  created_at: string
+  updated_at: string
 }
 
 // GET - Buscar cliente por telefone
@@ -59,22 +49,47 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Telefone obrigatorio" }, { status: 400, headers: noCacheHeaders })
     }
     
-    // Normalizar telefone (apenas numeros)
     const normalizedPhone = phone.replace(/\D/g, "")
+    const supabase = getSupabase()
     
-    const customers = await loadCustomers()
-    const customer = customers.find(c => c.phone.replace(/\D/g, "") === normalizedPhone)
+    if (!supabase) {
+      console.error("[customers GET] Supabase nao configurado")
+      return NextResponse.json({ error: "Banco de dados nao disponivel" }, { status: 500, headers: noCacheHeaders })
+    }
+    
+    const { data: customer, error } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('phone', normalizedPhone)
+      .single()
+    
+    if (error && error.code !== 'PGRST116') {
+      console.error("[customers GET] Erro Supabase:", error)
+      return NextResponse.json({ error: "Erro ao buscar cliente" }, { status: 500, headers: noCacheHeaders })
+    }
     
     if (!customer) {
       return NextResponse.json({ found: false }, { headers: noCacheHeaders })
     }
     
     // Retornar dados publicos (sem PIN)
-    const { pin, ...publicData } = customer
+    const publicData = {
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      totalOrders: customer.total_orders,
+      totalSpent: customer.total_spent,
+      isVip: customer.is_vip,
+      favorites: customer.favorites || [],
+      savedAddress: customer.saved_address,
+      lastOrderAt: customer.last_order_at,
+      createdAt: customer.created_at,
+    }
+    
     return NextResponse.json({ found: true, customer: publicData }, { headers: noCacheHeaders })
     
   } catch (error) {
-    console.error("Erro ao buscar cliente:", error)
+    console.error("[customers GET] Erro:", error)
     return NextResponse.json({ error: "Erro interno" }, { status: 500, headers: noCacheHeaders })
   }
 }
@@ -85,13 +100,26 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { action, phone, name, pin } = body
     
+    console.log("[customers POST] Acao:", action, "Phone:", phone)
+    
     if (!phone) {
       return NextResponse.json({ error: "Telefone obrigatorio" }, { status: 400, headers: noCacheHeaders })
     }
     
     const normalizedPhone = phone.replace(/\D/g, "")
-    const customers = await loadCustomers()
-    const existingIndex = customers.findIndex(c => c.phone.replace(/\D/g, "") === normalizedPhone)
+    const supabase = getSupabase()
+    
+    if (!supabase) {
+      console.error("[customers POST] Supabase nao configurado")
+      return NextResponse.json({ error: "Banco de dados nao disponivel" }, { status: 500, headers: noCacheHeaders })
+    }
+    
+    // Buscar cliente existente
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('phone', normalizedPhone)
+      .single()
     
     // ACAO: Criar conta
     if (action === "register") {
@@ -103,26 +131,42 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "PIN deve ter 4 digitos" }, { status: 400, headers: noCacheHeaders })
       }
       
-      if (existingIndex >= 0) {
+      if (existing) {
         return NextResponse.json({ error: "Telefone ja cadastrado" }, { status: 400, headers: noCacheHeaders })
       }
       
-      const newCustomer: Customer = {
+      const newCustomer = {
         id: generateId(),
         name,
         phone: normalizedPhone,
         pin,
-        createdAt: new Date().toISOString(),
+        total_orders: 0,
+        total_spent: 0,
+        is_vip: false,
+        favorites: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      
+      const { error: insertError } = await supabase.from('customers').insert(newCustomer)
+      
+      if (insertError) {
+        console.error("[customers POST] Erro ao criar conta:", insertError)
+        return NextResponse.json({ error: `Erro ao criar conta: ${insertError.message}` }, { status: 500, headers: noCacheHeaders })
+      }
+      
+      const publicData = {
+        id: newCustomer.id,
+        name: newCustomer.name,
+        phone: newCustomer.phone,
         totalOrders: 0,
         totalSpent: 0,
         isVip: false,
         favorites: [],
+        createdAt: newCustomer.created_at,
       }
       
-      customers.push(newCustomer)
-      await saveCustomers(customers)
-      
-      const { pin: _, ...publicData } = newCustomer
+      console.log("[customers POST] Conta criada:", publicData.id)
       return NextResponse.json({ 
         success: true, 
         customer: publicData,
@@ -136,16 +180,28 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "PIN obrigatorio" }, { status: 400, headers: noCacheHeaders })
       }
       
-      if (existingIndex < 0) {
+      if (!existing) {
         return NextResponse.json({ error: "Cliente nao encontrado" }, { status: 404, headers: noCacheHeaders })
       }
       
-      const customer = customers[existingIndex]
-      if (customer.pin !== pin) {
+      if (existing.pin !== pin) {
         return NextResponse.json({ error: "PIN incorreto" }, { status: 401, headers: noCacheHeaders })
       }
       
-      const { pin: _, ...publicData } = customer
+      const publicData = {
+        id: existing.id,
+        name: existing.name,
+        phone: existing.phone,
+        totalOrders: existing.total_orders,
+        totalSpent: existing.total_spent,
+        isVip: existing.is_vip,
+        favorites: existing.favorites || [],
+        savedAddress: existing.saved_address,
+        lastOrderAt: existing.last_order_at,
+        createdAt: existing.created_at,
+      }
+      
+      console.log("[customers POST] Login:", publicData.id)
       return NextResponse.json({ 
         success: true, 
         customer: publicData,
@@ -155,78 +211,102 @@ export async function POST(request: NextRequest) {
     
     // ACAO: Atualizar dados
     if (action === "update") {
-      if (existingIndex < 0) {
+      if (!existing) {
         return NextResponse.json({ error: "Cliente nao encontrado" }, { status: 404, headers: noCacheHeaders })
       }
       
-      const customer = customers[existingIndex]
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
       
-      // Atualizar nome se fornecido
-      if (body.newName) {
-        customer.name = body.newName
-      }
-      
-      // Atualizar endereco se fornecido
-      if (body.savedAddress) {
-        customer.savedAddress = body.savedAddress
-      }
-      
-      // Atualizar favoritos se fornecido
-      if (body.favorites !== undefined) {
-        customer.favorites = body.favorites
-      }
+      if (body.newName) updates.name = body.newName
+      if (body.savedAddress !== undefined) updates.saved_address = body.savedAddress
+      if (body.favorites !== undefined) updates.favorites = body.favorites
       
       // Toggle favorito
       if (body.toggleFavorite !== undefined) {
         const productId = body.toggleFavorite
-        const index = customer.favorites.indexOf(productId)
+        const currentFavorites = existing.favorites || []
+        const index = currentFavorites.indexOf(productId)
         if (index >= 0) {
-          customer.favorites.splice(index, 1)
+          currentFavorites.splice(index, 1)
         } else {
-          customer.favorites.push(productId)
+          currentFavorites.push(productId)
         }
+        updates.favorites = currentFavorites
       }
       
-      await saveCustomers(customers)
+      const { error: updateError } = await supabase
+        .from('customers')
+        .update(updates)
+        .eq('id', existing.id)
       
-      const { pin: _, ...publicData } = customer
-      return NextResponse.json({ 
-        success: true, 
-        customer: publicData 
-      }, { headers: noCacheHeaders })
+      if (updateError) {
+        console.error("[customers POST] Erro ao atualizar:", updateError)
+        return NextResponse.json({ error: "Erro ao atualizar dados" }, { status: 500, headers: noCacheHeaders })
+      }
+      
+      const publicData = {
+        id: existing.id,
+        name: body.newName || existing.name,
+        phone: existing.phone,
+        totalOrders: existing.total_orders,
+        totalSpent: existing.total_spent,
+        isVip: existing.is_vip,
+        favorites: updates.favorites as string[] || existing.favorites || [],
+        savedAddress: updates.saved_address as string || existing.saved_address,
+        lastOrderAt: existing.last_order_at,
+        createdAt: existing.created_at,
+      }
+      
+      return NextResponse.json({ success: true, customer: publicData }, { headers: noCacheHeaders })
     }
     
     // ACAO: Registrar pedido (atualizar estatisticas)
     if (action === "recordOrder") {
-      if (existingIndex < 0) {
+      if (!existing) {
         return NextResponse.json({ error: "Cliente nao encontrado" }, { status: 404, headers: noCacheHeaders })
       }
       
       const { orderTotal } = body
-      const customer = customers[existingIndex]
+      const newTotalOrders = (existing.total_orders || 0) + 1
+      const newTotalSpent = (existing.total_spent || 0) + (orderTotal || 0)
+      const isVip = newTotalOrders >= 5
       
-      customer.totalOrders += 1
-      customer.totalSpent += orderTotal || 0
-      customer.lastOrderAt = new Date().toISOString()
+      const { error: updateError } = await supabase
+        .from('customers')
+        .update({
+          total_orders: newTotalOrders,
+          total_spent: newTotalSpent,
+          is_vip: isVip,
+          last_order_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id)
       
-      // Cliente VIP = 5+ pedidos
-      if (customer.totalOrders >= 5) {
-        customer.isVip = true
+      if (updateError) {
+        console.error("[customers POST] Erro ao registrar pedido:", updateError)
+        return NextResponse.json({ error: "Erro ao registrar pedido" }, { status: 500, headers: noCacheHeaders })
       }
       
-      await saveCustomers(customers)
+      const publicData = {
+        id: existing.id,
+        name: existing.name,
+        phone: existing.phone,
+        totalOrders: newTotalOrders,
+        totalSpent: newTotalSpent,
+        isVip,
+        favorites: existing.favorites || [],
+        savedAddress: existing.saved_address,
+        lastOrderAt: new Date().toISOString(),
+        createdAt: existing.created_at,
+      }
       
-      const { pin: _, ...publicData } = customer
-      return NextResponse.json({ 
-        success: true, 
-        customer: publicData 
-      }, { headers: noCacheHeaders })
+      return NextResponse.json({ success: true, customer: publicData }, { headers: noCacheHeaders })
     }
     
     return NextResponse.json({ error: "Acao invalida" }, { status: 400, headers: noCacheHeaders })
     
   } catch (error) {
-    console.error("Erro ao processar cliente:", error)
-    return NextResponse.json({ error: "Erro interno" }, { status: 500, headers: noCacheHeaders })
+    console.error("[customers POST] Erro:", error)
+    return NextResponse.json({ error: `Erro interno: ${error instanceof Error ? error.message : 'Desconhecido'}` }, { status: 500, headers: noCacheHeaders })
   }
 }

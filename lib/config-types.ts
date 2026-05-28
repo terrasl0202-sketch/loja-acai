@@ -198,7 +198,7 @@ export const defaultConfig: SiteConfig = {
     pixExpirationMinutes: 15,
   },
   whatsapp: {
-    number: "5511918505799",
+    number: "",
     defaultMessage: "Olá! Gostaria de fazer um pedido.",
     receiptMessage: "Envie o comprovante do PIX por aqui.",
     supportEnabled: true,

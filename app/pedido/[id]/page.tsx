@@ -22,6 +22,11 @@ interface PublicOrder {
   entregadorNome?: string
 }
 
+interface StoreSettings {
+  whatsapp?: string
+  whatsappConfig?: { number?: string }
+}
+
 const statusLabels: Record<string, string> = {
   pending: "Aguardando Pagamento",
   confirmed: "Pedido Confirmado",
@@ -100,6 +105,23 @@ export default function PedidoPage() {
   
   const [order, setOrder] = useState<PublicOrder | null>(null)
   const [loading, setLoading] = useState(true)
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null)
+  
+  // Buscar settings da loja para WhatsApp
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch('/api/store-settings', { cache: 'no-store' })
+        const data = await res.json()
+        if (data.success && data.settings) {
+          setStoreSettings(data.settings)
+        }
+      } catch (err) {
+        console.error('[Pedido] Erro ao carregar settings:', err)
+      }
+    }
+    loadSettings()
+  }, [])
   const [error, setError] = useState<string | null>(null)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
 
@@ -503,9 +525,10 @@ export default function PedidoPage() {
         <div className="h-20" />
 
         {/* Whatsapp Support */}
+        {(storeSettings?.whatsappConfig?.number || storeSettings?.whatsapp) && (
         <div className="fixed bottom-6 right-6">
           <a
-            href="https://wa.me/5511918505799?text=Olá! Gostaria de tirar uma dúvida sobre meu pedido."
+            href={`https://wa.me/${storeSettings?.whatsappConfig?.number || storeSettings?.whatsapp}?text=Olá! Gostaria de tirar uma dúvida sobre meu pedido.`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center w-14 h-14 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105 transition-all active:scale-95"
@@ -513,6 +536,7 @@ export default function PedidoPage() {
             <Phone className="w-6 h-6 text-white" />
           </a>
         </div>
+        )}
       </main>
 
       {/* CSS para animacoes */}
