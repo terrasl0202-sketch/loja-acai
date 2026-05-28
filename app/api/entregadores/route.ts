@@ -59,10 +59,11 @@ export async function GET() {
     nome: e.name,
     whatsapp: e.phone,
     status: e.active ? 'ativo' : 'inativo',
-    disponibilidade: 'disponivel', // Valor padrao, pode ser expandido
-    horarioInicio: '08:00',
-    horarioFim: '22:00',
-    observacao: '',
+    disponibilidade: e.available ? 'disponivel' : 'indisponivel',
+    horarioInicio: e.start_time || '08:00',
+    horarioFim: e.end_time || '22:00',
+    observacao: e.notes || '',
+    pin: e.pin || '',
     token: e.token,
     veiculo: e.vehicle,
     totalEntregas: e.total_deliveries || 0,
@@ -116,8 +117,13 @@ export async function POST(request: Request) {
       nome: string
       whatsapp: string
       status?: string
+      disponivel?: boolean
       token?: string
+      pin?: string
       veiculo?: string
+      observacoes?: string
+      horarioInicio?: string
+      horarioFim?: string
       totalEntregas?: number
       pedidosAtuais?: number
     }) => {
@@ -129,8 +135,13 @@ export async function POST(request: Request) {
         name: e.nome,
         phone: e.whatsapp,
         active: e.status !== 'inativo',
+        available: e.disponivel !== false,
         token: e.token || existingToken || generateToken(),
+        pin: e.pin || null,
         vehicle: e.veiculo || null,
+        notes: e.observacoes || null,
+        start_time: e.horarioInicio || null,
+        end_time: e.horarioFim || null,
         total_deliveries: e.totalEntregas || 0,
         current_orders: e.pedidosAtuais || 0,
       }
@@ -164,8 +175,13 @@ export async function POST(request: Request) {
       name: body.nome || body.name,
       phone: body.whatsapp || body.phone,
       active: body.status !== 'inativo',
+      available: body.disponivel !== false,
       token: body.token || generateToken(),
+      pin: body.pin || null,
       vehicle: body.veiculo || body.vehicle || null,
+      notes: body.observacoes || body.notes || null,
+      start_time: body.horarioInicio || body.start_time || null,
+      end_time: body.horarioFim || body.end_time || null,
       total_deliveries: body.totalEntregas || body.total_deliveries || 0,
       current_orders: body.pedidosAtuais || body.current_orders || 0,
     }
@@ -231,7 +247,12 @@ export async function PUT(request: Request) {
   if (body.nome !== undefined) updateData.name = body.nome
   if (body.whatsapp !== undefined) updateData.phone = body.whatsapp
   if (body.status !== undefined) updateData.active = body.status !== 'inativo'
+  if (body.disponivel !== undefined) updateData.available = body.disponivel
   if (body.veiculo !== undefined) updateData.vehicle = body.veiculo
+  if (body.pin !== undefined) updateData.pin = body.pin
+  if (body.observacoes !== undefined) updateData.notes = body.observacoes
+  if (body.horarioInicio !== undefined) updateData.start_time = body.horarioInicio
+  if (body.horarioFim !== undefined) updateData.end_time = body.horarioFim
   if (body.totalEntregas !== undefined) updateData.total_deliveries = body.totalEntregas
   if (body.pedidosAtuais !== undefined) updateData.current_orders = body.pedidosAtuais
   
