@@ -3,40 +3,76 @@
 import Image from "next/image"
 import { Snowflake, Award, Clock } from "lucide-react"
 import { useStoreSettings } from "@/hooks/useStoreSettings"
+import { useEffect, useState } from "react"
+
+interface BannerData {
+  mainText: string
+  secondaryText: string
+  promoActive: boolean
+  promoPrice: number
+  promoText: string
+  imageUrl: string
+}
 
 export function HeroBanner() {
-  // Usa hook da nova arquitetura - atualiza automaticamente
   const { settings } = useStoreSettings()
+  const [banner, setBanner] = useState<BannerData | null>(null)
+  
+  // Carrega banner do Supabase
+  useEffect(() => {
+    async function loadBanner() {
+      try {
+        const res = await fetch('/api/store-settings', { cache: 'no-store' })
+        const data = await res.json()
+        if (data.success && data.settings?.banner) {
+          setBanner(data.settings.banner)
+        }
+      } catch (error) {
+        console.error('[HeroBanner] Erro ao carregar banner:', error)
+      }
+    }
+    loadBanner()
+  }, [])
 
-  const displayName = settings.storeName || 'Acai da Terra'
-  const displaySlogan = settings.slogan || 'O melhor acai da cidade'
+  const displayName = settings.storeName || 'Delivery'
+  const displaySlogan = settings.slogan || 'O melhor da cidade'
+  
+  // Usa dados do banner do Supabase
+  const bannerMainText = banner?.mainText || 'Acai Premium Cremoso e Saboroso'
+  const bannerSecondaryText = banner?.secondaryText || displaySlogan
   
   return (
     <section className="relative h-48 sm:h-56 overflow-hidden">
       <Image
-        src="/acai-bowl.jpg"
+        src={banner?.imageUrl || "/acai-bowl.jpg"}
         alt={displayName}
         fill
         className="object-cover scale-110 animate-fade-in"
         priority
       />
-      {/* Multi-layer Premium Overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-r from-primary/15 via-transparent to-primary/10" />
       <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-transparent" />
       
-      {/* Decorative glow elements */}
       <div className="absolute top-6 right-6 w-40 h-40 bg-primary/15 rounded-full blur-3xl animate-pulse-slow" />
       <div className="absolute bottom-0 left-0 w-56 h-32 bg-primary/10 rounded-full blur-3xl" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl" />
       
       <div className="absolute bottom-6 left-4 right-4">
         <h2 className="text-2xl sm:text-3xl font-black text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.9)] tracking-tight leading-tight">
-          Acai Premium<br/>Cremoso e Saboroso
+          {bannerMainText.split(' ').slice(0, 2).join(' ')}<br/>{bannerMainText.split(' ').slice(2).join(' ')}
         </h2>
-        <p className="text-white/50 text-xs mt-2 font-medium tracking-wide">{displaySlogan}</p>
+        <p className="text-white/50 text-xs mt-2 font-medium tracking-wide">{bannerSecondaryText}</p>
         
-        {/* Trust Badges Glass Premium */}
+        {banner?.promoActive && banner?.promoText && (
+          <div className="mt-2">
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 rounded-full shadow-lg animate-pulse">
+              {banner.promoText}
+              {banner.promoPrice > 0 && ` - R$ ${banner.promoPrice.toFixed(2).replace('.', ',')}`}
+            </span>
+          </div>
+        )}
+        
         <div className="flex flex-wrap items-center gap-2 mt-4">
           <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/95 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
             <Clock className="w-3 h-3 text-amber-400 drop-shadow-glow" />

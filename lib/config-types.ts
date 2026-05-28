@@ -204,9 +204,9 @@ export const defaultConfig: SiteConfig = {
     supportEnabled: true,
   },
   pixManual: {
-    key: "11918505799",
-    keyFull: "+5511918505799",
-    receiverName: "Carina Karen da Silva",
+    key: "",
+    keyFull: "",
+    receiverName: "",
     qrCodeUrl: "",
   },
   delivery: {

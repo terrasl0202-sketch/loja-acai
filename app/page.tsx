@@ -676,13 +676,10 @@ export default function Home() {
     }
   }, [quantities, formData, deliveryType, showCheckout, paymentStatus, pixData, orderSnapshot, orderId, pixTimeLeft, pixExpired, pixCooldownEnd, appliedCoupon, couponCode])
 
-  // Retorna bairros reais ou fallback se vazios
+  // Retorna bairros do Supabase (sem fallback fake)
   const getNeighborhoodFees = () => {
     const realFees = siteConfig.delivery?.neighborhoodFees || []
-    if (realFees.length > 0) {
-      return { fees: realFees, isFallback: false }
-    }
-    return { fees: [...FALLBACK_NEIGHBORHOOD_FEES], isFallback: true }
+    return { fees: realFees }
   }
 
   // Calcula taxa de entrega baseado no bairro
@@ -2241,20 +2238,20 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           >
                             <option value="">Selecione seu bairro</option>
                             {(() => {
-                              const { fees, isFallback } = getNeighborhoodFees()
+                              const { fees } = getNeighborhoodFees()
                               return fees
                                 .filter(n => n.active !== false)
                                 .map((neighborhood) => (
                                   <option key={neighborhood.name} value={neighborhood.name}>
-                                    {neighborhood.name} - R$ {neighborhood.fee.toFixed(2)}{isFallback ? " (teste)" : ""}
+                                    {neighborhood.name} - R$ {neighborhood.fee.toFixed(2)}
                                   </option>
                                 ))
                             })()}
                           </select>
-                          {getNeighborhoodFees().isFallback && (
+                          {getNeighborhoodFees().fees.length === 0 && (
                             <p className="text-xs text-amber-400 mt-2 flex items-center gap-1.5">
                               <AlertCircle className="w-3.5 h-3.5" />
-                              Modo teste: bairros de exemplo (Blob indisponivel)
+                              Nenhum bairro cadastrado. Entre em contato pelo WhatsApp.
                             </p>
                           )}
                           {formData.bairro && (
@@ -2270,7 +2267,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               </div>
                             </div>
                           )}
-                          {!formData.bairro && !isOrderBlocked && !getNeighborhoodFees().isFallback && (
+                          {!formData.bairro && !isOrderBlocked && getNeighborhoodFees().fees.length > 0 && (
                             <p className="text-xs text-amber-400 mt-2 flex items-center gap-1.5">
                               <AlertCircle className="w-3.5 h-3.5" />
                               Selecione seu bairro para calcular a entrega.
@@ -2458,7 +2455,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                   <div className="space-y-2">
                                     <div className="bg-input rounded-xl px-4 py-3">
                                       <p className="text-xs text-muted-foreground">Recebedor</p>
-                                      <p className="font-semibold text-foreground">Carina Karen da Silva</p>
+                                      <p className="font-semibold text-foreground">{PIX_RECEIVER_NAME || 'Destinatario'}</p>
                                     </div>
                                     
                                     <div className="bg-input rounded-xl px-4 py-3">

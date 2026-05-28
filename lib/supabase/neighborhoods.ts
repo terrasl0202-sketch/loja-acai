@@ -1,29 +1,13 @@
 /**
  * Servico de Bairros (Neighborhoods)
- * 
- * Este servico gerencia os bairros e taxas de entrega.
- * Inclui fallback local para quando Supabase nao estiver disponivel.
- * 
- * FALLBACK: Se Supabase falhar, usa FALLBACK_NEIGHBORHOODS definido abaixo.
- * Isso garante que o sistema NUNCA quebra mesmo sem conexao.
- * 
- * MIGRACAO DO BLOB: Para migrar do Blob para Supabase:
- * 1. Exporte os bairros do Blob via /api/site-config
- * 2. Insira no Supabase via este servico (saveNeighborhoods)
- * 3. Altere getNeighborhoodFees() no page.tsx para usar fetchNeighborhoods()
+ * FONTE UNICA: Supabase - SEM fallback de bairros fake
  */
 
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client'
 import type { DbNeighborhood } from './types'
 
-// Bairros fallback - usados quando Supabase falha ou nao esta configurado
-// Mantenha sincronizado com FALLBACK_NEIGHBORHOOD_FEES em constants
-const FALLBACK_NEIGHBORHOODS: DbNeighborhood[] = [
-  { id: '1', name: 'Centro', fee: 5.00, active: true, created_at: '', updated_at: '' },
-  { id: '2', name: 'Bairro Norte', fee: 6.00, active: true, created_at: '', updated_at: '' },
-  { id: '3', name: 'Bairro Sul', fee: 6.00, active: true, created_at: '', updated_at: '' },
-  { id: '4', name: 'Bairro Teste', fee: 5.00, active: true, created_at: '', updated_at: '' },
-]
+// SEM bairros fallback - apenas Supabase
+const FALLBACK_NEIGHBORHOODS: DbNeighborhood[] = []
 
 export interface NeighborhoodResult {
   data: DbNeighborhood[]

@@ -57,11 +57,8 @@ function mapFrontendToDb(front: FrontendNeighborhood, index: number) {
   }
 }
 
-// Bairros fallback
-const FALLBACK_NEIGHBORHOODS: FrontendNeighborhood[] = [
-  { id: 'centro', name: 'Centro', deliveryFee: 5, active: true, order: 0 },
-  { id: 'vila-nova', name: 'Vila Nova', deliveryFee: 7, active: true, order: 1 }
-]
+// SEM bairros fallback - apenas Supabase
+const FALLBACK_NEIGHBORHOODS: FrontendNeighborhood[] = []
 
 /**
  * GET - Lista todos os bairros
