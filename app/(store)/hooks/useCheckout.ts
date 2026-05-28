@@ -224,9 +224,10 @@ export function useCheckout(
               clearInterval(pollIntervalRef.current)
             }
 
-            // Atualizar pedido como confirmado
+            // Atualizar pedido como confirmado no Supabase
+            console.log("[useCheckout] Pix confirmado! Atualizando Supabase. orderId:", currentOrderId, "paymentId:", paymentId)
             try {
-              await fetch("/api/orders/confirm", {
+              const confirmResponse = await fetch("/api/orders/confirm", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -234,8 +235,14 @@ export function useCheckout(
                   asaasPaymentId: paymentId,
                 }),
               })
-            } catch {
-              // Erro silencioso
+              const confirmData = await confirmResponse.json()
+              if (confirmData.success) {
+                console.log("[useCheckout] Supabase atualizado com sucesso! status:", confirmData.order?.status)
+              } else {
+                console.error("[useCheckout] Erro ao atualizar Supabase:", confirmData.error)
+              }
+            } catch (confirmError) {
+              console.error("[useCheckout] Erro de rede ao confirmar:", confirmError)
             }
           }
         } catch (error) {

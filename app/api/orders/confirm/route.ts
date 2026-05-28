@@ -29,28 +29,44 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabase()
     
-    // Buscar pedido por orderCode (mais confiavel) ou id
-    let query = supabase.from('orders').select('*')
+    // BUSCAR APENAS POR order_code (string) - NAO misturar com id (BIGINT)
+    let order = null
     
     if (effectiveOrderCode) {
-      // Tentar primeiro por order_code, depois por id
-      query = query.or(`order_code.eq.${effectiveOrderCode},id.eq.${effectiveOrderCode}`)
+      // Primeiro tentar por order_code (codigo publico como PK20260528...)
+      const { data: orderByCode, error: codeError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('order_code', effectiveOrderCode)
+        .single()
+      
+      if (!codeError && orderByCode) {
+        order = orderByCode
+        console.log("[orders/confirm] Pedido encontrado por order_code:", effectiveOrderCode)
+      } else {
+        // Se nao encontrou por order_code e o valor parece ser um numero, tentar por id
+        const numericId = parseInt(effectiveOrderCode, 10)
+        if (!isNaN(numericId)) {
+          const { data: orderById, error: idError } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('id', numericId)
+            .single()
+          
+          if (!idError && orderById) {
+            order = orderById
+            console.log("[orders/confirm] Pedido encontrado por id numerico:", numericId)
+          }
+        }
+      }
     }
 
-    const { data: orders, error: fetchError } = await query.limit(1)
-
-    if (fetchError) {
-      console.error("[orders/confirm] Erro ao buscar:", fetchError.message)
-      return NextResponse.json({ error: fetchError.message, success: false }, { status: 500 })
-    }
-
-    if (!orders || orders.length === 0) {
-      console.log("[orders/confirm] Pedido nao encontrado")
+    if (!order) {
+      console.log("[orders/confirm] Pedido NAO encontrado. orderCode:", effectiveOrderCode)
       return NextResponse.json({ error: "Pedido nao encontrado", success: false }, { status: 404 })
     }
 
-    const order = orders[0]
-    console.log("[orders/confirm] Pedido encontrado:", order.id, "status atual:", order.status)
+    console.log("[orders/confirm] Pedido encontrado! id:", order.id, "order_code:", order.order_code, "status atual:", order.status)
 
     // Se ja esta confirmado, retornar sucesso sem atualizar
     if (order.status === 'confirmed' || order.status === 'preparing' || order.status === 'delivering' || order.status === 'completed') {
@@ -81,7 +97,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: updateError.message, success: false }, { status: 500 })
     }
 
-    console.log("[orders/confirm] Pedido confirmado com sucesso! ID:", updated.id)
+    console.log("[orders/confirm] SUCESSO! Pedido confirmado. id:", updated.id, "order_code:", updated.order_code, "novo status:", updated.status)
 
     return NextResponse.json({ 
       success: true, 

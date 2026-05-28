@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     // Se pagamento confirmado, tentar atualizar no Supabase
     if (isPaid) {
-      console.log("[Webhook Asaas] Pagamento confirmado! Atualizando Supabase...")
+      console.log("[Webhook Asaas] Pagamento confirmado! paymentId:", payment.id, "externalRef:", payment.externalReference)
       
       const supabase = getSupabase()
       
@@ -51,33 +51,66 @@ export async function POST(request: NextRequest) {
         const externalRef = payment.externalReference || payment.description
         
         if (externalRef) {
-          // Tentar encontrar o pedido por order_code
-          const { data: orders, error: searchError } = await supabase
+          console.log("[Webhook Asaas] Buscando pedido por order_code:", externalRef)
+          
+          // Busca direta por order_code (mais confiavel)
+          const { data: order, error: searchError } = await supabase
             .from('orders')
             .select('id, order_code, status')
-            .or(`order_code.eq.${externalRef},order_code.ilike.%${externalRef}%`)
-            .limit(1)
+            .eq('order_code', externalRef)
+            .single()
 
           if (searchError) {
-            console.error("[Webhook Asaas] Erro ao buscar pedido:", searchError.message)
-          } else if (orders && orders.length > 0) {
-            const order = orders[0]
+            console.error("[Webhook Asaas] Erro ao buscar pedido:", searchError.message, "- Tentando busca parcial...")
+            
+            // Fallback: busca parcial pelo final do order_code
+            const { data: partialOrders } = await supabase
+              .from('orders')
+              .select('id, order_code, status')
+              .ilike('order_code', `%${externalRef.slice(-10)}%`)
+              .limit(1)
+            
+            if (partialOrders && partialOrders.length > 0) {
+              const order = partialOrders[0]
+              console.log("[Webhook Asaas] Pedido encontrado por busca parcial:", order.order_code)
+              
+              const { error: updateError } = await supabase
+                .from('orders')
+                .update({ status: 'confirmed' })
+                .eq('id', order.id)
+              
+              if (updateError) {
+                console.error("[Webhook Asaas] Erro ao atualizar:", updateError.message)
+              } else {
+                console.log("[Webhook Asaas] SUCESSO! Pedido confirmado via webhook. ID:", order.id)
+              }
+            } else {
+              console.log("[Webhook Asaas] Pedido NAO encontrado para:", externalRef)
+            }
+          } else if (order) {
+            console.log("[Webhook Asaas] Pedido encontrado! ID:", order.id, "status atual:", order.status)
             
             // Atualizar status do pedido para confirmed
-            const { error: updateError } = await supabase
-              .from('orders')
-              .update({ status: 'confirmed' })
-              .eq('id', order.id)
+            if (order.status === 'pending') {
+              const { error: updateError } = await supabase
+                .from('orders')
+                .update({ status: 'confirmed' })
+                .eq('id', order.id)
 
-            if (updateError) {
-              console.error("[Webhook Asaas] Erro ao atualizar pedido:", updateError.message)
+              if (updateError) {
+                console.error("[Webhook Asaas] Erro ao atualizar pedido:", updateError.message)
+              } else {
+                console.log("[Webhook Asaas] SUCESSO! Pedido confirmado via webhook. ID:", order.id, "order_code:", order.order_code)
+              }
             } else {
-              console.log("[Webhook Asaas] Pedido atualizado com sucesso! ID:", order.id, "order_code:", order.order_code)
+              console.log("[Webhook Asaas] Pedido ja estava:", order.status, "- ignorando")
             }
-          } else {
-            console.log("[Webhook Asaas] Pedido nao encontrado para externalRef:", externalRef)
           }
+        } else {
+          console.log("[Webhook Asaas] externalReference vazio - nao foi possivel identificar pedido")
         }
+      } else {
+        console.error("[Webhook Asaas] Supabase nao configurado")
       }
     }
 
