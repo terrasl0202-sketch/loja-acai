@@ -24,9 +24,9 @@ const noCacheHeaders = {
 
 // ============ MAPPERS FRONTEND <-> DB ============
 
-// Interface minima para leitura do banco
+// Interface minima para leitura do banco (id é BIGINT)
 interface DbOrder {
-  id: string
+  id: number // BIGINT no Supabase
   order_code: string | null
   customer_name: string
   customer_phone: string | null
@@ -41,8 +41,8 @@ interface DbOrder {
 
 function dbToFrontend(db: DbOrder): Order {
   return {
-    id: db.id,
-    orderCode: db.order_code || db.id,
+    id: String(db.id), // Converter BIGINT para string
+    orderCode: db.order_code || String(db.id),
     customerName: db.customer_name,
     customerPhone: db.customer_phone || '',
     items: JSON.stringify(db.items || []),
@@ -80,9 +80,8 @@ CREATE INDEX idx_orders_status ON orders(status);
 CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
 */
 
-// Apenas estas 11 colunas sao enviadas no insert
+// Apenas estas 10 colunas sao enviadas no insert (SEM id - é BIGINT auto)
 const ALLOWED_COLUMNS = [
-  'id',
   'order_code',
   'customer_name',
   'customer_phone',
@@ -96,10 +95,9 @@ const ALLOWED_COLUMNS = [
 ] as const
 
 function frontendToDb(order: Order): Record<string, unknown> {
-  // APENAS colunas da whitelist - nenhum campo adicional
+  // NAO enviar 'id' - é BIGINT auto-gerado pelo Supabase
   const dbOrder: Record<string, unknown> = {
-    id: order.id,
-    order_code: order.orderCode || order.id,
+    order_code: order.orderCode || order.id || `ORD-${Date.now()}`,
     customer_name: order.customerName || 'Cliente',
     customer_phone: order.customerPhone || '',
     address: order.address || null,
@@ -171,17 +169,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Order is required" }, { status: 400 })
     }
 
-    const isPixAutomatic = order.paymentMethod === "PIX Asaas" || order.isPixAutomatic
     const publicOrderId = order.orderId || order.id || `ORD-${Date.now()}`
-    // Gerar UUID real para o banco
-    const dbId = crypto.randomUUID()
 
-    console.log("[orders POST] Criando pedido:", publicOrderId, "UUID:", dbId)
+    console.log("[orders POST] Criando pedido com order_code:", publicOrderId)
 
-    // Criar objeto do pedido
+    // Criar objeto do pedido (id sera gerado pelo Supabase)
     const newOrder: Order = {
-      id: dbId, // UUID real para o banco
-      orderCode: publicOrderId, // Codigo publico do pedido (ex: PK1234)
+      id: '', // Sera preenchido apos insert
+      orderCode: publicOrderId,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       customerId: order.customerId,
@@ -197,11 +192,6 @@ export async function POST(request: NextRequest) {
       status: "pending",
       paymentStatus: "pending",
       createdAt: new Date().toISOString(),
-      isPixAutomatic,
-      asaasPaymentId: order.asaasPaymentId,
-      asaasPixCode: order.asaasPixCode,
-      asaasQrCodeUrl: order.asaasQrCodeUrl,
-      manuallyConfirmed: false,
     }
 
     const supabase = getSupabase()
@@ -233,8 +223,12 @@ export async function POST(request: NextRequest) {
         throw error
       }
 
-      console.log("[orders POST] Pedido criado no Supabase com sucesso! ID:", insertedOrder?.id, "OrderCode:", insertedOrder?.order_code)
-      return NextResponse.json({ success: true, order: newOrder, orderId: insertedOrder?.id, source: 'supabase' })
+      console.log("[orders POST] Pedido criado! ID:", insertedOrder?.id, "OrderCode:", publicOrderId)
+      
+      // Atualizar newOrder com o ID gerado
+      newOrder.id = String(insertedOrder?.id || '')
+      
+      return NextResponse.json({ success: true, order: newOrder, orderId: publicOrderId, source: 'supabase' })
 
   } catch (error) {
     console.error("[orders POST] Erro:", error)
