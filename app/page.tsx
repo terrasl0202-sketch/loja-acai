@@ -1904,6 +1904,18 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                     <Check className="w-5 h-5 relative" />
                     <span>ENVIAR PEDIDO CONFIRMADO</span>
                   </button>
+                  
+                  {/* Botao Acompanhar Pedido */}
+                  <a
+                    href={`/pedido/${orderId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="premium-btn w-full py-4 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-bold rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] relative overflow-hidden group"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                    <Package className="w-5 h-5 relative" />
+                    <span>ACOMPANHAR PEDIDO</span>
+                  </a>
                 </div>
               )}
 

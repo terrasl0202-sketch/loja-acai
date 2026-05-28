@@ -51,53 +51,24 @@ const statusLabels: Record<string, string> = {
   cancelled: "Cancelado",
 }
 
-// Componente da Motinha SVG
+// Componente da Motinha - icone moderno de delivery
 function MotoIcon({ className = "", animate = false }: { className?: string; animate?: boolean }) {
   return (
-    <svg 
-      viewBox="0 0 64 40" 
+    <svg
+      viewBox="0 0 24 24"
       className={`${className} ${animate ? "animate-moto-shake" : ""}`}
-      fill="none" 
+      fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      {/* Corpo da moto */}
-      <ellipse cx="32" cy="28" rx="18" ry="6" fill="currentColor" opacity="0.2" />
-      
-      {/* Roda traseira */}
-      <circle cx="14" cy="30" r="8" fill="#1f1f23" stroke="currentColor" strokeWidth="3" />
-      <circle cx="14" cy="30" r="3" fill="currentColor" />
-      
-      {/* Roda dianteira */}
-      <circle cx="50" cy="30" r="8" fill="#1f1f23" stroke="currentColor" strokeWidth="3" />
-      <circle cx="50" cy="30" r="3" fill="currentColor" />
-      
-      {/* Chassi */}
-      <path d="M14 26 L26 14 L44 14 L50 26" stroke="currentColor" strokeWidth="3" strokeLinecap="round" fill="none" />
-      
-      {/* Tanque */}
-      <ellipse cx="32" cy="16" rx="8" ry="5" fill="currentColor" />
-      
+      {/* Moto delivery moderna */}
+      <circle cx="5" cy="17" r="2.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <circle cx="19" cy="17" r="2.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <path d="M5 17h2.5l2-4h4l1.5-3h3l1 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M15 13l1.5 4h2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      {/* Caixa de delivery */}
+      <rect x="8" y="8" width="5" height="4" rx="0.5" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="1" />
       {/* Guidao */}
-      <path d="M44 14 L52 8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="53" cy="7" r="2" fill="currentColor" />
-      
-      {/* Banco */}
-      <path d="M22 14 L34 12 L34 16 L22 18 Z" fill="currentColor" opacity="0.7" />
-      
-      {/* Escapamento */}
-      <path d="M14 28 L8 32" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      
-      {/* Farol */}
-      <circle cx="52" cy="18" r="3" fill="#fbbf24" />
-      <circle cx="52" cy="18" r="1.5" fill="#fef3c7" />
-      
-      {/* Entregador simplificado */}
-      <circle cx="28" cy="6" r="5" fill="currentColor" />
-      <path d="M24 11 L24 18 M32 11 L32 18 M24 14 L32 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      
-      {/* Caixa de entrega */}
-      <rect x="16" y="2" width="10" height="8" rx="1" fill="currentColor" opacity="0.8" />
-      <path d="M18 6 L24 6" stroke="#1f1f23" strokeWidth="1" />
+      <path d="M17 10h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   )
 }
@@ -189,19 +160,20 @@ export default function PedidoPage() {
   }
 
   // Mapear status para step index (0-3)
+  // 0 = Confirmado, 1 = Preparando, 2 = A caminho, 3 = Entregue
   const getStepIndex = () => {
     if (!order) return 0
     switch (order.status) {
       case "pending":
-        return order.paymentStatus === "confirmed" ? 1 : 0
+        return order.paymentStatus === "confirmed" ? 0 : 0
       case "confirmed":
-        return 1
+        return 0 // Aguardando preparo
       case "preparing":
-        return 1
+        return 1 // Em preparacao
       case "delivering":
-        return 2
+        return 2 // A caminho
       case "completed":
-        return 3
+        return 3 // Entregue
       default:
         return 0
     }

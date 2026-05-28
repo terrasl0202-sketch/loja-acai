@@ -1,6 +1,7 @@
 "use client"
 
-import { ShoppingBag, Search, Trash2, Calendar, ChevronRight, ClockIcon, CheckCircle2, ChefHat, Truck, PackageCheck, Ban, AlertCircle, FolderArchive } from "lucide-react"
+import { useState } from "react"
+import { ShoppingBag, Search, Trash2, Calendar, ChevronRight, ChevronDown, ClockIcon, CheckCircle2, ChefHat, Truck, PackageCheck, Ban, AlertCircle, FolderArchive } from "lucide-react"
 import type { Order } from "@/lib/config-types"
 
 type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
@@ -57,6 +58,9 @@ export function AdminOrdersCard({
   onClearSearch,
   onTabChange,
 }: AdminOrdersCardProps) {
+  // Estado para controlar qual aba esta expandida (submenu)
+  const [expandedTab, setExpandedTab] = useState<TabType | null>(null)
+
   const getBadgeCount = (id: TabType): number => {
     switch (id) {
       case "orders-pending": return ordersPendingPayment.length
@@ -71,6 +75,34 @@ export function AdminOrdersCard({
     }
   }
 
+  const getOrdersForTab = (id: TabType): Order[] => {
+    switch (id) {
+      case "orders-pending": return ordersPendingPayment
+      case "orders-paid": return ordersPaidWaiting
+      case "orders-preparing": return ordersPreparing
+      case "orders-delivering": return ordersDelivering
+      case "orders-completed": return ordersCompleted
+      case "orders-cancelled": return ordersCancelled
+      case "orders-abandoned": return ordersAbandoned
+      case "orders-archived": return ordersArchived
+      default: return []
+    }
+  }
+
+  const handleTabClick = (tabId: TabType) => {
+    // Toggle expandir/recolher
+    if (expandedTab === tabId) {
+      setExpandedTab(null)
+    } else {
+      setExpandedTab(tabId)
+      onTabChange(tabId) // Tambem atualiza a aba ativa para detalhes
+    }
+  }
+
+  const formatOrderCode = (order: Order): string => {
+    return order.orderCode || order.id?.toString().slice(-8) || 'N/A'
+  }
+
   return (
     <div className="bg-[#12121c]/80 backdrop-blur-sm rounded-2xl border border-white/5 overflow-hidden shadow-2xl">
       {/* Header do bloco Pedidos */}
@@ -81,13 +113,10 @@ export function AdminOrdersCard({
           </div>
           <div>
             <h2 className="text-white font-bold">Pedidos</h2>
-            <p className="text-[10px] text-gray-500">Gerenciamento em tempo real</p>
+            <p className="text-[10px] text-gray-500">Clique para expandir</p>
           </div>
         </div>
-        <button className="flex items-center gap-1 text-purple-400 text-sm hover:text-purple-300 transition-colors">
-          Ver todos
-          <ChevronRight className="w-4 h-4" />
-        </button>
+        <span className="text-xs text-gray-500">Toque para ver lista</span>
       </div>
 
       {/* Busca e Filtros */}
@@ -109,14 +138,12 @@ export function AdminOrdersCard({
             className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white font-medium text-sm rounded-xl hover:bg-purple-500 transition-all"
           >
             <Search className="w-4 h-4" />
-            Buscar
           </button>
           <button
             onClick={onClearSearch}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#1a1a2e] text-gray-300 font-medium text-sm rounded-xl hover:bg-[#252538] transition-all border border-white/5"
+            className="flex items-center gap-2 px-3 py-2.5 bg-[#1a1a2e] text-gray-300 font-medium text-sm rounded-xl hover:bg-[#252538] transition-all border border-white/5"
           >
             <Trash2 className="w-4 h-4" />
-            Limpar
           </button>
         </div>
 
@@ -142,27 +169,79 @@ export function AdminOrdersCard({
         )}
       </div>
 
-      {/* Status dos Pedidos - LISTA igual mockup */}
+      {/* Status dos Pedidos - MENU EXPANSIVEL */}
       <div className="p-2">
-        {statusItems.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => onTabChange(tab.id)}
-            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all mb-1 ${
-              activeTab === tab.id
-                ? "bg-primary/20 border border-primary/30"
-                : "hover:bg-white/5"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <tab.icon className={`w-5 h-5 ${tab.color}`} />
-              <span className="text-white font-medium text-sm">{tab.label}</span>
+        {statusItems.map((tab) => {
+          const isExpanded = expandedTab === tab.id
+          const orders = getOrdersForTab(tab.id)
+          const count = getBadgeCount(tab.id)
+          
+          return (
+            <div key={tab.id} className="mb-1">
+              {/* Botao da Aba */}
+              <button
+                onClick={() => handleTabClick(tab.id)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
+                  isExpanded
+                    ? "bg-primary/20 border border-primary/30"
+                    : "hover:bg-white/5"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <tab.icon className={`w-5 h-5 ${tab.color}`} />
+                  <span className="text-white font-medium text-sm">{tab.label}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${tab.bgBadge}`}>
+                    {count}
+                  </span>
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  )}
+                </div>
+              </button>
+              
+              {/* Lista de Pedidos Expandida */}
+              {isExpanded && (
+                <div className="mt-1 ml-2 mr-2 mb-2 p-2 bg-[#1a1a2e]/50 rounded-xl border border-white/5 max-h-[300px] overflow-y-auto">
+                  {orders.length === 0 ? (
+                    <p className="text-xs text-center text-gray-500 py-4">Nenhum pedido</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {orders.slice(0, 10).map((order) => (
+                        <div
+                          key={order.id}
+                          onClick={() => onTabChange(tab.id)}
+                          className="p-3 bg-[#12121c] rounded-lg border border-white/5 cursor-pointer hover:border-primary/30 transition-all"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-mono text-primary">#{formatOrderCode(order).slice(-8).toUpperCase()}</span>
+                            <span className="text-[10px] text-gray-500">
+                              {new Date(order.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          <p className="text-sm text-white font-medium truncate">{order.customerName}</p>
+                          <p className="text-xs text-gray-400 truncate">{order.customerPhone}</p>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-xs text-emerald-400 font-bold">R$ {order.total?.toFixed(2)}</span>
+                            <span className="text-[10px] text-gray-500">{order.paymentMethod}</span>
+                          </div>
+                        </div>
+                      ))}
+                      {orders.length > 10 && (
+                        <p className="text-xs text-center text-primary py-2 cursor-pointer hover:underline" onClick={() => onTabChange(tab.id)}>
+                          Ver todos os {orders.length} pedidos
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${tab.bgBadge}`}>
-              {getBadgeCount(tab.id)}
-            </span>
-          </button>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
