@@ -45,13 +45,35 @@ export async function GET(
         throw new Error('Supabase nao disponivel')
       }
       
-      const { data: order, error } = await supabase
+      // Tentar buscar por order_code primeiro (codigo publico), depois por id (UUID)
+      let order = null
+      
+      // Primeiro tenta por order_code
+      const { data: byCode } = await supabase
         .from('orders')
         .select('*')
-        .eq('id', orderId)
+        .eq('order_code', orderId)
         .single()
+      
+      if (byCode) {
+        order = byCode
+      } else {
+        // Se nao encontrar por order_code, tenta por id (UUID)
+        const { data: byId } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', orderId)
+          .single()
+        
+        if (byId) {
+          order = byId
+        }
+      }
 
-      if (error) throw error
+      if (!order) {
+        console.log("[orders/public] Pedido nao encontrado:", orderId)
+        return NextResponse.json({ error: "Order not found", success: false }, { status: 404, headers: noCacheHeaders })
+      }
 
       console.log("[orders/public] Pedido encontrado no Supabase:", orderId)
 

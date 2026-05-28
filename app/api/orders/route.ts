@@ -29,6 +29,7 @@ const noCacheHeaders = {
 
 interface DbOrder {
   id: string
+  order_code: string | null
   customer_name: string
   customer_phone: string
   customer_address: string | null
@@ -75,6 +76,7 @@ interface DbOrder {
 function dbToFrontend(db: DbOrder): Order {
   return {
     id: db.id,
+    orderCode: db.order_code || db.id, // Codigo publico
     customerName: db.customer_name,
     customerPhone: db.customer_phone,
     customerId: db.customer_id || undefined,
@@ -113,6 +115,7 @@ function dbToFrontend(db: DbOrder): Order {
 function frontendToDb(order: Order): Partial<DbOrder> {
   return {
     id: order.id,
+    order_code: order.orderCode || order.id, // Codigo publico do pedido
     customer_name: order.customerName,
     customer_phone: order.customerPhone,
     customer_address: order.address || null,
@@ -275,12 +278,15 @@ export async function POST(request: NextRequest) {
 
     const isPixAutomatic = order.paymentMethod === "PIX Asaas" || order.isPixAutomatic
     const publicOrderId = order.orderId || order.id || `ORD-${Date.now()}`
+    // Gerar UUID real para o banco
+    const dbId = crypto.randomUUID()
 
-    console.log("[orders POST] Criando pedido:", publicOrderId)
+    console.log("[orders POST] Criando pedido:", publicOrderId, "UUID:", dbId)
 
     // Criar objeto do pedido
     const newOrder: Order = {
-      id: publicOrderId,
+      id: dbId, // UUID real para o banco
+      orderCode: publicOrderId, // Codigo publico do pedido (ex: PK1234)
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       customerId: order.customerId,
@@ -311,11 +317,11 @@ export async function POST(request: NextRequest) {
         throw new Error('Supabase nao disponivel')
       }
       
-      // Verificar se ja existe
+      // Verificar se ja existe pelo order_code (codigo publico)
       const { data: existing } = await supabase
         .from('orders')
         .select('id')
-        .eq('id', publicOrderId)
+        .eq('order_code', publicOrderId)
         .single()
 
       if (existing) {
@@ -352,7 +358,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("[orders POST] Erro:", error)
-    return NextResponse.json({ error: "Failed to create order" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to create order", details: String(error) }, { status: 500 })
   }
 }
 

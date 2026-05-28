@@ -96,6 +96,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string
+  orderCode?: string // Codigo publico do pedido (ex: PK1234)
   customerName: string
   customerPhone: string
   items: string

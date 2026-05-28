@@ -140,19 +140,26 @@ export async function POST(request: Request) {
     
     console.log(`[neighborhoods v96 POST] ${neighborhoods.length} bairros`)
     
-    // Deletar todos os bairros existentes
+    // Deletar TODOS os bairros existentes (sem filtro de id)
     const { error: deleteError } = await supabase
       .from('neighborhoods')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000')
+      .gte('id', 0) // Deleta todos os registros com id >= 0
     
     if (deleteError) {
       console.error("[neighborhoods v96 POST] Erro delete:", deleteError.message)
     }
     
+    // Remover bairros duplicados por nome antes de inserir
+    const uniqueNeighborhoods = neighborhoods.filter((n, index, self) => 
+      index === self.findIndex(t => t.name.toLowerCase().trim() === n.name.toLowerCase().trim())
+    )
+    
+    console.log(`[neighborhoods v96 POST] ${uniqueNeighborhoods.length} bairros unicos (removidos ${neighborhoods.length - uniqueNeighborhoods.length} duplicados)`)
+    
     // Inserir novos bairros
-    if (neighborhoods.length > 0) {
-      const toInsert = neighborhoods.map((n, i) => mapFrontendToDb(n, i))
+    if (uniqueNeighborhoods.length > 0) {
+      const toInsert = uniqueNeighborhoods.map((n, i) => mapFrontendToDb(n, i))
       
       const { data, error: insertError } = await supabase
         .from('neighborhoods')
@@ -173,7 +180,8 @@ export async function POST(request: Request) {
         success: true, 
         count: data?.length || 0,
         neighborhoods: (data || []).map(mapDbToFrontend),
-        source: 'supabase'
+        source: 'supabase',
+        duplicatesRemoved: neighborhoods.length - uniqueNeighborhoods.length
       })
     }
     
