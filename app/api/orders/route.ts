@@ -80,7 +80,7 @@ CREATE INDEX idx_orders_status ON orders(status);
 CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
 */
 
-// Apenas estas 10 colunas sao enviadas no insert (SEM id - é BIGINT auto)
+// Apenas estas colunas sao enviadas no insert (SEM id - é BIGINT auto)
 const ALLOWED_COLUMNS = [
   'order_code',
   'customer_name',
@@ -92,9 +92,10 @@ const ALLOWED_COLUMNS = [
   'total',
   'status',
   'created_at',
+  'asaas_payment_id', // ID do pagamento Asaas para confirmacao automatica
 ] as const
 
-function frontendToDb(order: Order): Record<string, unknown> {
+function frontendToDb(order: Order & { asaasPaymentId?: string }): Record<string, unknown> {
   // NAO enviar 'id' - é BIGINT auto-gerado pelo Supabase
   const dbOrder: Record<string, unknown> = {
     order_code: order.orderCode || order.id || `ORD-${Date.now()}`,
@@ -107,6 +108,7 @@ function frontendToDb(order: Order): Record<string, unknown> {
     total: order.total || 0,
     status: order.status || 'pending',
     created_at: new Date().toISOString(),
+    asaas_payment_id: order.asaasPaymentId || null, // ID do pagamento Asaas
   }
   
   // Filtrar apenas colunas permitidas
@@ -180,7 +182,7 @@ export async function POST(request: NextRequest) {
     const initialStatus = isPixAsaas ? "pending" : "confirmed"
 
     // Criar objeto do pedido (id sera gerado pelo Supabase)
-    const newOrder: Order = {
+    const newOrder: Order & { asaasPaymentId?: string } = {
       id: '', // Sera preenchido apos insert
       orderCode: publicOrderId,
       customerName: order.customerName,
@@ -198,7 +200,10 @@ export async function POST(request: NextRequest) {
       status: initialStatus,
       paymentStatus: isPixAsaas ? "pending" : "confirmed",
       createdAt: new Date().toISOString(),
+      asaasPaymentId: order.asaasPaymentId || null, // ID do pagamento Asaas
     }
+
+    console.log("[orders POST] asaasPaymentId:", order.asaasPaymentId || "nao informado")
 
     const supabase = getSupabase()
       

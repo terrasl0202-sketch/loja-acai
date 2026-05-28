@@ -25,22 +25,20 @@ export async function POST(request: NextRequest) {
     const effectivePaymentId = paymentId || asaasPaymentId
     const effectiveOrderCode = orderCode || orderId
 
-    console.log("[orders/confirm] effectiveOrderCode:", effectiveOrderCode, "effectivePaymentId:", effectivePaymentId)
+    console.log("[orders/confirm] effectiveOrderCode:", effectiveOrderCode || "(vazio)", "effectivePaymentId:", effectivePaymentId || "(vazio)")
 
     if (!effectivePaymentId && !effectiveOrderCode) {
       console.log("[orders/confirm] ERRO: nenhum identificador fornecido")
       return NextResponse.json({ error: "paymentId, orderId ou orderCode obrigatorio" }, { status: 400 })
     }
 
-    console.log("[orders/confirm] Confirmando pedido. paymentId:", effectivePaymentId, "orderCode:", effectiveOrderCode)
-
     const supabase = getSupabase()
     
-    // BUSCAR APENAS POR order_code (string) - NAO misturar com id (BIGINT)
     let order = null
     
+    // ESTRATEGIA 1: Buscar por order_code (se fornecido)
     if (effectiveOrderCode) {
-      // Primeiro tentar por order_code (codigo publico como PK20260528...)
+      console.log("[orders/confirm] Buscando por order_code:", effectiveOrderCode)
       const { data: orderByCode, error: codeError } = await supabase
         .from('orders')
         .select('*')
@@ -49,31 +47,36 @@ export async function POST(request: NextRequest) {
       
       if (!codeError && orderByCode) {
         order = orderByCode
-        console.log("[orders/confirm] Pedido encontrado por order_code:", effectiveOrderCode)
+        console.log("[orders/confirm] ENCONTRADO por order_code!")
       } else {
-        // Se nao encontrou por order_code e o valor parece ser um numero, tentar por id
-        const numericId = parseInt(effectiveOrderCode, 10)
-        if (!isNaN(numericId)) {
-          const { data: orderById, error: idError } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('id', numericId)
-            .single()
-          
-          if (!idError && orderById) {
-            order = orderById
-            console.log("[orders/confirm] Pedido encontrado por id numerico:", numericId)
-          }
-        }
+        console.log("[orders/confirm] Nao encontrado por order_code. Erro:", codeError?.message)
       }
     }
 
+    // ESTRATEGIA 2: Buscar por asaas_payment_id (se order_code falhou ou nao foi fornecido)
+    if (!order && effectivePaymentId) {
+      console.log("[orders/confirm] Buscando por asaas_payment_id:", effectivePaymentId)
+      const { data: orderByPaymentId, error: paymentError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('asaas_payment_id', effectivePaymentId)
+        .single()
+      
+      if (!paymentError && orderByPaymentId) {
+        order = orderByPaymentId
+        console.log("[orders/confirm] ENCONTRADO por asaas_payment_id!")
+      } else {
+        console.log("[orders/confirm] Nao encontrado por asaas_payment_id. Erro:", paymentError?.message)
+      }
+    }
+
+    // Se ainda nao encontrou, retornar 404
     if (!order) {
-      console.log("[orders/confirm] Pedido NAO encontrado. orderCode:", effectiveOrderCode)
+      console.log("[orders/confirm] Pedido NAO encontrado. orderCode:", effectiveOrderCode, "paymentId:", effectivePaymentId)
       return NextResponse.json({ error: "Pedido nao encontrado", success: false }, { status: 404 })
     }
 
-    console.log("[orders/confirm] Pedido encontrado! id:", order.id, "order_code:", order.order_code, "status atual:", order.status)
+    console.log("[orders/confirm] Pedido encontrado! id:", order.id, "order_code:", order.order_code, "asaas_payment_id:", order.asaas_payment_id, "status atual:", order.status)
 
     // Se ja esta confirmado, retornar sucesso sem atualizar
     if (order.status === 'confirmed' || order.status === 'preparing' || order.status === 'delivering' || order.status === 'completed') {
