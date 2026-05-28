@@ -18,7 +18,7 @@ function getSupabase() {
 interface DbNeighborhood {
   id: string
   name: string
-  fee: number
+  delivery_fee: number
   active: boolean
   sort_order: number
   created_at: string
@@ -40,8 +40,8 @@ function mapDbToFrontend(db: DbNeighborhood): FrontendNeighborhood {
   return {
     id: db.id,
     name: db.name,
-    deliveryFee: Number(db.fee) || 0,
-    fee: Number(db.fee) || 0,
+    deliveryFee: Number(db.delivery_fee) || 0,
+    fee: Number(db.delivery_fee) || 0,
     active: db.active,
     order: db.sort_order
   }
@@ -50,7 +50,7 @@ function mapDbToFrontend(db: DbNeighborhood): FrontendNeighborhood {
 function mapFrontendToDb(front: FrontendNeighborhood, index: number) {
   return {
     name: front.name,
-    fee: front.deliveryFee ?? front.fee ?? 0,
+    delivery_fee: front.deliveryFee ?? front.fee ?? 0,
     active: front.active !== false,
     sort_order: front.order ?? index,
     updated_at: new Date().toISOString()
@@ -224,7 +224,7 @@ export async function PUT(request: Request) {
     
     const updateData = {
       name: neighborhood.name,
-      fee: neighborhood.deliveryFee ?? neighborhood.fee ?? 0,
+      delivery_fee: neighborhood.deliveryFee ?? neighborhood.fee ?? 0,
       active: neighborhood.active,
       sort_order: neighborhood.order ?? 0,
       updated_at: new Date().toISOString()
