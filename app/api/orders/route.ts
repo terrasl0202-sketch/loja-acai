@@ -107,42 +107,46 @@ function dbToFrontend(db: DbOrder): Order {
   }
 }
 
-function frontendToDb(order: Order): Partial<DbOrder> {
-  return {
+function frontendToDb(order: Order): Record<string, unknown> {
+  // Campos essenciais que CERTAMENTE existem na tabela orders
+  const dbOrder: Record<string, unknown> = {
     id: order.id,
-    order_code: order.orderCode || order.id, // Codigo publico do pedido
+    order_code: order.orderCode || order.id,
     customer_name: order.customerName,
     customer_phone: order.customerPhone,
     customer_address: order.address || null,
-    customer_reference: order.reference || null,
     neighborhood: order.neighborhood || null,
     delivery_type: order.deliveryType,
     payment_method: order.paymentMethod,
-    items: order.itemsDetailed || [],
     items_text: order.items,
-    items_detailed: order.itemsDetailed || [],
     total: order.total,
     status: order.status,
     payment_status: order.paymentStatus,
-  is_pix_automatic: order.isPixAutomatic || false,
-  manually_confirmed: order.manuallyConfirmed || false,
-  confirmed_automatically: order.confirmedAutomatically || false,
-  entregador_id: order.entregadorId || null,
-    entregador_nome: order.entregadorNome || null,
-    entregador_whatsapp: order.entregadorWhatsapp || null,
-    saiu_para_entrega_em: order.saiuParaEntregaEm || null,
-    entregue_em: order.entregueEm || null,
-    cancelado_em: order.canceladoEm || null,
-    motivo_cancelamento: order.motivoCancelamento || null,
-    historico_entrega: order.historicoEntrega || [],
-    customer_id: order.customerId || null,
-    confirmed_at: order.confirmedAt || null,
-    paid_at: order.paidAt || null,
     observation: order.observation || null,
-    asaas_payment_id: order.asaasPaymentId || null,
-    asaas_pix_code: order.asaasPixCode || null,
-    asaas_qr_code_url: order.asaasQrCodeUrl || null,
   }
+  
+  // Campos opcionais - so adicionar se tiverem valor
+  if (order.customerPhone) dbOrder.customer_phone = order.customerPhone
+  if (order.reference) dbOrder.customer_reference = order.reference
+  if (order.itemsDetailed) dbOrder.items_detailed = order.itemsDetailed
+  if (order.customerId) dbOrder.customer_id = order.customerId
+  if (order.confirmedAt) dbOrder.confirmed_at = order.confirmedAt
+  if (order.paidAt) dbOrder.paid_at = order.paidAt
+  if (order.entregadorId) dbOrder.entregador_id = order.entregadorId
+  if (order.entregadorNome) dbOrder.entregador_nome = order.entregadorNome
+  if (order.entregadorWhatsapp) dbOrder.entregador_whatsapp = order.entregadorWhatsapp
+  if (order.saiuParaEntregaEm) dbOrder.saiu_para_entrega_em = order.saiuParaEntregaEm
+  if (order.entregueEm) dbOrder.entregue_em = order.entregueEm
+  if (order.canceladoEm) dbOrder.cancelado_em = order.canceladoEm
+  if (order.motivoCancelamento) dbOrder.motivo_cancelamento = order.motivoCancelamento
+  if (order.historicoEntrega?.length) dbOrder.historico_entrega = order.historicoEntrega
+  
+  // Campos booleanos - usar false como default
+  dbOrder.is_pix_automatic = order.isPixAutomatic || false
+  dbOrder.manually_confirmed = order.manuallyConfirmed || false
+  dbOrder.confirmed_automatically = order.confirmedAutomatically || false
+  
+  return dbOrder
 }
 
 // ============ GET - Listar pedidos ============
