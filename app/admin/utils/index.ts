@@ -120,12 +120,48 @@ export const getPaymentStatusLabel = (status: Order["paymentStatus"]): string =>
   }
 }
 
+// Obter codigo publico do pedido
+export const getOrderCode = (order: Order): string => {
+  return order.orderCode || order.id
+}
+
+// Formatar itens do pedido de forma legivel
+export const formatOrderItems = (order: Order): string => {
+  // Se tiver itemsDetailed como array
+  if (Array.isArray(order.itemsDetailed) && order.itemsDetailed.length > 0) {
+    return order.itemsDetailed.map(item => {
+      const name = item.productName || 'Produto'
+      const qty = item.quantity || 1
+      const subtotal = item.subtotal || (item.price * qty)
+      return `${qty}x ${name} - R$ ${subtotal.toFixed(2)}`
+    }).join(', ')
+  }
+  
+  // Se items for string, retornar direto
+  if (typeof order.items === 'string') {
+    return order.items
+  }
+  
+  // Se items for array (JSONB do Supabase)
+  if (Array.isArray(order.items)) {
+    return (order.items as Array<{ productName?: string; name?: string; quantity?: number; price?: number; subtotal?: number }>).map(item => {
+      const name = item.productName || item.name || 'Produto'
+      const qty = item.quantity || 1
+      const subtotal = item.subtotal || ((item.price || 0) * qty)
+      return `${qty}x ${name} - R$ ${subtotal.toFixed(2)}`
+    }).join(', ')
+  }
+  
+  return 'Sem itens'
+}
+
 // URL base publica oficial
 export const getPublicBaseUrl = (): string => "https://www.pkgostosuras.shop"
 
 // Gerar link de acompanhamento do pedido
-export const getOrderTrackingLink = (orderId: string): string => {
-  return `${getPublicBaseUrl()}/pedido/${orderId}`
+// IMPORTANTE: Usar orderCode (codigo publico), NAO id (BIGINT interno)
+export const getOrderTrackingLink = (orderCode: string): string => {
+  return `${getPublicBaseUrl()}/pedido/${orderCode}`
 }
 
 // Gerar link do painel do entregador

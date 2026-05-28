@@ -63,6 +63,8 @@ import {
   getEntregadorPanelLink,
   generateEntregadorMessage,
   copyToClipboardRobust,
+  getOrderCode,
+  formatOrderItems,
 } from "./utils"
 import { 
   ORDERS_POLLING_INTERVAL,
