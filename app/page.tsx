@@ -197,6 +197,24 @@ export default function Home() {
   
   // Pedido bloqueado = PIX ativo OU em cooldown
   const isOrderBlocked = isOrderLocked || isInCooldown
+  
+  // Verificar se dados do cliente estao confirmados
+  // Para clientes logados com dados salvos: precisa escolher "Usar dados salvos" ou "Novo endereco"
+  // Para clientes sem dados salvos ou nao logados: nao exige escolha
+  const hasDataToChoose = customer && (customer.savedAddress || customerOrders.length > 0)
+  const needsAddressChoice = hasDataToChoose && useSavedData === null
+  
+  // Validar se o endereco esta completo (para entrega)
+  const isAddressComplete = deliveryType === "retirada" || (
+    formData.nome.trim() !== "" &&
+    formData.telefone.trim() !== "" &&
+    formData.endereco.trim() !== "" &&
+    formData.numero.trim() !== "" &&
+    formData.bairro.trim() !== ""
+  )
+  
+  // Dados confirmados = escolheu opcao (se necessario) E endereco completo (se entrega)
+  const isDataConfirmed = !needsAddressChoice && isAddressComplete
 
   // Mostrar toast
   const showToast = (message: string) => {
@@ -2878,9 +2896,22 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                     ? "Clique abaixo para ver os dados do PIX" 
                                     : "Clique abaixo para gerar o PIX automatico"}
                                 </p>
+                                
+                                {/* Aviso de dados nao confirmados */}
+                                {!isDataConfirmed && (
+                                  <div className="mb-4 p-3 bg-yellow-500/15 border border-yellow-500/30 rounded-xl">
+                                    <p className="text-sm text-yellow-400 text-center font-medium">
+                                      {needsAddressChoice 
+                                        ? "Confirme seus dados de entrega acima para continuar"
+                                        : "Preencha todos os campos de endereco para continuar"}
+                                    </p>
+                                  </div>
+                                )}
+                                
                                 <button
                                   onClick={createPixCharge}
-                                  className="premium-btn w-full py-4 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-xl hover:shadow-primary/25 active:scale-[0.98] shadow-lg shadow-primary/15 relative overflow-hidden group"
+                                  disabled={!isDataConfirmed}
+                                  className={`premium-btn w-full py-4 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground font-black rounded-2xl flex items-center justify-center gap-3 transition-all relative overflow-hidden group ${!isDataConfirmed ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl hover:shadow-primary/25 active:scale-[0.98] shadow-lg shadow-primary/15'}`}
                                 >
                                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                                   <span className="text-xl relative">💠</span>
@@ -2912,15 +2943,28 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
                   {/* Submit Button for non-PIX payments - Premium */}
                   {formData.pagamento !== "pix" && (
-                    <button
-                      onClick={handleManualPayment}
-                      className="premium-btn w-full py-5 bg-gradient-to-r from-green-500 to-green-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all hover:shadow-2xl hover:shadow-green-500/40 active:scale-[0.98] relative overflow-hidden group animate-scale-in"
-                      style={{ animationDelay: '0.25s' }}
-                    >
+                    <>
+                      {/* Aviso de dados nao confirmados */}
+                      {!isDataConfirmed && (
+                        <div className="mb-4 p-3 bg-yellow-500/15 border border-yellow-500/30 rounded-xl animate-scale-in" style={{ animationDelay: '0.25s' }}>
+                          <p className="text-sm text-yellow-400 text-center font-medium">
+                            {needsAddressChoice 
+                              ? "Confirme seus dados de entrega acima para continuar"
+                              : "Preencha todos os campos de endereco para continuar"}
+                          </p>
+                        </div>
+                      )}
+                      <button
+                        onClick={handleManualPayment}
+                        disabled={!isDataConfirmed}
+                        className={`premium-btn w-full py-5 bg-gradient-to-r from-green-500 to-green-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all relative overflow-hidden group animate-scale-in ${!isDataConfirmed ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-2xl hover:shadow-green-500/40 active:scale-[0.98]'}`}
+                        style={{ animationDelay: '0.25s' }}
+                      >
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                       <Send className="w-5 h-5 relative" />
                       <span className="relative text-base">Finalizar Pedido no WhatsApp</span>
                     </button>
+                    </>
                   )}
                       </>
                     )}
