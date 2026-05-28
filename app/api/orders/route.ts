@@ -107,46 +107,58 @@ function dbToFrontend(db: DbOrder): Order {
   }
 }
 
+// ============ WHITELIST DE COLUNAS PERMITIDAS ============
+// Apenas colunas que CERTAMENTE existem na tabela orders do Supabase
+const ALLOWED_COLUMNS = [
+  'id',
+  'order_code',
+  'customer_name',
+  'customer_phone',
+  'customer_address',
+  'neighborhood',
+  'delivery_type',
+  'payment_method',
+  'items_detailed',
+  'total',
+  'status',
+  'payment_status',
+  'observation',
+  'notes',
+  'created_at',
+] as const
+
 function frontendToDb(order: Order): Record<string, unknown> {
-  // Campos essenciais que CERTAMENTE existem na tabela orders
+  // Montar objeto APENAS com campos da whitelist
+  // NAO usar spread, NAO adicionar campos dinamicos
   const dbOrder: Record<string, unknown> = {
     id: order.id,
     order_code: order.orderCode || order.id,
-    customer_name: order.customerName,
-    customer_phone: order.customerPhone,
+    customer_name: order.customerName || 'Cliente',
+    customer_phone: order.customerPhone || '',
     customer_address: order.address || null,
     neighborhood: order.neighborhood || null,
-    delivery_type: order.deliveryType,
-    payment_method: order.paymentMethod,
-    items_text: order.items,
-    total: order.total,
-    status: order.status,
-    payment_status: order.paymentStatus,
+    delivery_type: order.deliveryType || 'delivery',
+    payment_method: order.paymentMethod || 'Dinheiro',
+    items_detailed: order.itemsDetailed || [],
+    total: order.total || 0,
+    status: order.status || 'pending',
+    payment_status: order.paymentStatus || 'pending',
     observation: order.observation || null,
+    notes: null,
+    created_at: new Date().toISOString(),
   }
   
-  // Campos opcionais - so adicionar se tiverem valor
-  if (order.customerPhone) dbOrder.customer_phone = order.customerPhone
-  if (order.reference) dbOrder.customer_reference = order.reference
-  if (order.itemsDetailed) dbOrder.items_detailed = order.itemsDetailed
-  if (order.customerId) dbOrder.customer_id = order.customerId
-  if (order.confirmedAt) dbOrder.confirmed_at = order.confirmedAt
-  if (order.paidAt) dbOrder.paid_at = order.paidAt
-  if (order.entregadorId) dbOrder.entregador_id = order.entregadorId
-  if (order.entregadorNome) dbOrder.entregador_nome = order.entregadorNome
-  if (order.entregadorWhatsapp) dbOrder.entregador_whatsapp = order.entregadorWhatsapp
-  if (order.saiuParaEntregaEm) dbOrder.saiu_para_entrega_em = order.saiuParaEntregaEm
-  if (order.entregueEm) dbOrder.entregue_em = order.entregueEm
-  if (order.canceladoEm) dbOrder.cancelado_em = order.canceladoEm
-  if (order.motivoCancelamento) dbOrder.motivo_cancelamento = order.motivoCancelamento
-  if (order.historicoEntrega?.length) dbOrder.historico_entrega = order.historicoEntrega
+  // Remover campos undefined (Supabase nao aceita undefined)
+  const cleanOrder: Record<string, unknown> = {}
+  for (const key of ALLOWED_COLUMNS) {
+    if (dbOrder[key] !== undefined) {
+      cleanOrder[key] = dbOrder[key]
+    }
+  }
   
-  // Campos booleanos - usar false como default
-  dbOrder.is_pix_automatic = order.isPixAutomatic || false
-  dbOrder.manually_confirmed = order.manuallyConfirmed || false
-  dbOrder.confirmed_automatically = order.confirmedAutomatically || false
+  console.log("[orders] Campos enviados:", Object.keys(cleanOrder).join(', '))
   
-  return dbOrder
+  return cleanOrder
 }
 
 // ============ GET - Listar pedidos ============
