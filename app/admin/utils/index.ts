@@ -66,13 +66,17 @@ export const getTimeSinceCreation = (createdAt: string): string => {
   return `${days}d ${hours % 24}h`
 }
 
-// Verificar se pedido esta confirmado
+// Verificar se pedido esta confirmado (pagamento recebido)
+// Considera tanto campos legados (paymentStatus, manuallyConfirmed) quanto o campo principal (status)
 export const isOrderConfirmed = (o: Order): boolean => 
-  o.paymentStatus === "confirmed" || 
-  o.manuallyConfirmed || 
-  o.confirmedAutomatically || 
-  !!o.paidAt ||
-  o.status === "completed"
+  o.status === "confirmed" ||        // Status principal = confirmed
+  o.status === "preparing" ||        // Ja em preparacao = confirmado
+  o.status === "delivering" ||       // Ja em entrega = confirmado
+  o.status === "completed" ||        // Completado = confirmado
+  o.paymentStatus === "confirmed" || // Campo legado
+  o.manuallyConfirmed ||             // Confirmacao manual
+  o.confirmedAutomatically ||        // Pix automatico
+  !!o.paidAt                         // Campo legado
 
 // Obter cor do status
 export const getStatusColor = (status: Order["status"]): string => {

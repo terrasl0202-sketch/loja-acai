@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { password, orderId, status } = body
+    const { password, orderId, status, paymentStatus, manuallyConfirmed } = body
 
     if (password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -257,14 +257,21 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "orderId required" }, { status: 400 })
     }
 
-    console.log("[orders PATCH] Atualizando pedido:", orderId, { status })
+    console.log("[orders PATCH] Atualizando pedido:", orderId, { status, paymentStatus, manuallyConfirmed })
 
     const supabase = getSupabase()
       
-    // Apenas atualizar status (unica coluna garantida)
+    // Montar objeto de atualizacao apenas com campos fornecidos
     const updates: Record<string, unknown> = {}
+    
     if (status !== undefined) {
       updates.status = status
+    }
+
+    // Confirmacao manual de pagamento
+    if (manuallyConfirmed === true) {
+      updates.status = 'confirmed'
+      console.log("[orders PATCH] Confirmacao manual - status atualizado para confirmed")
     }
 
     if (Object.keys(updates).length === 0) {
@@ -284,7 +291,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const order = dbToFrontend(updated)
-    console.log("[orders PATCH] Pedido atualizado:", orderId)
+    console.log("[orders PATCH] Pedido atualizado:", orderId, "novo status:", order.status)
       
     return NextResponse.json({ success: true, order, source: 'supabase' })
 

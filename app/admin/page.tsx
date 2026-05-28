@@ -1153,8 +1153,19 @@ export default function AdminPage() {
   }
 
   // ========== FILTROS DE ABAS ==========
-  const ordersPendingPayment = activeOrders.filter(o => o.paymentStatus !== "confirmed" && !o.manuallyConfirmed && !o.confirmedAutomatically && !o.paidAt && !["preparing", "delivering", "completed", "cancelled"].includes(o.status))
-  const ordersPaidWaiting = activeOrders.filter(o => (o.paymentStatus === "confirmed" || o.manuallyConfirmed || o.confirmedAutomatically || o.paidAt) && o.status === "confirmed")
+  // Pedidos aguardando pagamento: status=pending E nao tem confirmacao
+  const ordersPendingPayment = activeOrders.filter(o => 
+    o.status === "pending" && 
+    o.paymentStatus !== "confirmed" && 
+    !o.manuallyConfirmed && 
+    !o.confirmedAutomatically && 
+    !o.paidAt
+  )
+  // Pedidos confirmados aguardando preparo: status=confirmed OU (status=pending com pagamento confirmado)
+  const ordersPaidWaiting = activeOrders.filter(o => 
+    o.status === "confirmed" || 
+    (o.status === "pending" && (o.paymentStatus === "confirmed" || o.manuallyConfirmed || o.confirmedAutomatically || o.paidAt))
+  )
   const ordersPreparing = activeOrders.filter(o => o.status === "preparing")
   const ordersDelivering = activeOrders.filter(o => o.status === "delivering")
   const ordersCompleted = activeOrders.filter(o => o.status === "completed")
