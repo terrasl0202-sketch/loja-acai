@@ -71,16 +71,24 @@ export async function POST(
 
     // Buscar pedido - DETECTAR SE E order_code (PK...) OU id (numerico)
     const isOrderCode = typeof orderId === 'string' && orderId.startsWith('PK')
+    console.log("[entregador/entregar POST] Tipo de orderId:", typeof orderId)
+    console.log("[entregador/entregar POST] orderId.startsWith('PK'):", typeof orderId === 'string' ? orderId.startsWith('PK') : 'N/A')
+    console.log("[entregador/entregar POST] isOrderCode:", isOrderCode)
     console.log("[entregador/entregar POST] Buscando pedido por:", isOrderCode ? "order_code" : "id", "=", orderId)
     
-    let orderQuery
+    let orders = null
+    let orderError = null
+    
     if (isOrderCode) {
       // Buscar por order_code (string)
-      orderQuery = supabase
+      console.log("[entregador/entregar POST] Query: orders.select(*).eq('order_code',", orderId, ")")
+      const result = await supabase
         .from('orders')
         .select('*')
         .eq('order_code', orderId)
-        .limit(1)
+      orders = result.data
+      orderError = result.error
+      console.log("[entregador/entregar POST] Resultado query order_code - data:", orders?.length || 0, "registros, error:", orderError?.message || 'nenhum')
     } else {
       // Buscar por id (BIGINT) - tentar converter para numero
       const numericId = parseInt(orderId, 10)
@@ -88,14 +96,15 @@ export async function POST(
         console.error("[entregador/entregar POST] orderId invalido (nao e PK nem numerico):", orderId)
         return NextResponse.json({ error: "orderId invalido" }, { status: 400 })
       }
-      orderQuery = supabase
+      console.log("[entregador/entregar POST] Query: orders.select(*).eq('id',", numericId, ")")
+      const result = await supabase
         .from('orders')
         .select('*')
         .eq('id', numericId)
-        .limit(1)
+      orders = result.data
+      orderError = result.error
+      console.log("[entregador/entregar POST] Resultado query id - data:", orders?.length || 0, "registros, error:", orderError?.message || 'nenhum')
     }
-
-    const { data: orders, error: orderError } = await orderQuery
 
     if (orderError) {
       console.error("[entregador/entregar POST] Erro Supabase ao buscar pedido:", orderError.message, orderError.details, orderError.hint)
