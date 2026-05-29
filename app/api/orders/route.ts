@@ -37,6 +37,10 @@ interface DbOrder {
   total: number
   status: string
   created_at: string
+  // Campos de entregador
+  entregador_id?: string | null
+  entregador_nome?: string | null
+  entregador_whatsapp?: string | null
 }
 
 function dbToFrontend(db: DbOrder): Order {
@@ -55,6 +59,10 @@ function dbToFrontend(db: DbOrder): Order {
     status: (db.status || 'pending') as Order['status'],
     paymentStatus: 'pending',
     createdAt: db.created_at,
+    // Campos de entregador
+    entregadorId: db.entregador_id || undefined,
+    entregadorNome: db.entregador_nome || undefined,
+    entregadorWhatsapp: db.entregador_whatsapp || undefined,
   }
 }
 
@@ -252,7 +260,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { password, orderId, status, paymentStatus, manuallyConfirmed } = body
+    const { password, orderId, status, paymentStatus, manuallyConfirmed, entregadorId, entregadorNome, entregadorWhatsapp, limparEntregador } = body
 
     if (password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -262,7 +270,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "orderId required" }, { status: 400 })
     }
 
-    console.log("[orders PATCH] Atualizando pedido:", orderId, { status, paymentStatus, manuallyConfirmed })
+    console.log("[orders PATCH] Atualizando pedido:", orderId, { status, paymentStatus, manuallyConfirmed, entregadorId, limparEntregador })
 
     const supabase = getSupabase()
       
@@ -277,6 +285,22 @@ export async function PATCH(request: NextRequest) {
     if (manuallyConfirmed === true) {
       updates.status = 'confirmed'
       console.log("[orders PATCH] Confirmacao manual - status atualizado para confirmed")
+    }
+
+    // Atribuir entregador
+    if (entregadorId !== undefined) {
+      updates.entregador_id = entregadorId
+      updates.entregador_nome = entregadorNome || null
+      updates.entregador_whatsapp = entregadorWhatsapp || null
+      console.log("[orders PATCH] Entregador atribuido:", entregadorNome)
+    }
+
+    // Limpar entregador
+    if (limparEntregador === true) {
+      updates.entregador_id = null
+      updates.entregador_nome = null
+      updates.entregador_whatsapp = null
+      console.log("[orders PATCH] Entregador removido")
     }
 
     if (Object.keys(updates).length === 0) {
