@@ -29,7 +29,7 @@ export async function GET() {
         slogan,
         instagram,
         address,
-        whatsapp_number,
+        whatsapp,
         logo_url,
         favicon_url,
         cover_image_url,
@@ -69,7 +69,7 @@ export async function GET() {
 
     if (error) {
       console.error("Erro ao buscar customizacao:", error)
-      return NextResponse.json({ customization: defaultCustomization })
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     // Mapear do banco para o formato da interface
@@ -115,7 +115,7 @@ export async function GET() {
         instagram: data?.instagram || "",
         facebook: data?.facebook || "",
         tiktok: data?.tiktok || "",
-        whatsapp: data?.whatsapp_number || "",
+        whatsapp: data?.whatsapp || "",
         address: data?.address || "",
         deliveryPolicy: data?.delivery_policy || "",
         footerText: data?.footer_text || "",
@@ -130,7 +130,7 @@ export async function GET() {
     return NextResponse.json({ customization })
   } catch (err) {
     console.error("Erro ao buscar customizacao:", err)
-    return NextResponse.json({ customization: defaultCustomization })
+    return NextResponse.json({ error: "Erro interno ao buscar customizacao" }, { status: 500 })
   }
 }
 
