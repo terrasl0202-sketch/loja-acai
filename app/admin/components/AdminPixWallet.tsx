@@ -223,6 +223,12 @@ export function AdminPixWallet({ onKeyChange }: AdminPixWalletProps) {
     try {
       setSaving(true)
       
+      // Atualiza estado local imediatamente para feedback instantaneo
+      setKeys(prevKeys => prevKeys.map(k => ({
+        ...k,
+        isActive: k.id === key.id
+      })))
+      
       const res = await fetch("/api/pix-keys", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -232,11 +238,12 @@ export function AdminPixWallet({ onKeyChange }: AdminPixWalletProps) {
       const data = await res.json()
 
       if (data.error) {
+        // Reverte em caso de erro
+        loadKeys()
         throw new Error(data.error)
       }
 
       setSuccess(`Chave "${key.alias}" ativada!`)
-      loadKeys()
       onKeyChange?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao ativar")
@@ -426,69 +433,92 @@ export function AdminPixWallet({ onKeyChange }: AdminPixWalletProps) {
           <p className="text-xs mt-1">Clique em "Nova Chave" para adicionar</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {keys.map((key) => (
             <div
               key={key.id}
-              className={`p-4 rounded-xl border transition-colors ${
+              className={`p-4 rounded-xl border-2 transition-all ${
                 key.isActive
-                  ? "bg-green-500/5 border-green-500/30"
-                  : "bg-card/50 border-border/50"
+                  ? "bg-green-500/10 border-green-500 shadow-lg shadow-green-500/10"
+                  : "bg-card/50 border-border/50 hover:border-border"
               }`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-foreground">{key.alias}</span>
-                    {key.isActive && (
-                      <span className="px-2 py-0.5 bg-green-500/20 text-green-500 rounded-full text-[10px] font-bold">
-                        ATIVA
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {/* Header do card */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className={`p-2 rounded-lg ${key.isActive ? "bg-green-500/20 text-green-500" : "bg-secondary text-muted-foreground"}`}>
                     {KEY_TYPE_ICONS[key.keyType]}
-                    <span>{KEY_TYPE_LABELS[key.keyType]}</span>
-                    <span className="font-mono">{maskKey(key.keyValue, key.keyType)}</span>
                   </div>
-                  
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Recebedor: <span className="text-foreground">{key.receiverName}</span>
-                    {" | "}
-                    Cidade: <span className="text-foreground">{key.city}</span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-foreground">{key.alias}</span>
+                      {key.isActive && (
+                        <span className="px-2 py-0.5 bg-green-500 text-white rounded-full text-[10px] font-bold uppercase">
+                          Ativa
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{KEY_TYPE_LABELS[key.keyType]}</span>
                   </div>
                 </div>
-
+                
+                {/* Acoes de editar/excluir */}
                 <div className="flex items-center gap-1">
-                  {!key.isActive && (
-                    <button
-                      onClick={() => activateKey(key)}
-                      disabled={saving}
-                      className="p-2 text-green-500 hover:bg-green-500/10 rounded-lg transition-colors"
-                      title="Usar esta chave"
-                    >
-                      <Check className="w-4 h-4" />
-                    </button>
-                  )}
                   <button
                     onClick={() => openEditForm(key)}
                     disabled={saving}
                     className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
-                    title="Editar"
+                    title="Editar chave"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => deleteKey(key)}
                     disabled={saving}
-                    className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                    title="Excluir"
+                    className="p-2 text-red-500/70 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                    title="Excluir chave"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
+              
+              {/* Detalhes da chave */}
+              <div className="space-y-1 text-sm mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground w-20">Chave:</span>
+                  <span className="font-mono text-foreground">{maskKey(key.keyValue, key.keyType)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground w-20">Recebedor:</span>
+                  <span className="text-foreground">{key.receiverName}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground w-20">Cidade:</span>
+                  <span className="text-foreground">{key.city}</span>
+                </div>
+              </div>
+              
+              {/* Botao de acao principal */}
+              {key.isActive ? (
+                <div className="flex items-center justify-center gap-2 py-2 bg-green-500/10 text-green-600 rounded-lg text-sm font-medium">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Em uso no checkout
+                </div>
+              ) : (
+                <button
+                  onClick={() => activateKey(key)}
+                  disabled={saving}
+                  className="w-full flex items-center justify-center gap-2 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {saving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                  Usar esta chave
+                </button>
+              )}
             </div>
           ))}
         </div>
