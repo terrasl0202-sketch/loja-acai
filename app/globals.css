@@ -266,12 +266,11 @@
 
 /* Premium Card - Elegante com profundidade */
 .premium-card {
-  @apply relative overflow-hidden bg-gradient-to-br from-card via-card to-card/95;
-  border: 1px solid rgba(139, 92, 246, 0.08);
+  @apply relative overflow-hidden bg-card text-card-foreground;
+  border: 1px solid var(--border);
   box-shadow: 
     0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -2px rgba(0, 0, 0, 0.1),
-    0 0 0 1px rgba(139, 92, 246, 0.03);
+    0 2px 4px -2px rgba(0, 0, 0, 0.1);
 }
 
 .premium-card::before {
@@ -281,30 +280,24 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.15), transparent);
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  opacity: 0.15;
 }
 
 /* Product Card - Ultra Premium */
 .product-card {
-  @apply relative overflow-hidden rounded-2xl transition-all duration-300;
+  @apply relative overflow-hidden rounded-2xl transition-all duration-300 bg-card text-card-foreground;
   z-index: 1;
-  background: linear-gradient(145deg, 
-    rgba(23, 23, 36, 0.95) 0%, 
-    rgba(23, 23, 36, 0.85) 50%,
-    rgba(23, 23, 36, 0.9) 100%
-  );
-  border: 1px solid rgba(139, 92, 246, 0.06);
+  border: 1px solid var(--border);
   box-shadow: 
     0 4px 20px -4px rgba(0, 0, 0, 0.25),
-    0 0 0 1px rgba(139, 92, 246, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .product-card:hover {
-  border-color: rgba(139, 92, 246, 0.12);
+  border-color: var(--primary);
   box-shadow: 
     0 8px 30px -8px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(139, 92, 246, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.03);
   transform: translateY(-2px);
 }
@@ -357,7 +350,7 @@
 
 /* Glass Effect */
 .glass {
-  background: rgba(23, 23, 36, 0.8);
+  @apply bg-card/80;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -395,13 +388,10 @@
 
 /* Toast notification */
 .toast {
-  @apply fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-3 rounded-2xl z-[200];
-  background: rgba(23, 23, 36, 0.95);
+  @apply fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-3 rounded-2xl z-[200] bg-card text-card-foreground border border-border;
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(139, 92, 246, 0.15);
   box-shadow: 
-    0 10px 40px -10px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(139, 92, 246, 0.1);
+    0 10px 40px -10px rgba(0, 0, 0, 0.4);
 }
 
 /* Scrollbar premium */

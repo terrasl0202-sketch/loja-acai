@@ -13,28 +13,59 @@ import { useCart } from "./(store)/hooks/useCart"
 import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer } from "./(store)/components"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./(store)/components/modals"
 
-// Converte hex para HSL para compatibilidade com Tailwind CSS vars
-function hexToHsl(hex: string): string {
-  if (!hex || hex.length < 7) return "0 0% 50%"
+// Converte hex para OKLCH para compatibilidade com Tailwind CSS 4
+function hexToOklch(hex: string): string {
+  if (!hex || hex.length < 7) return "oklch(0.5 0.1 250)"
   hex = hex.replace("#", "")
   const r = parseInt(hex.substring(0, 2), 16) / 255
   const g = parseInt(hex.substring(2, 4), 16) / 255
   const b = parseInt(hex.substring(4, 6), 16) / 255
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  let h = 0
-  let s = 0
-  const l = (max + min) / 2
-  if (max !== min) {
-    const d = max - min
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
-      case g: h = ((b - r) / d + 2) / 6; break
-      case b: h = ((r - g) / d + 4) / 6; break
-    }
-  }
-  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`
+  
+  // Linearize sRGB
+  const toLinear = (c: number) => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  const lr = toLinear(r), lg = toLinear(g), lb = toLinear(b)
+  
+  // Convert to XYZ
+  const x = 0.4124564 * lr + 0.3575761 * lg + 0.1804375 * lb
+  const y = 0.2126729 * lr + 0.7151522 * lg + 0.0721750 * lb
+  const z = 0.0193339 * lr + 0.1191920 * lg + 0.9503041 * lb
+  
+  // Convert XYZ to LMS
+  const l = 0.8189330101 * x + 0.3618667424 * y - 0.1288597137 * z
+  const m = 0.0329845436 * x + 0.9293118715 * y + 0.0361456387 * z
+  const s = 0.0482003018 * x + 0.2643662691 * y + 0.6338517070 * z
+  
+  // Apply cube root
+  const l_ = Math.cbrt(l), m_ = Math.cbrt(m), s_ = Math.cbrt(s)
+  
+  // Convert to Oklab
+  const L = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_
+  const a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
+  const b2 = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+  
+  // Convert to OKLCH
+  const C = Math.sqrt(a * a + b2 * b2)
+  let H = Math.atan2(b2, a) * 180 / Math.PI
+  if (H < 0) H += 360
+  
+  return `oklch(${L.toFixed(3)} ${C.toFixed(3)} ${H.toFixed(1)})`
+}
+
+// Calcula luminosidade para contraste automatico
+function getLuminance(hex: string): number {
+  if (!hex || hex.length < 7) return 0.5
+  hex = hex.replace("#", "")
+  const r = parseInt(hex.substring(0, 2), 16) / 255
+  const g = parseInt(hex.substring(2, 4), 16) / 255
+  const b = parseInt(hex.substring(4, 6), 16) / 255
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+// Retorna cor de texto com contraste adequado
+function getContrastForeground(bgHex: string): string {
+  const lum = getLuminance(bgHex)
+  // Se fundo escuro, texto claro; se fundo claro, texto escuro
+  return lum < 0.5 ? "oklch(0.97 0.005 285)" : "oklch(0.12 0.025 285)"
 }
 
 export default function Home() {
@@ -1784,17 +1815,23 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       {/* CSS Variables Dinamicas da Personalizacao Premium */}
       <style dangerouslySetInnerHTML={{ __html: `
         :root {
-          --primary: ${hexToHsl(customization.colors.primary)};
-          --secondary: ${hexToHsl(customization.colors.secondary)};
-          --accent: ${hexToHsl(customization.colors.accent)};
-          --background: ${hexToHsl(customization.colors.background)};
-          --foreground: ${hexToHsl(customization.colors.foreground)};
-          --card: ${hexToHsl(customization.colors.card)};
-          --muted: ${hexToHsl(customization.colors.muted)};
-          --muted-foreground: ${hexToHsl(customization.colors.muted)};
-          --border: ${hexToHsl(customization.colors.border)};
-          --input: ${hexToHsl(customization.colors.border)};
-          --ring: ${hexToHsl(customization.colors.primary)};
+          --background: ${hexToOklch(customization.colors.background)};
+          --foreground: ${hexToOklch(customization.colors.foreground)};
+          --card: ${hexToOklch(customization.colors.card)};
+          --card-foreground: ${getContrastForeground(customization.colors.card)};
+          --popover: ${hexToOklch(customization.colors.card)};
+          --popover-foreground: ${getContrastForeground(customization.colors.card)};
+          --primary: ${hexToOklch(customization.colors.primary)};
+          --primary-foreground: ${getContrastForeground(customization.colors.primary)};
+          --secondary: ${hexToOklch(customization.colors.muted)};
+          --secondary-foreground: ${hexToOklch(customization.colors.foreground)};
+          --muted: ${hexToOklch(customization.colors.muted)};
+          --muted-foreground: ${hexToOklch(customization.colors.muted)};
+          --accent: ${hexToOklch(customization.colors.accent)};
+          --accent-foreground: ${getContrastForeground(customization.colors.accent)};
+          --border: ${hexToOklch(customization.colors.border)};
+          --input: ${hexToOklch(customization.colors.border)};
+          --ring: ${hexToOklch(customization.colors.primary)};
           --radius: ${customization.theme.borderRadius / 16}rem;
         }
       ` }} />
