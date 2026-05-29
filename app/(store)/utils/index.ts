@@ -76,7 +76,7 @@ export const calculateTotalItems = (quantities: Record<number, number>): number 
  * Gera codigo PIX EMV para pagamento manual
  * Formato: BR Code EMV QRCPS-MPM
  */
-export const generatePixCode = (amount: number, pixKey: string, receiverName?: string): string => {
+export const generatePixCode = (amount: number, pixKey: string, receiverName?: string, city?: string): string => {
   // Nome do recebedor - limpar e formatar
   const merchantName = (receiverName || "LOJA")
     .toUpperCase()
@@ -85,7 +85,14 @@ export const generatePixCode = (amount: number, pixKey: string, receiverName?: s
     .replace(/[^A-Z0-9 ]/g, "") // Remove caracteres especiais
     .substring(0, 25) // Max 25 chars
   
-  const merchantCity = "SAO PAULO"
+  // Cidade - limpar e formatar
+  const merchantCity = (city || "SAO PAULO")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+    .replace(/[^A-Z0-9 ]/g, "") // Remove caracteres especiais
+    .substring(0, 15) // Max 15 chars
+    
   const amountStr = amount.toFixed(2)
 
   // CRC16-CCITT (polinomio 0x1021)
@@ -263,7 +270,7 @@ export const buildConfirmedOrderMessage = (params: {
     deliveryFeeLine = `\nTaxa de entrega: ${formatCurrency(deliveryFee)}`
   }
 
-  return `━━━━━━━━━━━━━━━━━━
+  return `━━━━━━━━━━━━━��━━━━
 PEDIDO PAGO
 ━━━━━━━━━━━━━━━━━━
 

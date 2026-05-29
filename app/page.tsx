@@ -29,6 +29,7 @@ export default function Home() {
   const PIX_MANUAL_KEY_FULL = siteConfig.pixManual?.keyFull || ""
   const PIX_MANUAL_NAME = siteConfig.pixManual?.receiverName || ""
   const PIX_RECEIVER_NAME = siteConfig.pixManual?.receiverName || ""
+  const PIX_MANUAL_CITY = siteConfig.pixManual?.city || "SAO PAULO"
   const DELIVERY_FEE = siteConfig.delivery?.defaultFee || 0
   const MINIMUM_ORDER = siteConfig.delivery?.minimumOrder || 0
   const DELIVERY_ENABLED = siteConfig.delivery?.enabled !== false
@@ -1225,7 +1226,7 @@ export default function Home() {
   }
 
   // Gera codigo PIX EMV para pagamento manual - wrapper usando util importado
-  const generateManualPixCode = (amount: number) => generatePixCode(amount, PIX_MANUAL_KEY_FULL, PIX_RECEIVER_NAME)
+  const generateManualPixCode = (amount: number) => generatePixCode(amount, PIX_MANUAL_KEY_FULL, PIX_RECEIVER_NAME, PIX_MANUAL_CITY)
 
   const copyToClipboard = async (text: string, setCopiedFn: (v: boolean) => void) => {
     try {

@@ -46,6 +46,7 @@ export interface PixManualConfig {
   key: string
   keyFull: string
   receiverName: string
+  city?: string
   qrCodeUrl?: string
 }
 
@@ -169,53 +170,50 @@ export interface SiteConfig {
 }
 
 export const defaultConfig: SiteConfig = {
-  storeName: "P.K Gostosuras",
-  products: [
-    { id: 1, name: "Acai 500ml", price: 15.00, description: "Acai puro 500ml", active: true, stock: 100, order: 1 },
-    { id: 2, name: "Acai 1L", price: 25.00, description: "Acai puro 1 litro", active: true, stock: 100, order: 2 },
-    { id: 3, name: "Acai 2L", price: 45.00, description: "Acai puro 2 litros", active: true, stock: 100, order: 3 },
-  ],
+  storeName: "",
+  products: [],
   banner: {
-    mainText: "Os melhores açaís de garrafa",
-    secondaryText: "da região!",
-    imageUrl: "/acai-bowl.jpg",
+    mainText: "",
+    secondaryText: "",
+    imageUrl: "",
     promoActive: false,
     promoPrice: 0,
     promoText: "",
   },
   storeHours: {
-    isOpen: true,
+    isOpen: false,
     manualControl: false,
     openTime: "08:00",
     closeTime: "22:00",
-    closedMessage: "Estamos fechados no momento. Volte em breve!",
+    closedMessage: "Carregando...",
     abandonedOrderMinutes: 15,
-    autoArchiveDays: 0, // 0 = nunca arquivar automaticamente
+    autoArchiveDays: 0,
   },
   payment: {
     minValueForAsaas: 15,
-    pixManualEnabled: true,
-    pixAsaasEnabled: true,
+    pixManualEnabled: false,
+    pixAsaasEnabled: false,
     pixExpirationMinutes: 15,
   },
   whatsapp: {
     number: "",
-    defaultMessage: "Olá! Gostaria de fazer um pedido.",
-    receiptMessage: "Envie o comprovante do PIX por aqui.",
-    supportEnabled: true,
+    defaultMessage: "",
+    receiptMessage: "",
+    supportEnabled: false,
   },
   pixManual: {
     key: "",
     keyFull: "",
     receiverName: "",
+    city: "",
     qrCodeUrl: "",
   },
   delivery: {
-    enabled: true,
-    defaultFee: 5,
-    minimumOrder: 10,
-    estimatedTime: "30-45 min",
-    pickupEnabled: true,
+    enabled: false,
+    defaultFee: 0,
+    minimumOrder: 0,
+    estimatedTime: "",
+    pickupEnabled: false,
     neighborhoodFees: [],
   },
   coupons: [],
