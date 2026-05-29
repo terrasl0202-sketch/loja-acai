@@ -19,6 +19,7 @@ export type TabType =
   | "delivery" 
   | "coupons" 
   | "entregadores" 
+  | "customization"
   | "orders-pending" 
   | "orders-paid" 
   | "orders-preparing" 

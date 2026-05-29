@@ -43,6 +43,7 @@ export const ADMIN_TABS: Array<{
   { id: "whatsapp", label: "WhatsApp", icon: "MessageCircle", category: "config" },
   { id: "coupons", label: "Cupons", icon: "Tag", category: "config" },
   { id: "entregadores", label: "Entregadores", icon: "Users2", category: "config" },
+  { id: "customization", label: "Personalizacao", icon: "Palette", category: "config" },
   
   // Pedidos
   { id: "orders-pending", label: "Aguardando Pgto", icon: "Clock", category: "orders" },

@@ -1,8 +1,8 @@
 "use client"
 
-import { Zap, Store, Package, Image as ImageIcon, Clock, Truck, CreditCard, MessageCircle, Tag, Users2, BarChart3 } from "lucide-react"
+import { Zap, Store, Package, Image as ImageIcon, Clock, Truck, CreditCard, MessageCircle, Tag, Users2, BarChart3, Palette } from "lucide-react"
 
-type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
+type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "customization" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
 
 interface AdminQuickSettingsProps {
   activeTab: TabType
@@ -19,6 +19,7 @@ const settingsItems = [
   { id: "whatsapp" as TabType, icon: MessageCircle, label: "WhatsApp" },
   { id: "coupons" as TabType, icon: Tag, label: "Cupons" },
   { id: "entregadores" as TabType, icon: Users2, label: "Entregadores" },
+  { id: "customization" as TabType, icon: Palette, label: "Personalizacao" },
   { id: "reports" as TabType, icon: BarChart3, label: "Relatorios" },
 ]
 
