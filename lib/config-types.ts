@@ -44,6 +44,20 @@ export interface WhatsAppConfig {
 
 export type PixKeyType = "telefone" | "cpf" | "cnpj" | "email" | "aleatoria"
 
+// Nova interface para chave PIX cadastrada na carteira
+export interface PixManualKey {
+  id: string
+  alias: string // Apelido da chave: "Pix do Ailton", "Conta Mercado Pago"
+  keyType: PixKeyType
+  keyValue: string // Valor original da chave
+  receiverName: string // Nome do recebedor desta chave
+  city: string // Cidade desta chave
+  isActive: boolean // Apenas uma pode estar ativa
+  createdAt?: string
+  updatedAt?: string
+}
+
+// Interface antiga mantida para compatibilidade (sera preenchida pela chave ativa)
 export interface PixManualConfig {
   keyType: PixKeyType
   key: string
@@ -51,6 +65,9 @@ export interface PixManualConfig {
   receiverName: string
   city?: string
   qrCodeUrl?: string
+  // Novos campos da carteira
+  activeKey?: PixManualKey | null
+  alias?: string
 }
 
 export interface DeliveryConfig {

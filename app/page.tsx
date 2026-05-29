@@ -25,12 +25,41 @@ export default function Home() {
     .sort((a, b) => (a.order || 0) - (b.order || 0))
   const WHATSAPP_NUMBER = siteConfig.whatsapp?.number || ""
   const MIN_VALUE_FOR_ASAAS = Number(siteConfig.payment?.minValueForAsaas) || 15
-  const PIX_MANUAL_KEY = siteConfig.pixManual?.key || ""
-  const PIX_MANUAL_KEY_FULL = siteConfig.pixManual?.keyFull || siteConfig.pixManual?.key || ""
-  const PIX_MANUAL_KEY_TYPE = siteConfig.pixManual?.keyType || "telefone"
-  const PIX_MANUAL_NAME = siteConfig.pixManual?.receiverName || ""
-  const PIX_RECEIVER_NAME = siteConfig.pixManual?.receiverName || ""
-  const PIX_MANUAL_CITY = siteConfig.pixManual?.city || "SAO PAULO"
+  
+  // PIX Manual - estado para chave ativa da carteira
+  const [activePixKey, setActivePixKey] = useState<{
+    id: string
+    alias: string
+    keyType: string
+    keyValue: string
+    receiverName: string
+    city: string
+  } | null>(null)
+  
+  // Buscar chave PIX ativa ao carregar
+  useEffect(() => {
+    const fetchActivePixKey = async () => {
+      try {
+        const res = await fetch("/api/pix-keys/active")
+        const data = await res.json()
+        if (data.activeKey) {
+          setActivePixKey(data.activeKey)
+        }
+      } catch (err) {
+        console.error("Erro ao buscar chave PIX ativa:", err)
+      }
+    }
+    fetchActivePixKey()
+  }, [])
+  
+  // Usar chave ativa da carteira, ou fallback para config antiga
+  const PIX_MANUAL_KEY = activePixKey?.keyValue || siteConfig.pixManual?.key || ""
+  const PIX_MANUAL_KEY_FULL = activePixKey?.keyValue || siteConfig.pixManual?.keyFull || siteConfig.pixManual?.key || ""
+  const PIX_MANUAL_KEY_TYPE = activePixKey?.keyType || siteConfig.pixManual?.keyType || "telefone"
+  const PIX_MANUAL_ALIAS = activePixKey?.alias || "Chave PIX"
+  const PIX_RECEIVER_NAME = activePixKey?.receiverName || siteConfig.pixManual?.receiverName || ""
+  const PIX_MANUAL_CITY = activePixKey?.city || siteConfig.pixManual?.city || "SAO PAULO"
+  
   const DELIVERY_FEE = siteConfig.delivery?.defaultFee || 0
   const MINIMUM_ORDER = siteConfig.delivery?.minimumOrder || 0
   const DELIVERY_ENABLED = siteConfig.delivery?.enabled !== false
@@ -2517,8 +2546,9 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                       <>
                                         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 text-xs space-y-1">
                                           <p className="font-bold text-yellow-600 text-center mb-2">DEBUG PIX MANUAL</p>
+                                          <p><span className="text-muted-foreground">APELIDO:</span> <span className="font-mono text-purple-600 font-bold">{PIX_MANUAL_ALIAS}</span></p>
                                           <p><span className="text-muted-foreground">TIPO CHAVE:</span> <span className="font-mono text-blue-600 font-bold">{PIX_MANUAL_KEY_TYPE.toUpperCase()}</span></p>
-                                          <p><span className="text-muted-foreground">PIX KEY (Admin):</span> <span className="font-mono text-foreground break-all">{PIX_MANUAL_KEY_FULL || '(vazio)'}</span></p>
+                                          <p><span className="text-muted-foreground">PIX KEY (Original):</span> <span className="font-mono text-foreground break-all">{PIX_MANUAL_KEY_FULL || '(vazio)'}</span></p>
                                           <p><span className="text-muted-foreground">PIX KEY (Normalizada):</span> <span className="font-mono text-green-600 break-all">{normalizedKeyDebug || '(vazio)'}</span></p>
                                           <p><span className="text-muted-foreground">RECEIVER:</span> <span className="font-mono text-foreground">{PIX_RECEIVER_NAME || '(vazio)'}</span></p>
                                           <p><span className="text-muted-foreground">CITY:</span> <span className="font-mono text-foreground">{PIX_MANUAL_CITY || '(vazio)'}</span></p>
@@ -2857,7 +2887,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                   <User className="w-3 h-3" />
                                   Nome do Recebedor
                                 </p>
-                                <p className="font-bold text-foreground mt-1">{PIX_MANUAL_NAME}</p>
+                                <p className="font-bold text-foreground mt-1">{PIX_RECEIVER_NAME}</p>
                               </div>
 
                               <div className="flex items-center justify-between bg-gradient-to-r from-input/80 to-input/50 rounded-xl px-4 py-3.5 border border-border/30">
