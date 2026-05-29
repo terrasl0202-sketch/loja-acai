@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { ShoppingBag, Search, Trash2, Calendar, ChevronRight, ChevronDown, ClockIcon, CheckCircle2, ChefHat, Truck, PackageCheck, Ban, AlertCircle, FolderArchive, Link2, Send, MessageCircle, X, Loader2 } from "lucide-react"
-import type { Order } from "@/lib/config-types"
+import { ShoppingBag, Search, Trash2, Calendar, ChevronRight, ChevronDown, ClockIcon, CheckCircle2, ChefHat, Truck, PackageCheck, Ban, AlertCircle, FolderArchive, Link2, Send, MessageCircle, X, Loader2, Users, Phone } from "lucide-react"
+import type { Order, Entregador } from "@/lib/config-types"
 
 type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
 
@@ -37,6 +37,9 @@ interface AdminOrdersCardProps {
   onRefresh?: () => void
   formatOrderItems?: (order: Order) => string
   getOrderCode?: (order: Order) => string
+  // Props para entregadores
+  entregadores?: Entregador[]
+  onSelectEntregador?: (order: Order, entregador: Entregador) => void
 }
 
 const statusItems = [
@@ -79,8 +82,12 @@ export function AdminOrdersCard({
   onRefresh,
   formatOrderItems,
   getOrderCode,
+  entregadores = [],
+  onSelectEntregador,
 }: AdminOrdersCardProps) {
   const [expandedTab, setExpandedTab] = useState<TabType | null>(null)
+  // Estado para mostrar lista de entregadores para um pedido especifico
+  const [showEntregadorList, setShowEntregadorList] = useState<string | null>(null)
 
   const getBadgeCount = (id: TabType): number => {
     switch (id) {
@@ -312,12 +319,51 @@ export function AdminOrdersCard({
                           {tab.id === "orders-preparing" && (
                             <>
                               {isDelivery(order) ? (
-                                // ENTREGA - mostrar "Saiu para Entrega"
-                                onStartDelivery && (
-                                  <button onClick={() => onStartDelivery(order)} className="flex items-center gap-1 px-3 py-2 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-500">
-                                    <Truck className="w-3 h-3" /> Saiu para Entrega
+                                // ENTREGA - mostrar "Selecionar Entregador"
+                                <div className="relative">
+                                  <button 
+                                    onClick={() => setShowEntregadorList(showEntregadorList === order.id ? null : order.id)} 
+                                    className="flex items-center gap-1 px-3 py-2 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-500"
+                                  >
+                                    <Users className="w-3 h-3" /> Selecionar Entregador
                                   </button>
-                                )
+                                  
+                                  {/* Lista de Entregadores */}
+                                  {showEntregadorList === order.id && (
+                                    <div className="absolute top-full left-0 mt-1 w-64 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
+                                      <div className="p-2 border-b border-white/5">
+                                        <p className="text-xs text-gray-400 font-medium">Escolha um entregador:</p>
+                                      </div>
+                                      <div className="max-h-48 overflow-y-auto">
+                                        {entregadores.length === 0 ? (
+                                          <p className="p-3 text-xs text-gray-500 text-center">Nenhum entregador cadastrado</p>
+                                        ) : (
+                                          entregadores.filter(e => e.status === "ativo").map((entregador) => (
+                                            <button
+                                              key={entregador.id}
+                                              onClick={() => {
+                                                if (onSelectEntregador) {
+                                                  onSelectEntregador(order, entregador)
+                                                }
+                                                setShowEntregadorList(null)
+                                              }}
+                                              className="w-full p-3 text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
+                                            >
+                                              <p className="text-sm text-white font-medium">{entregador.nome}</p>
+                                              <div className="flex items-center gap-2 mt-1">
+                                                <Phone className="w-3 h-3 text-gray-500" />
+                                                <span className="text-xs text-gray-400">{entregador.whatsapp}</span>
+                                              </div>
+                                              {(entregador.horarioInicio || entregador.horarioFim) && (
+                                                <p className="text-xs text-gray-500 mt-1">{entregador.horarioInicio} - {entregador.horarioFim}</p>
+                                              )}
+                                            </button>
+                                          ))
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               ) : (
                                 // RETIRADA - mostrar "Finalizar Retirada"
                                 onFinishOrder && (
