@@ -74,12 +74,21 @@ export const calculateTotalItems = (quantities: Record<number, number>): number 
 
 /**
  * Gera codigo PIX EMV para pagamento manual
+ * Formato: BR Code EMV QRCPS-MPM
  */
-export const generatePixCode = (amount: number, pixKey: string): string => {
-  const merchantName = "CARINA KAREN DA SILVA"
+export const generatePixCode = (amount: number, pixKey: string, receiverName?: string): string => {
+  // Nome do recebedor - limpar e formatar
+  const merchantName = (receiverName || "LOJA")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+    .replace(/[^A-Z0-9 ]/g, "") // Remove caracteres especiais
+    .substring(0, 25) // Max 25 chars
+  
   const merchantCity = "SAO PAULO"
   const amountStr = amount.toFixed(2)
 
+  // CRC16-CCITT (polinomio 0x1021)
   const crc16 = (str: string): string => {
     let crc = 0xffff
     for (let i = 0; i < str.length; i++) {
@@ -96,25 +105,28 @@ export const generatePixCode = (amount: number, pixKey: string): string => {
     return crc.toString(16).toUpperCase().padStart(4, "0")
   }
 
+  // Monta TLV (Tag-Length-Value)
   const tlv = (tag: string, value: string): string => {
     return tag + value.length.toString().padStart(2, "0") + value
   }
 
+  // Monta Merchant Account Information (tag 26)
   const gui = tlv("00", "br.gov.bcb.pix")
   const chave = tlv("01", pixKey)
   const merchantAccountInfo = tlv("26", gui + chave)
 
+  // Monta payload
   let payload = ""
-  payload += tlv("00", "01")
-  payload += merchantAccountInfo
-  payload += tlv("52", "0000")
-  payload += tlv("53", "986")
-  payload += tlv("54", amountStr)
-  payload += tlv("58", "BR")
-  payload += tlv("59", merchantName)
-  payload += tlv("60", merchantCity)
-  payload += tlv("62", tlv("05", "***"))
-  payload += "6304"
+  payload += tlv("00", "01") // Payload Format Indicator
+  payload += merchantAccountInfo // Merchant Account Information
+  payload += tlv("52", "0000") // Merchant Category Code
+  payload += tlv("53", "986") // Transaction Currency (BRL)
+  payload += tlv("54", amountStr) // Transaction Amount
+  payload += tlv("58", "BR") // Country Code
+  payload += tlv("59", merchantName) // Merchant Name
+  payload += tlv("60", merchantCity) // Merchant City
+  payload += tlv("62", tlv("05", "***")) // Additional Data Field (txid)
+  payload += "6304" // CRC placeholder
 
   const crcValue = crc16(payload)
   return payload + crcValue

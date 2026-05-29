@@ -1225,7 +1225,7 @@ export default function Home() {
   }
 
   // Gera codigo PIX EMV para pagamento manual - wrapper usando util importado
-  const generateManualPixCode = (amount: number) => generatePixCode(amount, PIX_MANUAL_KEY_FULL)
+  const generateManualPixCode = (amount: number) => generatePixCode(amount, PIX_MANUAL_KEY_FULL, PIX_RECEIVER_NAME)
 
   const copyToClipboard = async (text: string, setCopiedFn: (v: boolean) => void) => {
     try {
@@ -1700,6 +1700,19 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
     resetStoreAfterOrder()
   }
 
+  // Mostrar loading enquanto carrega config do Supabase
+  // Evita mostrar dados antigos do defaultConfig
+  if (!configLoaded) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+          <p className="text-muted-foreground text-sm">Carregando loja...</p>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen bg-background pb-24">
       {/* Audio elements */}
@@ -2010,18 +2023,20 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
                     {/* Cupom */}
                     {(siteConfig.coupons || []).length > 0 && !appliedCoupon && (
-                      <div className="mt-4 pt-4 border-t border-border/30">
+                      <div className={`mt-4 pt-4 border-t border-border/30 ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`}>
                         <div className="flex gap-2">
                           <input
                             type="text"
                             value={couponCode}
                             onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                             placeholder="Codigo do cupom"
-                            className="premium-input flex-1 px-4 py-3 bg-input/50 border border-border/50 rounded-xl text-foreground text-sm placeholder:text-muted-foreground/60 focus:outline-none"
+                            disabled={isOrderBlocked}
+                            className="premium-input flex-1 px-4 py-3 bg-input/50 border border-border/50 rounded-xl text-foreground text-sm placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                           <button
                             onClick={applyCoupon}
-                            className="premium-btn px-5 py-3 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-[0.98]"
+                            disabled={isOrderBlocked}
+                            className="premium-btn px-5 py-3 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
                           >
                             Aplicar
                           </button>
@@ -2041,7 +2056,8 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                         </div>
                         <button
                           onClick={() => setAppliedCoupon(null)}
-                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          disabled={isOrderBlocked}
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Remover
                         </button>
