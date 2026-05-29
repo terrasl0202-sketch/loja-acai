@@ -73,10 +73,75 @@ export const calculateTotalItems = (quantities: Record<number, number>): number 
 }
 
 /**
+ * Normaliza chave PIX para formato correto
+ * - Telefone: adiciona +55 se necessario
+ * - CPF/CNPJ/Email/Aleatoria: mantem como esta
+ */
+export const normalizePixKey = (key: string): string => {
+  if (!key) return key
+  
+  // Remove espacos, parenteses, tracos
+  const cleaned = key.replace(/[\s\(\)\-\.]/g, "")
+  
+  // Se ja tem + no inicio, mantem
+  if (cleaned.startsWith("+")) {
+    return cleaned
+  }
+  
+  // Se parece com email (tem @), mantem
+  if (cleaned.includes("@")) {
+    return cleaned
+  }
+  
+  // Se tem letras (chave aleatoria), mantem
+  if (/[a-zA-Z]/.test(cleaned) && !cleaned.includes("@")) {
+    return cleaned
+  }
+  
+  // Apenas digitos a partir daqui
+  const digits = cleaned.replace(/\D/g, "")
+  
+  // CPF: 11 digitos mas nao comeca com 55 (ou comeca com 0-4)
+  // Telefone BR: 11 digitos comecando com DDD valido (11-99)
+  // Para diferenciar: CPF nunca comeca com 55, telefone com DDI sim
+  
+  // Se tem 11 digitos e parece telefone brasileiro (DDD 11-99)
+  const ddd = parseInt(digits.substring(0, 2), 10)
+  if (digits.length === 11 && ddd >= 11 && ddd <= 99) {
+    // Pode ser telefone ou CPF
+    // Telefone: 3o digito e 9 (celular) ou 2-5 (fixo)
+    const thirdDigit = digits[2]
+    if (thirdDigit === "9" || (thirdDigit >= "2" && thirdDigit <= "5")) {
+      // Provavelmente telefone - adiciona +55
+      return "+" + "55" + digits
+    }
+  }
+  
+  // Se tem 13 digitos e comeca com 55 (telefone com DDI sem +)
+  if (digits.length === 13 && digits.startsWith("55")) {
+    return "+" + digits
+  }
+  
+  // Se tem 10-11 digitos e nao se encaixa em telefone, pode ser CPF
+  // CPF: 11 digitos
+  // CNPJ: 14 digitos
+  if (digits.length === 11 || digits.length === 14) {
+    // Mantem como documento (sem +55)
+    return digits
+  }
+  
+  // Caso padrao: retorna limpo
+  return cleaned
+}
+
+/**
  * Gera codigo PIX EMV para pagamento manual
  * Formato: BR Code EMV QRCPS-MPM
  */
 export const generatePixCode = (amount: number, pixKey: string, receiverName?: string, city?: string): string => {
+  // Normaliza a chave PIX (adiciona +55 se for telefone)
+  const normalizedKey = normalizePixKey(pixKey)
+  
   // Nome do recebedor - limpar e formatar
   const merchantName = (receiverName || "LOJA")
     .toUpperCase()
@@ -119,7 +184,7 @@ export const generatePixCode = (amount: number, pixKey: string, receiverName?: s
 
   // Monta Merchant Account Information (tag 26)
   const gui = tlv("00", "br.gov.bcb.pix")
-  const chave = tlv("01", pixKey)
+  const chave = tlv("01", normalizedKey)
   const merchantAccountInfo = tlv("26", gui + chave)
 
   // Monta payload

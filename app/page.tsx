@@ -8,7 +8,7 @@ import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 // Types, Constants e Utils da area do cliente
 import type { PaymentStatus, DeliveryType, OrderSnapshot, PixData, CustomerOrder, SavedOrder, Coupon, Customer, FormData } from "./(store)/types"
 import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURATION, FALLBACK_NEIGHBORHOOD_FEES } from "./(store)/constants"
-import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode } from "./(store)/utils"
+import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode, normalizePixKey } from "./(store)/utils"
 import { useCart } from "./(store)/hooks/useCart"
 import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer } from "./(store)/components"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./(store)/components/modals"
@@ -2517,11 +2517,13 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                   {(() => {
                                     const pixCodeValue = generateManualPixCode(orderSnapshot?.total || getTotal())
                                     const pixAmount = orderSnapshot?.total || getTotal()
+                                    const normalizedKeyDebug = normalizePixKey(PIX_MANUAL_KEY_FULL)
                                     return (
                                       <>
                                         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 text-xs space-y-1">
                                           <p className="font-bold text-yellow-600 text-center mb-2">DEBUG PIX MANUAL</p>
-                                          <p><span className="text-muted-foreground">PIX KEY:</span> <span className="font-mono text-foreground break-all">{PIX_MANUAL_KEY_FULL || '(vazio)'}</span></p>
+                                          <p><span className="text-muted-foreground">PIX KEY (Admin):</span> <span className="font-mono text-foreground break-all">{PIX_MANUAL_KEY_FULL || '(vazio)'}</span></p>
+                                          <p><span className="text-muted-foreground">PIX KEY (Normalizada):</span> <span className="font-mono text-green-600 break-all">{normalizedKeyDebug || '(vazio)'}</span></p>
                                           <p><span className="text-muted-foreground">RECEIVER:</span> <span className="font-mono text-foreground">{PIX_RECEIVER_NAME || '(vazio)'}</span></p>
                                           <p><span className="text-muted-foreground">CITY:</span> <span className="font-mono text-foreground">{PIX_MANUAL_CITY || '(vazio)'}</span></p>
                                           <p><span className="text-muted-foreground">AMOUNT:</span> <span className="font-mono text-foreground">R$ {pixAmount.toFixed(2)}</span></p>
