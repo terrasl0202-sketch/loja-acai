@@ -85,6 +85,134 @@ export interface NeighborhoodFee {
   active?: boolean
 }
 
+// ============================================
+// PERSONALIZACAO PREMIUM (WHITE LABEL)
+// ============================================
+
+export type ThemeMode = "light" | "dark" | "auto"
+export type LayoutType = "classic" | "modern" | "premium" | "minimal"
+export type BannerHeight = "small" | "medium" | "large"
+
+export interface CustomizationColors {
+  primary: string
+  secondary: string
+  accent: string
+  background: string
+  foreground: string
+  card: string
+  muted: string
+  border: string
+}
+
+export interface CustomizationIdentity {
+  storeName: string
+  subtitle: string
+  slogan: string
+  logoUrl: string
+  faviconUrl: string
+  coverImageUrl: string
+}
+
+export interface CustomizationTheme {
+  mode: ThemeMode
+  layoutType: LayoutType
+  borderRadius: number
+  cardsShadow: boolean
+  bannerHeight: BannerHeight
+}
+
+export interface CustomizationElements {
+  showBestsellerBadge: boolean
+  showPromoBadge: boolean
+  showNewBadge: boolean
+  showReviews: boolean
+  showCategories: boolean
+  showDescriptions: boolean
+  showPromoBanner: boolean
+  showBestsellersSection: boolean
+  showFeaturedSection: boolean
+  promoMessage: string
+}
+
+export interface CustomizationSocial {
+  instagram: string
+  facebook: string
+  tiktok: string
+  whatsapp: string
+  address: string
+  deliveryPolicy: string
+  footerText: string
+}
+
+export interface CustomizationGateways {
+  mercadopagoEnabled: boolean
+  pagbankEnabled: boolean
+  stripeEnabled: boolean
+}
+
+export interface StoreCustomization {
+  identity: CustomizationIdentity
+  colors: CustomizationColors
+  theme: CustomizationTheme
+  elements: CustomizationElements
+  social: CustomizationSocial
+  gateways: CustomizationGateways
+}
+
+export const defaultCustomization: StoreCustomization = {
+  identity: {
+    storeName: "",
+    subtitle: "",
+    slogan: "",
+    logoUrl: "",
+    faviconUrl: "",
+    coverImageUrl: "",
+  },
+  colors: {
+    primary: "#a855f7",
+    secondary: "#6366f1",
+    accent: "#f59e0b",
+    background: "#0a0a0a",
+    foreground: "#fafafa",
+    card: "#171717",
+    muted: "#737373",
+    border: "#262626",
+  },
+  theme: {
+    mode: "dark",
+    layoutType: "premium",
+    borderRadius: 16,
+    cardsShadow: true,
+    bannerHeight: "medium",
+  },
+  elements: {
+    showBestsellerBadge: true,
+    showPromoBadge: true,
+    showNewBadge: true,
+    showReviews: true,
+    showCategories: true,
+    showDescriptions: true,
+    showPromoBanner: true,
+    showBestsellersSection: true,
+    showFeaturedSection: true,
+    promoMessage: "",
+  },
+  social: {
+    instagram: "",
+    facebook: "",
+    tiktok: "",
+    whatsapp: "",
+    address: "",
+    deliveryPolicy: "",
+    footerText: "",
+  },
+  gateways: {
+    mercadopagoEnabled: false,
+    pagbankEnabled: false,
+    stripeEnabled: false,
+  },
+}
+
 export interface Coupon {
   id: string
   code: string
@@ -178,6 +306,10 @@ export interface Customer {
 
 export interface SiteConfig {
   storeName: string
+  subtitle?: string
+  slogan?: string
+  instagram?: string
+  address?: string
   products: Product[]
   banner: BannerConfig
   storeHours: StoreHours
@@ -187,10 +319,15 @@ export interface SiteConfig {
   delivery: DeliveryConfig
   coupons: Coupon[]
   entregadores: Entregador[]
+  customization?: StoreCustomization
 }
 
 export const defaultConfig: SiteConfig = {
   storeName: "",
+  subtitle: "",
+  slogan: "",
+  instagram: "",
+  address: "",
   products: [],
   banner: {
     mainText: "",
@@ -239,4 +376,5 @@ export const defaultConfig: SiteConfig = {
   },
   coupons: [],
   entregadores: [],
+  customization: defaultCustomization,
 }

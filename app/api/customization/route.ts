@@ -24,6 +24,12 @@ export async function GET() {
     const { data, error } = await supabase
       .from("store_settings")
       .select(`
+        store_name,
+        subtitle,
+        slogan,
+        instagram,
+        address,
+        whatsapp_number,
         logo_url,
         favicon_url,
         cover_image_url,
@@ -69,6 +75,9 @@ export async function GET() {
     // Mapear do banco para o formato da interface
     const customization: StoreCustomization = {
       identity: {
+        storeName: data?.store_name || "",
+        subtitle: data?.subtitle || "",
+        slogan: data?.slogan || "",
         logoUrl: data?.logo_url || "",
         faviconUrl: data?.favicon_url || "",
         coverImageUrl: data?.cover_image_url || "",
@@ -103,8 +112,11 @@ export async function GET() {
         promoMessage: data?.promo_message || "",
       },
       social: {
+        instagram: data?.instagram || "",
         facebook: data?.facebook || "",
         tiktok: data?.tiktok || "",
+        whatsapp: data?.whatsapp_number || "",
+        address: data?.address || "",
         deliveryPolicy: data?.delivery_policy || "",
         footerText: data?.footer_text || "",
       },
