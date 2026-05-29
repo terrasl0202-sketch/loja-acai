@@ -17,6 +17,40 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
+// Buscar config de entregadores
+async function getEntregadoresConfig() {
+  const supabase = getSupabase()
+  if (!supabase) return []
+  
+  try {
+    const { data, error } = await supabase
+      .from('config')
+      .select('value')
+      .eq('key', 'store_config')
+      .single()
+    
+    if (error || !data?.value) return []
+    
+    const config = typeof data.value === 'string' ? JSON.parse(data.value) : data.value
+    return config.entregadores || []
+  } catch {
+    return []
+  }
+}
+
+// Interface do entregador do config
+interface Entregador {
+  id: string
+  nome: string
+  whatsapp: string
+  status: string
+  pin?: string
+  token?: string
+  horarioInicio?: string
+  horarioFim?: string
+  observacao?: string
+}
+
 // GET: Verificar token e retornar dados do entregador (sem PIN)
 export async function GET(
   request: NextRequest,
@@ -25,20 +59,13 @@ export async function GET(
   try {
     const { token } = await params
     
-    const supabase = getSupabase()
-    if (!supabase) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
-    }
-
-    // Buscar entregador pelo token no Supabase
-    const { data: entregador, error } = await supabase
-      .from('entregadores')
-      .select('id, name, phone, active, vehicle')
-      .eq('token', token)
-      .eq('active', true)
-      .single()
-
-    if (error || !entregador) {
+    // Buscar entregadores do config
+    const entregadores = await getEntregadoresConfig() as Entregador[]
+    
+    // Encontrar entregador pelo token
+    const entregador = entregadores.find(e => e.token === token && e.status === 'ativo')
+    
+    if (!entregador) {
       console.error("[entregador GET] Token nao encontrado:", token)
       return NextResponse.json({ error: "Entregador not found" }, { status: 404 })
     }
@@ -48,8 +75,8 @@ export async function GET(
       success: true,
       entregador: {
         id: entregador.id,
-        nome: entregador.name,
-        status: entregador.active ? 'ativo' : 'inativo',
+        nome: entregador.nome,
+        status: entregador.status,
       }
     })
   } catch (error) {
@@ -68,20 +95,13 @@ export async function POST(
     const body = await request.json()
     const { pin } = body
 
-    const supabase = getSupabase()
-    if (!supabase) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
-    }
-
-    // Buscar entregador pelo token no Supabase
-    const { data: entregador, error: entregadorError } = await supabase
-      .from('entregadores')
-      .select('*')
-      .eq('token', token)
-      .eq('active', true)
-      .single()
-
-    if (entregadorError || !entregador) {
+    // Buscar entregadores do config
+    const entregadores = await getEntregadoresConfig() as Entregador[]
+    
+    // Encontrar entregador pelo token
+    const entregador = entregadores.find(e => e.token === token && e.status === 'ativo')
+    
+    if (!entregador) {
       return NextResponse.json({ error: "Entregador not found" }, { status: 404 })
     }
 
@@ -90,28 +110,62 @@ export async function POST(
       return NextResponse.json({ error: "PIN incorreto" }, { status: 401 })
     }
 
-    // Buscar pedidos atribuidos ao entregador
+    const supabase = getSupabase()
+    if (!supabase) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+    }
+
+    // Buscar pedidos atribuidos ao entregador (por entregador_id ou entregador_nome)
     const { data: orders, error: ordersError } = await supabase
       .from('orders')
       .select('*')
-      .eq('entregador_id', entregador.id)
-      .in('status', ['delivering', 'preparing'])
+      .or(`entregador_id.eq.${entregador.id},entregador_nome.eq.${entregador.nome}`)
+      .in('status', ['delivering', 'preparing', 'confirmed'])
       .order('created_at', { ascending: false })
 
     if (ordersError) {
       console.error("[entregador POST] Erro ao buscar pedidos:", ordersError)
     }
 
+    // Formatar itens para exibicao
+    const formatItems = (items: unknown): string => {
+      if (typeof items === 'string') {
+        try {
+          const parsed = JSON.parse(items)
+          if (Array.isArray(parsed)) {
+            return parsed.map((item: { productName?: string; name?: string; quantity?: number; price?: number; subtotal?: number }) => {
+              const name = item.productName || item.name || 'Produto'
+              const qty = item.quantity || 1
+              const subtotal = item.subtotal || ((item.price || 0) * qty)
+              return `${qty}x ${name} - R$ ${subtotal.toFixed(2)}`
+            }).join('\n')
+          }
+          return items
+        } catch {
+          return items
+        }
+      }
+      if (Array.isArray(items)) {
+        return items.map((item: { productName?: string; name?: string; quantity?: number; price?: number; subtotal?: number }) => {
+          const name = item.productName || item.name || 'Produto'
+          const qty = item.quantity || 1
+          const subtotal = item.subtotal || ((item.price || 0) * qty)
+          return `${qty}x ${name} - R$ ${subtotal.toFixed(2)}`
+        }).join('\n')
+      }
+      return 'Sem itens'
+    }
+
     // Mapear pedidos para formato do frontend
     const pedidosSeguros = (orders || []).map(o => ({
-      id: o.id,
+      id: o.order_code || String(o.id),
       customerName: o.customer_name,
       customerPhone: o.customer_phone,
       address: o.address,
       neighborhood: o.neighborhood,
       reference: o.reference,
-      items: o.items,
-      total: o.total,
+      items: formatItems(o.items),
+      total: Number(o.total),
       paymentMethod: o.payment_method,
       observation: o.observation,
       status: o.status,
@@ -123,7 +177,7 @@ export async function POST(
       success: true,
       entregador: {
         id: entregador.id,
-        nome: entregador.name,
+        nome: entregador.nome,
       },
       pedidos: pedidosSeguros
     })

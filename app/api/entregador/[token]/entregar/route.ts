@@ -1,30 +1,51 @@
 import { NextRequest, NextResponse } from "next/server"
-import { get, list, put, del } from "@vercel/blob"
-import type { SiteConfig, Order } from "@/lib/config-types"
-
-const CONFIG_PREFIX = "pk-config-"
-const ORDERS_PREFIX = "pk-orders-"
+import { createClient } from "@supabase/supabase-js"
 
 // Evitar cache
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-// Funcao para limpar blobs antigos (manter apenas os 2 mais recentes)
-async function cleanupOldBlobs() {
-  try {
-    const { blobs } = await list({ prefix: ORDERS_PREFIX })
-    if (blobs.length > 2) {
-      const sorted = blobs.sort(
-        (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-      )
-      const toDelete = sorted.slice(2)
-      for (const blob of toDelete) {
-        await del(blob.url)
-      }
-    }
-  } catch (error) {
-    console.error("[Cleanup] Erro ao limpar blobs antigos:", error)
+// Cria Supabase client
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return null
   }
+  
+  return createClient(supabaseUrl, supabaseServiceKey)
+}
+
+// Buscar config de entregadores
+async function getEntregadoresConfig() {
+  const supabase = getSupabase()
+  if (!supabase) return []
+  
+  try {
+    const { data, error } = await supabase
+      .from('config')
+      .select('value')
+      .eq('key', 'store_config')
+      .single()
+    
+    if (error || !data?.value) return []
+    
+    const config = typeof data.value === 'string' ? JSON.parse(data.value) : data.value
+    return config.entregadores || []
+  } catch {
+    return []
+  }
+}
+
+// Interface do entregador do config
+interface Entregador {
+  id: string
+  nome: string
+  whatsapp: string
+  status: string
+  pin?: string
+  token?: string
 }
 
 // POST: Atualizar status do pedido pelo entregador
@@ -43,27 +64,11 @@ export async function POST(
       return NextResponse.json({ error: "Acao invalida" }, { status: 400 })
     }
 
-    // Carregar config
-    let config: SiteConfig | null = null
-    const { blobs: configBlobs } = await list({ prefix: CONFIG_PREFIX })
+    // Buscar entregadores do config
+    const entregadores = await getEntregadoresConfig() as Entregador[]
     
-    if (configBlobs.length > 0) {
-      const latestBlob = configBlobs.sort(
-        (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-      )[0]
-      const result = await get(latestBlob.pathname, { access: "private" })
-      if (result && result.stream) {
-        const text = await new Response(result.stream).text()
-        config = JSON.parse(text) as SiteConfig
-      }
-    }
-
-    if (!config) {
-      return NextResponse.json({ error: "Config not found" }, { status: 404 })
-    }
-
     // Encontrar entregador pelo token
-    const entregador = (config.entregadores || []).find(e => e.token === token)
+    const entregador = entregadores.find(e => e.token === token && e.status === 'ativo')
     
     if (!entregador) {
       return NextResponse.json({ error: "Entregador not found" }, { status: 404 })
@@ -74,87 +79,62 @@ export async function POST(
       return NextResponse.json({ error: "PIN incorreto" }, { status: 401 })
     }
 
-    // Carregar pedidos
-    let orders: Order[] = []
-    const { blobs: orderBlobs } = await list({ prefix: ORDERS_PREFIX })
-    
-    if (orderBlobs.length > 0) {
-      const latestBlob = orderBlobs.sort(
-        (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-      )[0]
-      const result = await get(latestBlob.pathname, { access: "private" })
-      if (result && result.stream) {
-        const text = await new Response(result.stream).text()
-        orders = JSON.parse(text) as Order[]
-      }
+    const supabase = getSupabase()
+    if (!supabase) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
 
-    // Encontrar pedido
-    const orderIndex = orders.findIndex(o => o.id === orderId)
-    if (orderIndex === -1) {
+    // Buscar pedido (por order_code ou id)
+    const { data: orders, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .or(`order_code.eq.${orderId},id.eq.${orderId}`)
+      .limit(1)
+
+    if (orderError || !orders || orders.length === 0) {
       return NextResponse.json({ error: "Pedido not found" }, { status: 404 })
     }
 
-    const order = orders[orderIndex]
+    const order = orders[0]
 
     // Verificar se o pedido pertence ao entregador
-    if (order.entregadorId !== entregador.id) {
+    if (order.entregador_id !== entregador.id && order.entregador_nome !== entregador.nome) {
       return NextResponse.json({ error: "Pedido nao pertence a este entregador" }, { status: 403 })
     }
 
     const agora = new Date().toISOString()
+    let newStatus = order.status
+    const updates: Record<string, unknown> = {}
 
     // Executar acao
     if (action === "iniciar") {
       // Iniciar entrega - mudar para delivering
-      orders[orderIndex].status = "delivering"
-      orders[orderIndex].saiuParaEntregaEm = agora
-      orders[orderIndex].historicoEntrega = [
-        ...(orders[orderIndex].historicoEntrega || []),
-        { 
-          data: agora, 
-          evento: "SAIU_PARA_ENTREGA", 
-          observacao: `Entrega iniciada por ${entregador.nome}` 
-        }
-      ]
+      newStatus = "delivering"
+      updates.status = "delivering"
+      updates.saiu_para_entrega_em = agora
     } else if (action === "finalizar") {
       // Finalizar entrega - mudar para completed
-      orders[orderIndex].status = "completed"
-      orders[orderIndex].entregueEm = agora
-      orders[orderIndex].historicoEntrega = [
-        ...(orders[orderIndex].historicoEntrega || []),
-        { 
-          data: agora, 
-          evento: "ENTREGUE", 
-          observacao: `Entregue por ${entregador.nome}` 
-        }
-      ]
+      newStatus = "completed"
+      updates.status = "completed"
+      updates.entregue_em = agora
     } else if (action === "cancelar") {
       // Cancelar - mudar para cancelled
-      orders[orderIndex].status = "cancelled"
-      orders[orderIndex].canceladoEm = agora
-      orders[orderIndex].motivoCancelamento = observacao || "Cancelado pelo entregador"
-      orders[orderIndex].historicoEntrega = [
-        ...(orders[orderIndex].historicoEntrega || []),
-        { 
-          data: agora, 
-          evento: "CANCELADO", 
-          observacao: observacao || `Cancelado pelo entregador ${entregador.nome}` 
-        }
-      ]
+      newStatus = "cancelled"
+      updates.status = "cancelled"
+      updates.cancelado_em = agora
+      updates.motivo_cancelamento = observacao || "Cancelado pelo entregador"
     }
 
-    // Salvar pedidos com o mesmo formato da API principal (timestamp no nome)
-    const timestamp = Date.now()
-    const filename = `${ORDERS_PREFIX}${timestamp}.json`
+    // Atualizar pedido no Supabase
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update(updates)
+      .eq('id', order.id)
 
-    await put(filename, JSON.stringify(orders, null, 2), {
-      access: "private",
-      contentType: "application/json",
-    })
-
-    // Limpar blobs antigos
-    await cleanupOldBlobs()
+    if (updateError) {
+      console.error("[entregador entregar] Erro ao atualizar pedido:", updateError)
+      return NextResponse.json({ error: "Erro ao atualizar pedido" }, { status: 500 })
+    }
 
     const messages: Record<string, string> = {
       iniciar: "Entrega iniciada",
@@ -165,7 +145,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       message: messages[action],
-      newStatus: orders[orderIndex].status
+      newStatus
     })
   } catch (error) {
     console.error("Erro ao atualizar pedido:", error)

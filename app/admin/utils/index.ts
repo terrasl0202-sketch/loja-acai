@@ -175,8 +175,11 @@ export const getEntregadorPanelLink = (token: string): string => {
 
 // Gerar mensagem WhatsApp para entregador
 export const generateEntregadorMessage = (order: Order): string => {
+  // Usar orderCode para identificar o pedido de forma amigavel
+  const orderCode = getOrderCode(order)
+  
   const lines = [
-    `*NOVO PEDIDO - ${order.id}*`,
+    `*NOVO PEDIDO - ${orderCode}*`,
     ``,
     `*Cliente:* ${order.customerName}`,
     `*Telefone:* ${order.customerPhone}`,
@@ -196,7 +199,8 @@ export const generateEntregadorMessage = (order: Order): string => {
   }
 
   lines.push(`*Itens:*`)
-  lines.push(order.items)
+  // Formatar itens corretamente (nao usar JSON cru)
+  lines.push(formatOrderItems(order))
   lines.push(``)
   
   lines.push(`*Total:* R$ ${order.total.toFixed(2)}`)
