@@ -74,7 +74,11 @@ export async function GET(request: Request) {
             },
             pixManual: {
               ...defaultConfig.pixManual,
+              keyType: data.pix_key_type || defaultConfig.pixManual.keyType || 'telefone',
               key: data.pix_key || defaultConfig.pixManual.key,
+              keyFull: data.pix_key || defaultConfig.pixManual.keyFull,
+              receiverName: data.pix_receiver_name || defaultConfig.pixManual.receiverName,
+              city: data.pix_city || defaultConfig.pixManual.city || 'SAO PAULO',
             },
           }
           

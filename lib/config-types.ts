@@ -42,7 +42,10 @@ export interface WhatsAppConfig {
   supportEnabled: boolean
 }
 
+export type PixKeyType = "telefone" | "cpf" | "cnpj" | "email" | "aleatoria"
+
 export interface PixManualConfig {
+  keyType: PixKeyType
   key: string
   keyFull: string
   receiverName: string
@@ -202,6 +205,7 @@ export const defaultConfig: SiteConfig = {
     supportEnabled: false,
   },
   pixManual: {
+    keyType: "telefone",
     key: "",
     keyFull: "",
     receiverName: "",

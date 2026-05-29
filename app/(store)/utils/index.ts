@@ -73,11 +73,11 @@ export const calculateTotalItems = (quantities: Record<number, number>): number 
 }
 
 /**
- * Normaliza chave PIX para formato correto
+ * Normaliza chave PIX para formato correto baseado no tipo
  * - Telefone: adiciona +55 se necessario
- * - CPF/CNPJ/Email/Aleatoria: mantem como esta
+ * - CPF/CNPJ/Email/Aleatoria: mantem como esta (apenas limpa formatacao)
  */
-export const normalizePixKey = (key: string): string => {
+export const normalizePixKey = (key: string, keyType?: string): string => {
   if (!key) return key
   
   // Remove espacos, parenteses, tracos
@@ -87,6 +87,52 @@ export const normalizePixKey = (key: string): string => {
   if (cleaned.startsWith("+")) {
     return cleaned
   }
+  
+  // Se o tipo foi especificado, usa a logica apropriada
+  if (keyType) {
+    // Email: mantem como esta
+    if (keyType === "email") {
+      return cleaned
+    }
+    
+    // Chave aleatoria: mantem como esta
+    if (keyType === "aleatoria") {
+      return cleaned
+    }
+    
+    // CPF: apenas digitos, sem +55
+    if (keyType === "cpf") {
+      return cleaned.replace(/\D/g, "")
+    }
+    
+    // CNPJ: apenas digitos, sem +55
+    if (keyType === "cnpj") {
+      return cleaned.replace(/\D/g, "")
+    }
+    
+    // Telefone: adiciona +55
+    if (keyType === "telefone") {
+      const digits = cleaned.replace(/\D/g, "")
+      // Se ja tem 13 digitos comecando com 55, adiciona apenas +
+      if (digits.length === 13 && digits.startsWith("55")) {
+        return "+" + digits
+      }
+      // Se tem 11 digitos (DDD + numero), adiciona +55
+      if (digits.length === 11) {
+        return "+55" + digits
+      }
+      // Se tem 10-11 digitos, assume que precisa de +55
+      if (digits.length >= 10 && digits.length <= 13) {
+        if (!digits.startsWith("55")) {
+          return "+55" + digits
+        }
+        return "+" + digits
+      }
+      return cleaned
+    }
+  }
+  
+  // Deteccao automatica (fallback para compatibilidade)
   
   // Se parece com email (tem @), mantem
   if (cleaned.includes("@")) {
@@ -101,36 +147,25 @@ export const normalizePixKey = (key: string): string => {
   // Apenas digitos a partir daqui
   const digits = cleaned.replace(/\D/g, "")
   
-  // CPF: 11 digitos mas nao comeca com 55 (ou comeca com 0-4)
-  // Telefone BR: 11 digitos comecando com DDD valido (11-99)
-  // Para diferenciar: CPF nunca comeca com 55, telefone com DDI sim
-  
-  // Se tem 11 digitos e parece telefone brasileiro (DDD 11-99)
-  const ddd = parseInt(digits.substring(0, 2), 10)
-  if (digits.length === 11 && ddd >= 11 && ddd <= 99) {
-    // Pode ser telefone ou CPF
-    // Telefone: 3o digito e 9 (celular) ou 2-5 (fixo)
-    const thirdDigit = digits[2]
-    if (thirdDigit === "9" || (thirdDigit >= "2" && thirdDigit <= "5")) {
-      // Provavelmente telefone - adiciona +55
-      return "+" + "55" + digits
-    }
-  }
-  
   // Se tem 13 digitos e comeca com 55 (telefone com DDI sem +)
   if (digits.length === 13 && digits.startsWith("55")) {
     return "+" + digits
   }
   
-  // Se tem 10-11 digitos e nao se encaixa em telefone, pode ser CPF
-  // CPF: 11 digitos
-  // CNPJ: 14 digitos
+  // Se tem 11 digitos e parece telefone brasileiro (DDD 11-99)
+  const ddd = parseInt(digits.substring(0, 2), 10)
+  if (digits.length === 11 && ddd >= 11 && ddd <= 99) {
+    const thirdDigit = digits[2]
+    if (thirdDigit === "9" || (thirdDigit >= "2" && thirdDigit <= "5")) {
+      return "+55" + digits
+    }
+  }
+  
+  // CPF: 11 digitos, CNPJ: 14 digitos - mantem sem +55
   if (digits.length === 11 || digits.length === 14) {
-    // Mantem como documento (sem +55)
     return digits
   }
   
-  // Caso padrao: retorna limpo
   return cleaned
 }
 
@@ -138,9 +173,9 @@ export const normalizePixKey = (key: string): string => {
  * Gera codigo PIX EMV para pagamento manual
  * Formato: BR Code EMV QRCPS-MPM
  */
-export const generatePixCode = (amount: number, pixKey: string, receiverName?: string, city?: string): string => {
-  // Normaliza a chave PIX (adiciona +55 se for telefone)
-  const normalizedKey = normalizePixKey(pixKey)
+export const generatePixCode = (amount: number, pixKey: string, receiverName?: string, city?: string, keyType?: string): string => {
+  // Normaliza a chave PIX baseado no tipo
+  const normalizedKey = normalizePixKey(pixKey, keyType)
   
   // Nome do recebedor - limpar e formatar
   const merchantName = (receiverName || "LOJA")

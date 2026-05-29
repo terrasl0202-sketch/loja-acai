@@ -26,7 +26,8 @@ export default function Home() {
   const WHATSAPP_NUMBER = siteConfig.whatsapp?.number || ""
   const MIN_VALUE_FOR_ASAAS = Number(siteConfig.payment?.minValueForAsaas) || 15
   const PIX_MANUAL_KEY = siteConfig.pixManual?.key || ""
-  const PIX_MANUAL_KEY_FULL = siteConfig.pixManual?.keyFull || ""
+  const PIX_MANUAL_KEY_FULL = siteConfig.pixManual?.keyFull || siteConfig.pixManual?.key || ""
+  const PIX_MANUAL_KEY_TYPE = siteConfig.pixManual?.keyType || "telefone"
   const PIX_MANUAL_NAME = siteConfig.pixManual?.receiverName || ""
   const PIX_RECEIVER_NAME = siteConfig.pixManual?.receiverName || ""
   const PIX_MANUAL_CITY = siteConfig.pixManual?.city || "SAO PAULO"
@@ -1227,14 +1228,8 @@ export default function Home() {
 
   // Gera codigo PIX EMV para pagamento manual - wrapper usando util importado
   const generateManualPixCode = (amount: number) => {
-    console.log("[v0] PIX MANUAL - Gerando codigo:")
-    console.log("[v0] pixKey:", PIX_MANUAL_KEY_FULL)
-    console.log("[v0] receiverName:", PIX_RECEIVER_NAME)
-    console.log("[v0] city:", PIX_MANUAL_CITY)
-    console.log("[v0] amount:", amount)
-    const code = generatePixCode(amount, PIX_MANUAL_KEY_FULL, PIX_RECEIVER_NAME, PIX_MANUAL_CITY)
-    console.log("[v0] pixCode gerado:", code)
-    return code
+    // Passa o tipo de chave para a normalizacao correta
+    return generatePixCode(amount, PIX_MANUAL_KEY_FULL, PIX_RECEIVER_NAME, PIX_MANUAL_CITY, PIX_MANUAL_KEY_TYPE)
   }
 
   const copyToClipboard = async (text: string, setCopiedFn: (v: boolean) => void) => {
@@ -2517,11 +2512,12 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                   {(() => {
                                     const pixCodeValue = generateManualPixCode(orderSnapshot?.total || getTotal())
                                     const pixAmount = orderSnapshot?.total || getTotal()
-                                    const normalizedKeyDebug = normalizePixKey(PIX_MANUAL_KEY_FULL)
+                                    const normalizedKeyDebug = normalizePixKey(PIX_MANUAL_KEY_FULL, PIX_MANUAL_KEY_TYPE)
                                     return (
                                       <>
                                         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 text-xs space-y-1">
                                           <p className="font-bold text-yellow-600 text-center mb-2">DEBUG PIX MANUAL</p>
+                                          <p><span className="text-muted-foreground">TIPO CHAVE:</span> <span className="font-mono text-blue-600 font-bold">{PIX_MANUAL_KEY_TYPE.toUpperCase()}</span></p>
                                           <p><span className="text-muted-foreground">PIX KEY (Admin):</span> <span className="font-mono text-foreground break-all">{PIX_MANUAL_KEY_FULL || '(vazio)'}</span></p>
                                           <p><span className="text-muted-foreground">PIX KEY (Normalizada):</span> <span className="font-mono text-green-600 break-all">{normalizedKeyDebug || '(vazio)'}</span></p>
                                           <p><span className="text-muted-foreground">RECEIVER:</span> <span className="font-mono text-foreground">{PIX_RECEIVER_NAME || '(vazio)'}</span></p>
