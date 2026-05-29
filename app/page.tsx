@@ -2513,29 +2513,35 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                     <p className="text-xs text-muted-foreground mt-1">Pague e envie o comprovante</p>
                                   </div>
                                   
-                                  <div className="flex flex-col items-center">
-                                    <div className="bg-white p-4 rounded-2xl shadow-xl">
-                                      {(() => {
-                                        const pixCodeValue = generateManualPixCode(orderSnapshot?.total || getTotal())
-                                        console.log("=== PIX MANUAL DEBUG ===")
-                                        console.log("PIX KEY:", PIX_MANUAL_KEY_FULL)
-                                        console.log("RECEIVER NAME:", PIX_RECEIVER_NAME)
-                                        console.log("CITY:", PIX_MANUAL_CITY)
-                                        console.log("AMOUNT:", orderSnapshot?.total || getTotal())
-                                        console.log("PIX CODE:", pixCodeValue)
-                                        console.log("QR SOURCE:", pixCodeValue)
-                                        console.log("========================")
-                                        return (
-                                          <QRCodeSVG
-                                            value={pixCodeValue}
-                                            size={150}
-                                            level="M"
-                                            includeMargin={false}
-                                          />
-                                        )
-                                      })()}
-                                    </div>
-                                  </div>
+                                  {/* DEBUG PIX MANUAL - Area visivel para diagnostico */}
+                                  {(() => {
+                                    const pixCodeValue = generateManualPixCode(orderSnapshot?.total || getTotal())
+                                    const pixAmount = orderSnapshot?.total || getTotal()
+                                    return (
+                                      <>
+                                        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 text-xs space-y-1">
+                                          <p className="font-bold text-yellow-600 text-center mb-2">DEBUG PIX MANUAL</p>
+                                          <p><span className="text-muted-foreground">PIX KEY:</span> <span className="font-mono text-foreground break-all">{PIX_MANUAL_KEY_FULL || '(vazio)'}</span></p>
+                                          <p><span className="text-muted-foreground">RECEIVER:</span> <span className="font-mono text-foreground">{PIX_RECEIVER_NAME || '(vazio)'}</span></p>
+                                          <p><span className="text-muted-foreground">CITY:</span> <span className="font-mono text-foreground">{PIX_MANUAL_CITY || '(vazio)'}</span></p>
+                                          <p><span className="text-muted-foreground">AMOUNT:</span> <span className="font-mono text-foreground">R$ {pixAmount.toFixed(2)}</span></p>
+                                          <p><span className="text-muted-foreground">PIX CODE:</span></p>
+                                          <p className="font-mono text-foreground break-all text-[10px] bg-black/10 p-2 rounded">{pixCodeValue}</p>
+                                        </div>
+                                        
+                                        <div className="flex flex-col items-center">
+                                          <div className="bg-white p-4 rounded-2xl shadow-xl">
+                                            <QRCodeSVG
+                                              value={pixCodeValue}
+                                              size={150}
+                                              level="M"
+                                              includeMargin={false}
+                                            />
+                                          </div>
+                                        </div>
+                                      </>
+                                    )
+                                  })()}
                                   
                                   <div className="space-y-2">
                                     <div className="bg-input rounded-xl px-4 py-3">
