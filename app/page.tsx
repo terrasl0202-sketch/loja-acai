@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Plus, ShoppingCart, Send, MapPin, User, CreditCard, MessageSquare, X, Copy, Check, Loader2, MapPinned, Phone, Home as HomeIcon, AlertCircle, Tag, Truck, MessageCircle, Clock, ChevronRight, Package, Zap } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
-import { type SiteConfig, defaultConfig } from "@/lib/config-types"
+import { type SiteConfig, defaultConfig, StoreCustomization, defaultCustomization } from "@/lib/config-types"
 
 // Types, Constants e Utils da area do cliente
 import type { PaymentStatus, DeliveryType, OrderSnapshot, PixData, CustomerOrder, SavedOrder, Coupon, Customer, FormData } from "./(store)/types"
@@ -13,9 +13,34 @@ import { useCart } from "./(store)/hooks/useCart"
 import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer } from "./(store)/components"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./(store)/components/modals"
 
+// Converte hex para HSL para compatibilidade com Tailwind CSS vars
+function hexToHsl(hex: string): string {
+  if (!hex || hex.length < 7) return "0 0% 50%"
+  hex = hex.replace("#", "")
+  const r = parseInt(hex.substring(0, 2), 16) / 255
+  const g = parseInt(hex.substring(2, 4), 16) / 255
+  const b = parseInt(hex.substring(4, 6), 16) / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  let h = 0
+  let s = 0
+  const l = (max + min) / 2
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
+      case g: h = ((b - r) / d + 2) / 6; break
+      case b: h = ((r - g) / d + 4) / 6; break
+    }
+  }
+  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`
+}
+
 export default function Home() {
   // Config do site carregada da API
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultConfig)
+  const [customization, setCustomization] = useState<StoreCustomization>(defaultCustomization)
   const [configLoaded, setConfigLoaded] = useState(false)
 
   // Dados derivados da config
@@ -1025,19 +1050,26 @@ export default function Home() {
     const loadConfig = async () => {
       try {
         // 1. Carregar store-settings do Supabase (fonte principal)
-        const [settingsRes, productsRes, neighborhoodsRes, couponsRes] = await Promise.all([
+        const [settingsRes, productsRes, neighborhoodsRes, couponsRes, customizationRes] = await Promise.all([
           fetch("/api/store-settings", { cache: "no-store" }),
           fetch("/api/products", { cache: "no-store" }),
           fetch("/api/neighborhoods", { cache: "no-store" }),
           fetch("/api/coupons", { cache: "no-store" }),
+          fetch("/api/customization", { cache: "no-store" }),
         ])
         
-        const [settingsData, productsData, neighborhoodsData, couponsData] = await Promise.all([
+        const [settingsData, productsData, neighborhoodsData, couponsData, customizationData] = await Promise.all([
           settingsRes.json(),
           productsRes.json(),
           neighborhoodsRes.json(),
           couponsRes.json(),
+          customizationRes.json(),
         ])
+        
+        // Carregar customizacao
+        if (customizationData.customization) {
+          setCustomization(customizationData.customization)
+        }
         
         // Montar config a partir das APIs do Supabase
         const newConfig: SiteConfig = { ...defaultConfig }
@@ -1749,6 +1781,24 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
   return (
     <main className="min-h-screen bg-background pb-24">
+      {/* CSS Variables Dinamicas da Personalizacao Premium */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        :root {
+          --primary: ${hexToHsl(customization.colors.primary)};
+          --secondary: ${hexToHsl(customization.colors.secondary)};
+          --accent: ${hexToHsl(customization.colors.accent)};
+          --background: ${hexToHsl(customization.colors.background)};
+          --foreground: ${hexToHsl(customization.colors.foreground)};
+          --card: ${hexToHsl(customization.colors.card)};
+          --muted: ${hexToHsl(customization.colors.muted)};
+          --muted-foreground: ${hexToHsl(customization.colors.muted)};
+          --border: ${hexToHsl(customization.colors.border)};
+          --input: ${hexToHsl(customization.colors.border)};
+          --ring: ${hexToHsl(customization.colors.primary)};
+          --radius: ${customization.theme.borderRadius / 16}rem;
+        }
+      ` }} />
+      
       {/* Audio elements */}
       <audio ref={addToCartAudioRef} preload="auto">
         <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleA4EXqvZzoliCwJcqN3Qi2cKAl+r3c+IZQsCX6rczolmCgJfq9zOiWYKAl+q3M6JZgoCX6vdzYhmCgJfq93NiGYKAl+q3c2JZgoCX6vdzYhmCgJfqtzNiWYKAl+r3c2IZgoCX6rczolmCgJfq93OiGUKAmCq3M6JZgoCX6vczolmCgJfqtzOiWYKAl+r3c6IZQoCYKrczolmCgJfq9zOiWYKAl+q3M6JZgoCX6vdzYhmCgJfqtzNiWYKAl+r3c2IZgoCX6rczYlmCgJfq93NiGYKAl+q3M2JZgoCX6vdzYlmCgJfqtzNiGYKAl+r3c2JZgoCX6rczYlmCgJfq93NiGYKAl+q3M2JZgoCX6vdzYhmCgJfqtzNiWYKAl+r3c2IZgoCX6rczYlmCgJfq93NiGYKAl+q3M6JZgoCX6vdzYhmCgJfqt3NiGYKAmCq3M2JZgoCX6vdzYhmCgJfqtzOiWYKAl+r3c2IZgoCYKrczYlmCgJfq93NiGYKAl+q3M6JZgoCX6vdzYhmCgJfqtzNiWYKAl+r3c2IZgoCX6rczolmCgJfq93NiGYKAl+q3M6JZgoCX6vdzYhmCgJfqtzNiWYKAl+r3c2IZgoCX6rczolmCgJfq93OiGUKAmCq3M6JZgoCX6vczolmCgJfqtzOiWYKAl+r3c6IZQoCYKrczolmCgJfq9zOiWYKAl+q3M6JZgoCX6vdzYhmCgJfqtzNiWYKAl+r3c2IZgoCX6rczYlmCgJfq93NiGYKAl+q3M2JZgoCX6vdzYlmCgJfqtzNiGYKAl+r3c2JZgoCX6rczYlmCgJfq93NiGYKAl+q3M2JZgoCX6vdzYhmCgJfqtzNiWYKAl+r3c2IZgoCX6rczYlmCgJfq93NiGYKAl+q3M6JZgoCX6vdzYhmCgJfqt3NiGYKAmCq3M2JZgoCX6vdzYhmCgJfqtzOiWYKAl+r3c2IZgoCYKrczYlmCgJfq93NiGYKAl+q3M6JZgoCX6vdzYhmCgJfqtzNiWYKAl+r3c2IZgoCX6rczolmCgJfq93NiGYKAl+q3M6JZgoCX6vdzYhmCgJfqtzNiWYKAl+r3c2IZgoCX6rczolmCgJfq93OiGUKAmCq3M6JZgoCX6vczolmCgJfqtzOiWYKAl+r3c6IZQoCYKrczolmCgJfq9zOiWYKAl+q3M6JZgoCX6vdzYhm" type="audio/wav" />
@@ -1759,8 +1809,9 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
       {/* Header Premium */}
       <StoreHeader
-        storeName={STORE_NAME}
-        storeSubtitle={siteConfig.banner?.secondaryText}
+        storeName={customization.identity.storeName || STORE_NAME}
+        storeSubtitle={customization.identity.subtitle || siteConfig.banner?.secondaryText}
+        logoUrl={customization.identity.logoUrl}
         customer={customer}
         showProfileMenu={showProfileMenu}
         cartItemsCount={getTotalItems()}
@@ -1785,9 +1836,10 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       
       {/* Hero - Cinematografico Premium */}
       <HeroBanner 
-        storeName={STORE_NAME}
-        storeSlogan={siteConfig.banner?.secondaryText}
+        storeName={customization.identity.storeName || STORE_NAME}
+        storeSlogan={customization.identity.slogan || siteConfig.banner?.secondaryText}
         banner={siteConfig.banner}
+        coverImageUrl={customization.identity.coverImageUrl}
       />
       
       {/* Aviso Loja Fechada Premium */}

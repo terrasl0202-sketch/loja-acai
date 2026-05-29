@@ -16,20 +16,23 @@ interface HeroBannerProps {
   storeName: string
   storeSlogan?: string
   banner?: BannerData | null
+  coverImageUrl?: string
 }
 
-export function HeroBanner({ storeName, storeSlogan, banner }: HeroBannerProps) {
+export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl }: HeroBannerProps) {
   const displayName = storeName || 'Delivery'
   const displaySlogan = storeSlogan || ''
   
   // Usa dados do banner via props (fonte unica de verdade)
   const bannerMainText = banner?.mainText || ''
   const bannerSecondaryText = banner?.secondaryText || displaySlogan
+  // Prioridade: coverImageUrl (customization) > banner.imageUrl > fallback
+  const imageUrl = coverImageUrl || banner?.imageUrl || "/acai-bowl.jpg"
   
   return (
     <section className="relative h-48 sm:h-56 overflow-hidden">
       <Image
-        src={banner?.imageUrl || "/acai-bowl.jpg"}
+        src={imageUrl}
         alt={displayName}
         fill
         className="object-cover scale-110 animate-fade-in"

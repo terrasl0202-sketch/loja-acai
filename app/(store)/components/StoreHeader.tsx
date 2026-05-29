@@ -6,6 +6,7 @@ import type { Customer } from "@/lib/config-types"
 interface StoreHeaderProps {
   storeName: string
   storeSubtitle?: string
+  logoUrl?: string
   customer: Customer | null
   showProfileMenu: boolean
   cartItemsCount: number
@@ -21,6 +22,7 @@ interface StoreHeaderProps {
 export function StoreHeader({
   storeName,
   storeSubtitle,
+  logoUrl,
   customer,
   showProfileMenu,
   cartItemsCount,
@@ -40,13 +42,24 @@ export function StoreHeader({
     <header className="sticky top-0 z-50 glass border-b border-white/5 shadow-xl shadow-black/10">
       <div className="max-w-lg mx-auto px-4 py-3.5">
         <div className="flex items-center justify-between">
-          <div className="relative">
-            <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary to-purple-400 drop-shadow-sm">
-              {displayName}
-            </h1>
-            <p className="text-[10px] text-muted-foreground/70 font-medium tracking-widest uppercase">
-              {displaySubtitle}
-            </p>
+          <div className="relative flex items-center gap-3">
+            {logoUrl ? (
+              <img 
+                src={logoUrl} 
+                alt={displayName} 
+                className="h-10 w-10 rounded-xl object-cover shadow-lg shadow-primary/20"
+              />
+            ) : null}
+            <div>
+              <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary to-purple-400 drop-shadow-sm">
+                {displayName}
+              </h1>
+              {displaySubtitle && (
+                <p className="text-[10px] text-muted-foreground/70 font-medium tracking-widest uppercase">
+                  {displaySubtitle}
+                </p>
+              )}
+            </div>
             <div className="absolute -bottom-1 left-0 w-12 h-0.5 bg-gradient-to-r from-primary to-transparent rounded-full" />
           </div>
           <div className="flex items-center gap-2.5">
