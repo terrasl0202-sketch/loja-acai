@@ -1,33 +1,22 @@
 "use client"
 
 import { MessageCircle, Instagram } from "lucide-react"
-import { useStoreSettings } from "@/hooks/useStoreSettings"
 
-export function StoreFooter() {
-  // Usa hook da nova arquitetura - atualiza automaticamente
-  const { settings, isLoading } = useStoreSettings()
+interface StoreFooterProps {
+  storeName?: string
+  slogan?: string
+  whatsapp?: string
+  instagram?: string
+  address?: string
+}
 
+export function StoreFooter({ storeName, slogan, whatsapp, instagram, address }: StoreFooterProps) {
   const currentYear = new Date().getFullYear()
-  
-  const { storeName, slogan, whatsapp, instagram, address } = settings
 
   // Formata numero de WhatsApp para exibicao
   const whatsappFormatted = whatsapp 
     ? whatsapp.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, '($2) $3-$4')
     : ''
-
-  // Se ainda carregando, mostra footer minimo
-  if (isLoading) {
-    return (
-      <footer className="border-t border-border mt-8 pb-24">
-        <div className="max-w-lg mx-auto px-4 py-8 text-center">
-          <p className="text-xs text-muted-foreground">
-            {currentYear} Carregando...
-          </p>
-        </div>
-      </footer>
-    )
-  }
 
   return (
     <footer className="border-t border-border mt-8 pb-24">

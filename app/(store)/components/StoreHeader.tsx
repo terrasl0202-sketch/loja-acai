@@ -2,9 +2,10 @@
 
 import { ShoppingCart, User, Star, Package, LogOut } from "lucide-react"
 import type { Customer } from "@/lib/config-types"
-import { useStoreSettings } from "@/hooks/useStoreSettings"
 
 interface StoreHeaderProps {
+  storeName: string
+  storeSubtitle?: string
   customer: Customer | null
   showProfileMenu: boolean
   cartItemsCount: number
@@ -18,6 +19,8 @@ interface StoreHeaderProps {
 }
 
 export function StoreHeader({
+  storeName,
+  storeSubtitle,
   customer,
   showProfileMenu,
   cartItemsCount,
@@ -29,11 +32,9 @@ export function StoreHeader({
   onLogout,
   onOpenLogin
 }: StoreHeaderProps) {
-  // Usa hook da nova arquitetura - atualiza automaticamente
-  const { settings } = useStoreSettings()
-
-  const displayName = settings.storeName || ''
-  const displaySubtitle = settings.subtitle || ''
+  // Dados vem via props do page.tsx (fonte unica de verdade)
+  const displayName = storeName || ''
+  const displaySubtitle = storeSubtitle || ''
 
   return (
     <header className="sticky top-0 z-50 glass border-b border-white/5 shadow-xl shadow-black/10">

@@ -1,23 +1,18 @@
 "use client"
 
 import { Clock } from "lucide-react"
-import { useStoreSettings } from "@/hooks/useStoreSettings"
 
 interface StoreClosedBannerProps {
-  // Props opcionais para override
   closedMessage?: string
   openTime?: string
   closeTime?: string
 }
 
 export function StoreClosedBanner({ closedMessage, openTime, closeTime }: StoreClosedBannerProps) {
-  // Usa hook da nova arquitetura - atualiza automaticamente
-  const { settings } = useStoreSettings()
-
-  // Usar props se fornecidas, senao usar settings do hook
-  const displayMessage = closedMessage || settings.closedMessage || 'Estamos fechados no momento.'
-  const displayOpenTime = openTime || settings.openTime || '14:00'
-  const displayCloseTime = closeTime || settings.closeTime || '22:00'
+  // Dados vem via props do page.tsx (fonte unica de verdade)
+  const displayMessage = closedMessage || 'Estamos fechados no momento.'
+  const displayOpenTime = openTime || '14:00'
+  const displayCloseTime = closeTime || '22:00'
 
   return (
     <div className="mx-4 mt-5 p-5 bg-gradient-to-br from-orange-500/10 via-red-500/5 to-purple-500/5 border border-orange-500/20 rounded-2xl backdrop-blur-sm shadow-xl shadow-red-500/5">

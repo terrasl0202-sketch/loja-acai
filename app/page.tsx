@@ -1735,6 +1735,8 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
       {/* Header Premium */}
       <StoreHeader
+        storeName={STORE_NAME}
+        storeSubtitle={siteConfig.banner?.secondaryText}
         customer={customer}
         showProfileMenu={showProfileMenu}
         cartItemsCount={getTotalItems()}
@@ -1756,12 +1758,22 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
           setShowLoginModal(true)
         }}
       />
-
+      
       {/* Hero - Cinematografico Premium */}
-      <HeroBanner />
-
+      <HeroBanner 
+        storeName={STORE_NAME}
+        storeSlogan={siteConfig.banner?.secondaryText}
+        banner={siteConfig.banner}
+      />
+      
       {/* Aviso Loja Fechada Premium */}
-      {!isStoreOpen && <StoreClosedBanner />}
+      {!isStoreOpen && (
+        <StoreClosedBanner 
+          closedMessage={siteConfig.storeHours?.closedMessage}
+          openTime={siteConfig.storeHours?.openTime}
+          closeTime={siteConfig.storeHours?.closeTime}
+        />
+      )}
 
       {/* Products */}
       <ProductList
@@ -1780,10 +1792,14 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         />
 
         {/* Spacer for fixed button - altura suficiente para nao sobrepor */}
-        <div className="h-24" />
-
-        {/* Footer */}
-        <StoreFooter />
+      <div className="h-24" />
+      
+      {/* Footer */}
+      <StoreFooter 
+        storeName={STORE_NAME}
+        slogan={siteConfig.banner?.secondaryText}
+        whatsapp={WHATSAPP_NUMBER}
+      />
 
       {/* Fixed Bottom Button */}
       <FloatingCartButton
@@ -2499,12 +2515,25 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                   
                                   <div className="flex flex-col items-center">
                                     <div className="bg-white p-4 rounded-2xl shadow-xl">
-                                      <QRCodeSVG
-                                        value={generateManualPixCode(orderSnapshot?.total || getTotal())}
-                                        size={150}
-                                        level="M"
-                                        includeMargin={false}
-                                      />
+                                      {(() => {
+                                        const pixCodeValue = generateManualPixCode(orderSnapshot?.total || getTotal())
+                                        console.log("=== PIX MANUAL DEBUG ===")
+                                        console.log("PIX KEY:", PIX_MANUAL_KEY_FULL)
+                                        console.log("RECEIVER NAME:", PIX_RECEIVER_NAME)
+                                        console.log("CITY:", PIX_MANUAL_CITY)
+                                        console.log("AMOUNT:", orderSnapshot?.total || getTotal())
+                                        console.log("PIX CODE:", pixCodeValue)
+                                        console.log("QR SOURCE:", pixCodeValue)
+                                        console.log("========================")
+                                        return (
+                                          <QRCodeSVG
+                                            value={pixCodeValue}
+                                            size={150}
+                                            level="M"
+                                            includeMargin={false}
+                                          />
+                                        )
+                                      })()}
                                     </div>
                                   </div>
                                   

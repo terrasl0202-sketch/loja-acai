@@ -504,6 +504,8 @@ export function StorePageContent() {
 
       {/* Header Premium */}
       <StoreHeader
+        storeName={STORE_NAME}
+        storeSubtitle={siteConfig.banner?.secondaryText}
         customer={customer}
         showProfileMenu={showProfileMenu}
         cartItemsCount={getTotalItems()}
@@ -527,10 +529,20 @@ export function StorePageContent() {
       />
 
       {/* Hero - Cinematografico Premium */}
-      <HeroBanner />
+      <HeroBanner 
+        storeName={STORE_NAME}
+        storeSlogan={siteConfig.banner?.secondaryText}
+        banner={siteConfig.banner}
+      />
 
       {/* Aviso Loja Fechada Premium */}
-      {!isStoreOpen && <StoreClosedBanner />}
+      {!isStoreOpen && (
+        <StoreClosedBanner 
+          closedMessage={siteConfig.storeHours?.closedMessage}
+          openTime={siteConfig.storeHours?.openTime}
+          closeTime={siteConfig.storeHours?.closeTime}
+        />
+      )}
 
       {/* Products */}
       <ProductList

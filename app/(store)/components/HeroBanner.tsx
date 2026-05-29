@@ -2,42 +2,27 @@
 
 import Image from "next/image"
 import { Snowflake, Award, Clock } from "lucide-react"
-import { useStoreSettings } from "@/hooks/useStoreSettings"
-import { useEffect, useState } from "react"
 
 interface BannerData {
-  mainText: string
-  secondaryText: string
-  promoActive: boolean
-  promoPrice: number
-  promoText: string
-  imageUrl: string
+  mainText?: string
+  secondaryText?: string
+  promoActive?: boolean
+  promoPrice?: number
+  promoText?: string
+  imageUrl?: string
 }
 
-export function HeroBanner() {
-  const { settings } = useStoreSettings()
-  const [banner, setBanner] = useState<BannerData | null>(null)
-  
-  // Carrega banner do Supabase
-  useEffect(() => {
-    async function loadBanner() {
-      try {
-        const res = await fetch('/api/store-settings', { cache: 'no-store' })
-        const data = await res.json()
-        if (data.success && data.settings?.banner) {
-          setBanner(data.settings.banner)
-        }
-      } catch (error) {
-        console.error('[HeroBanner] Erro ao carregar banner:', error)
-      }
-    }
-    loadBanner()
-  }, [])
+interface HeroBannerProps {
+  storeName: string
+  storeSlogan?: string
+  banner?: BannerData | null
+}
 
-  const displayName = settings.storeName || 'Delivery'
-  const displaySlogan = settings.slogan || 'O melhor da cidade'
+export function HeroBanner({ storeName, storeSlogan, banner }: HeroBannerProps) {
+  const displayName = storeName || 'Delivery'
+  const displaySlogan = storeSlogan || ''
   
-  // Usa dados do banner do Supabase
+  // Usa dados do banner via props (fonte unica de verdade)
   const bannerMainText = banner?.mainText || ''
   const bannerSecondaryText = banner?.secondaryText || displaySlogan
   
@@ -68,7 +53,7 @@ export function HeroBanner() {
           <div className="mt-2">
             <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 rounded-full shadow-lg animate-pulse">
               {banner.promoText}
-              {banner.promoPrice > 0 && ` - R$ ${banner.promoPrice.toFixed(2).replace('.', ',')}`}
+              {(banner.promoPrice ?? 0) > 0 && ` - R$ ${(banner.promoPrice ?? 0).toFixed(2).replace('.', ',')}`}
             </span>
           </div>
         )}
