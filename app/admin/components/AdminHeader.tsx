@@ -19,7 +19,7 @@ interface AdminHeaderProps {
 }
 
 export function AdminHeader({
-  storeName = 'Acai da Terra',
+  storeName = '',
   newOrdersCount,
   soundActivated,
   soundEnabled,
@@ -34,7 +34,7 @@ export function AdminHeader({
   onMarkAsSeen,
 }: AdminHeaderProps) {
   // Nome da loja vem como prop do Admin page (carregado via API)
-  const displayName = storeName || 'Acai da Terra'
+  const displayName = storeName || 'Carregando...'
 
   return (
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-xl border-b border-primary/10 shadow-xl shadow-black/10">

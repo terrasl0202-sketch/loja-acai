@@ -32,8 +32,8 @@ export function StoreHeader({
   // Usa hook da nova arquitetura - atualiza automaticamente
   const { settings } = useStoreSettings()
 
-  const displayName = settings.storeName || 'Acai da Terra'
-  const displaySubtitle = settings.subtitle || 'Delivery de Acai'
+  const displayName = settings.storeName || ''
+  const displaySubtitle = settings.subtitle || ''
 
   return (
     <header className="sticky top-0 z-50 glass border-b border-white/5 shadow-xl shadow-black/10">

@@ -43,7 +43,7 @@ export function StoreFooter() {
           <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
             {whatsapp && (
               <a
-                href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(`Ola ${storeName || 'Acai'}!`)}`}
+                href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(`Ola ${storeName || ''}!`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-4 py-2 bg-green-500/15 text-green-400 rounded-xl text-sm font-medium hover:bg-green-500/25 transition-colors"

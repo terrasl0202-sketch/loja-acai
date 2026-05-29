@@ -38,7 +38,7 @@ export function HeroBanner() {
   const displaySlogan = settings.slogan || 'O melhor da cidade'
   
   // Usa dados do banner do Supabase
-  const bannerMainText = banner?.mainText || 'Acai Premium Cremoso e Saboroso'
+  const bannerMainText = banner?.mainText || ''
   const bannerSecondaryText = banner?.secondaryText || displaySlogan
   
   return (

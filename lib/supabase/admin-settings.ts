@@ -30,20 +30,20 @@ export interface AdminSettingsResult {
   error: string | null
 }
 
-// Valores padrao
+// Valores padrao - sem dados de loja especifica
 const DEFAULT_SETTINGS: AdminSettings = {
   id: 'main',
-  storeName: 'Acai da Terra',
-  storeOpen: true,
+  storeName: '',
+  storeOpen: false,
   manualControl: false,
-  openingTime: '14:00',
+  openingTime: '08:00',
   closingTime: '22:00',
-  deliveryFee: 5.00,
-  minimumOrder: 15.00,
+  deliveryFee: 0,
+  minimumOrder: 0,
   whatsappNumber: '',
   pixKey: '',
   address: '',
-  closedMessage: 'Estamos fechados no momento',
+  closedMessage: 'Carregando...',
   updatedAt: new Date().toISOString()
 }
 
@@ -53,17 +53,17 @@ const DEFAULT_SETTINGS: AdminSettings = {
 function fromSupabase(row: Record<string, unknown>): AdminSettings {
   return {
     id: String(row.id || 'main'),
-    storeName: String(row.store_name || DEFAULT_SETTINGS.storeName),
+    storeName: String(row.store_name || ''),
     storeOpen: Boolean(row.store_open),
     manualControl: Boolean(row.manual_control),
-    openingTime: String(row.opening_time || DEFAULT_SETTINGS.openingTime),
-    closingTime: String(row.closing_time || DEFAULT_SETTINGS.closingTime),
-    deliveryFee: Number(row.delivery_fee) || DEFAULT_SETTINGS.deliveryFee,
-    minimumOrder: Number(row.minimum_order) || DEFAULT_SETTINGS.minimumOrder,
+    openingTime: String(row.opening_time || '08:00'),
+    closingTime: String(row.closing_time || '22:00'),
+    deliveryFee: Number(row.delivery_fee) || 0,
+    minimumOrder: Number(row.minimum_order) || 0,
     whatsappNumber: String(row.whatsapp_number || ''),
     pixKey: String(row.pix_key || ''),
     address: String(row.address || ''),
-    closedMessage: String(row.closed_message || DEFAULT_SETTINGS.closedMessage),
+    closedMessage: String(row.closed_message || 'Carregando...'),
     updatedAt: String(row.updated_at || new Date().toISOString())
   }
 }

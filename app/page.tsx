@@ -34,7 +34,7 @@ export default function Home() {
   const MINIMUM_ORDER = siteConfig.delivery?.minimumOrder || 0
   const DELIVERY_ENABLED = siteConfig.delivery?.enabled !== false
   const PICKUP_ENABLED = siteConfig.delivery?.pickupEnabled !== false
-  const STORE_NAME = siteConfig.storeName || "P.K Gostosuras"
+  const STORE_NAME = siteConfig.storeName || ""
 
   // Verificar se esta dentro do horario de funcionamento
   const isWithinBusinessHours = (): boolean => {
@@ -1226,7 +1226,16 @@ export default function Home() {
   }
 
   // Gera codigo PIX EMV para pagamento manual - wrapper usando util importado
-  const generateManualPixCode = (amount: number) => generatePixCode(amount, PIX_MANUAL_KEY_FULL, PIX_RECEIVER_NAME, PIX_MANUAL_CITY)
+  const generateManualPixCode = (amount: number) => {
+    console.log("[v0] PIX MANUAL - Gerando codigo:")
+    console.log("[v0] pixKey:", PIX_MANUAL_KEY_FULL)
+    console.log("[v0] receiverName:", PIX_RECEIVER_NAME)
+    console.log("[v0] city:", PIX_MANUAL_CITY)
+    console.log("[v0] amount:", amount)
+    const code = generatePixCode(amount, PIX_MANUAL_KEY_FULL, PIX_RECEIVER_NAME, PIX_MANUAL_CITY)
+    console.log("[v0] pixCode gerado:", code)
+    return code
+  }
 
   const copyToClipboard = async (text: string, setCopiedFn: (v: boolean) => void) => {
     try {
