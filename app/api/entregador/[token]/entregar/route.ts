@@ -14,38 +14,9 @@ function getSupabase() {
     return null
   }
   
-  return createClient(supabaseUrl, supabaseServiceKey)
-}
-
-// Buscar config de entregadores
-async function getEntregadoresConfig() {
-  const supabase = getSupabase()
-  if (!supabase) return []
-  
-  try {
-    const { data, error } = await supabase
-      .from('config')
-      .select('value')
-      .eq('key', 'store_config')
-      .single()
-    
-    if (error || !data?.value) return []
-    
-    const config = typeof data.value === 'string' ? JSON.parse(data.value) : data.value
-    return config.entregadores || []
-  } catch {
-    return []
-  }
-}
-
-// Interface do entregador do config
-interface Entregador {
-  id: string
-  nome: string
-  whatsapp: string
-  status: string
-  pin?: string
-  token?: string
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  })
 }
 
 // POST: Atualizar status do pedido pelo entregador
@@ -58,30 +29,36 @@ export async function POST(
     const body = await request.json()
     const { pin, orderId, action, observacao } = body
     
+    console.log("[entregador/entregar POST] Token:", token, "OrderId:", orderId, "Action:", action)
+    
     // Validar action
     const validActions = ["iniciar", "finalizar", "cancelar"]
     if (!validActions.includes(action)) {
       return NextResponse.json({ error: "Acao invalida" }, { status: 400 })
     }
 
-    // Buscar entregadores do config
-    const entregadores = await getEntregadoresConfig() as Entregador[]
-    
-    // Encontrar entregador pelo token
-    const entregador = entregadores.find(e => e.token === token && e.status === 'ativo')
-    
-    if (!entregador) {
-      return NextResponse.json({ error: "Entregador not found" }, { status: 404 })
-    }
-
-    // Verificar PIN
-    if (entregador.pin !== pin) {
-      return NextResponse.json({ error: "PIN incorreto" }, { status: 401 })
-    }
-
     const supabase = getSupabase()
     if (!supabase) {
       return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+    }
+
+    // Buscar entregador pelo token na tabela entregadores
+    const { data: entregador, error: entregadorError } = await supabase
+      .from('entregadores')
+      .select('*')
+      .eq('token', token)
+      .eq('active', true)
+      .single()
+    
+    if (entregadorError || !entregador) {
+      console.error("[entregador/entregar POST] Entregador nao encontrado")
+      return NextResponse.json({ error: "Entregador not found" }, { status: 404 })
+    }
+
+    // Verificar PIN (se configurado)
+    if (entregador.pin && entregador.pin !== pin) {
+      console.error("[entregador/entregar POST] PIN incorreto")
+      return NextResponse.json({ error: "PIN incorreto" }, { status: 401 })
     }
 
     // Buscar pedido (por order_code ou id)
@@ -92,13 +69,15 @@ export async function POST(
       .limit(1)
 
     if (orderError || !orders || orders.length === 0) {
+      console.error("[entregador/entregar POST] Pedido nao encontrado:", orderId)
       return NextResponse.json({ error: "Pedido not found" }, { status: 404 })
     }
 
     const order = orders[0]
 
     // Verificar se o pedido pertence ao entregador
-    if (order.entregador_id !== entregador.id && order.entregador_nome !== entregador.nome) {
+    if (order.entregador_id !== entregador.id && order.entregador_nome !== entregador.name) {
+      console.error("[entregador/entregar POST] Pedido nao pertence ao entregador")
       return NextResponse.json({ error: "Pedido nao pertence a este entregador" }, { status: 403 })
     }
 
@@ -112,17 +91,20 @@ export async function POST(
       newStatus = "delivering"
       updates.status = "delivering"
       updates.saiu_para_entrega_em = agora
+      console.log("[entregador/entregar POST] Iniciando entrega para pedido:", orderId)
     } else if (action === "finalizar") {
       // Finalizar entrega - mudar para completed
       newStatus = "completed"
       updates.status = "completed"
       updates.entregue_em = agora
+      console.log("[entregador/entregar POST] Finalizando entrega para pedido:", orderId)
     } else if (action === "cancelar") {
       // Cancelar - mudar para cancelled
       newStatus = "cancelled"
       updates.status = "cancelled"
       updates.cancelado_em = agora
       updates.motivo_cancelamento = observacao || "Cancelado pelo entregador"
+      console.log("[entregador/entregar POST] Cancelando pedido:", orderId)
     }
 
     // Atualizar pedido no Supabase
@@ -132,7 +114,7 @@ export async function POST(
       .eq('id', order.id)
 
     if (updateError) {
-      console.error("[entregador entregar] Erro ao atualizar pedido:", updateError)
+      console.error("[entregador/entregar POST] Erro ao atualizar pedido:", updateError.message)
       return NextResponse.json({ error: "Erro ao atualizar pedido" }, { status: 500 })
     }
 
@@ -142,13 +124,15 @@ export async function POST(
       cancelar: "Pedido cancelado"
     }
 
+    console.log("[entregador/entregar POST] Sucesso:", messages[action])
+
     return NextResponse.json({
       success: true,
       message: messages[action],
       newStatus
     })
   } catch (error) {
-    console.error("Erro ao atualizar pedido:", error)
+    console.error("[entregador/entregar POST] Erro:", error)
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
 }

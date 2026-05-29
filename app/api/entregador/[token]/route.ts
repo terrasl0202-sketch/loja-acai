@@ -14,41 +14,24 @@ function getSupabase() {
     return null
   }
   
-  return createClient(supabaseUrl, supabaseServiceKey)
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  })
 }
 
-// Buscar config de entregadores
-async function getEntregadoresConfig() {
-  const supabase = getSupabase()
-  if (!supabase) return []
-  
-  try {
-    const { data, error } = await supabase
-      .from('config')
-      .select('value')
-      .eq('key', 'store_config')
-      .single()
-    
-    if (error || !data?.value) return []
-    
-    const config = typeof data.value === 'string' ? JSON.parse(data.value) : data.value
-    return config.entregadores || []
-  } catch {
-    return []
-  }
-}
-
-// Interface do entregador do config
-interface Entregador {
+// Interface do entregador do Supabase
+interface EntregadorDb {
   id: string
-  nome: string
-  whatsapp: string
-  status: string
-  pin?: string
-  token?: string
-  horarioInicio?: string
-  horarioFim?: string
-  observacao?: string
+  name: string
+  phone: string
+  active: boolean
+  available: boolean
+  token: string
+  pin: string | null
+  vehicle: string | null
+  notes: string | null
+  start_time: string | null
+  end_time: string | null
 }
 
 // GET: Verificar token e retornar dados do entregador (sem PIN)
@@ -59,28 +42,40 @@ export async function GET(
   try {
     const { token } = await params
     
-    // Buscar entregadores do config
-    const entregadores = await getEntregadoresConfig() as Entregador[]
+    console.log("[entregador GET] Buscando entregador com token:", token)
     
-    // Encontrar entregador pelo token
-    const entregador = entregadores.find(e => e.token === token && e.status === 'ativo')
+    const supabase = getSupabase()
+    if (!supabase) {
+      console.error("[entregador GET] Supabase nao configurado")
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+    }
     
-    if (!entregador) {
-      console.error("[entregador GET] Token nao encontrado:", token)
+    // Buscar entregador pelo token na tabela entregadores
+    const { data: entregador, error } = await supabase
+      .from('entregadores')
+      .select('*')
+      .eq('token', token)
+      .eq('active', true)
+      .single()
+    
+    if (error || !entregador) {
+      console.error("[entregador GET] Token nao encontrado:", token, error?.message)
       return NextResponse.json({ error: "Entregador not found" }, { status: 404 })
     }
+    
+    console.log("[entregador GET] Entregador encontrado:", entregador.name)
 
     // Retornar apenas dados publicos (sem PIN)
     return NextResponse.json({
       success: true,
       entregador: {
         id: entregador.id,
-        nome: entregador.nome,
-        status: entregador.status,
+        nome: entregador.name,
+        status: entregador.active ? 'ativo' : 'inativo',
       }
     })
   } catch (error) {
-    console.error("Erro ao buscar entregador:", error)
+    console.error("[entregador GET] Erro:", error)
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
 }
@@ -95,37 +90,47 @@ export async function POST(
     const body = await request.json()
     const { pin } = body
 
-    // Buscar entregadores do config
-    const entregadores = await getEntregadoresConfig() as Entregador[]
+    console.log("[entregador POST] Autenticando token:", token)
     
-    // Encontrar entregador pelo token
-    const entregador = entregadores.find(e => e.token === token && e.status === 'ativo')
-    
-    if (!entregador) {
-      return NextResponse.json({ error: "Entregador not found" }, { status: 404 })
-    }
-
-    // Verificar PIN
-    if (entregador.pin !== pin) {
-      return NextResponse.json({ error: "PIN incorreto" }, { status: 401 })
-    }
-
     const supabase = getSupabase()
     if (!supabase) {
       return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
 
+    // Buscar entregador pelo token na tabela entregadores
+    const { data: entregador, error: entregadorError } = await supabase
+      .from('entregadores')
+      .select('*')
+      .eq('token', token)
+      .eq('active', true)
+      .single()
+    
+    if (entregadorError || !entregador) {
+      console.error("[entregador POST] Token nao encontrado:", token)
+      return NextResponse.json({ error: "Entregador not found" }, { status: 404 })
+    }
+
+    // Verificar PIN
+    if (entregador.pin && entregador.pin !== pin) {
+      console.error("[entregador POST] PIN incorreto para:", entregador.name)
+      return NextResponse.json({ error: "PIN incorreto" }, { status: 401 })
+    }
+
+    console.log("[entregador POST] Autenticado:", entregador.name)
+
     // Buscar pedidos atribuidos ao entregador (por entregador_id ou entregador_nome)
     const { data: orders, error: ordersError } = await supabase
       .from('orders')
       .select('*')
-      .or(`entregador_id.eq.${entregador.id},entregador_nome.eq.${entregador.nome}`)
+      .or(`entregador_id.eq.${entregador.id},entregador_nome.eq.${entregador.name}`)
       .in('status', ['delivering', 'preparing', 'confirmed'])
       .order('created_at', { ascending: false })
 
     if (ordersError) {
-      console.error("[entregador POST] Erro ao buscar pedidos:", ordersError)
+      console.error("[entregador POST] Erro ao buscar pedidos:", ordersError.message)
     }
+
+    console.log("[entregador POST] Pedidos encontrados:", (orders || []).length)
 
     // Formatar itens para exibicao
     const formatItems = (items: unknown): string => {
@@ -177,12 +182,12 @@ export async function POST(
       success: true,
       entregador: {
         id: entregador.id,
-        nome: entregador.nome,
+        nome: entregador.name,
       },
       pedidos: pedidosSeguros
     })
   } catch (error) {
-    console.error("Erro ao autenticar entregador:", error)
+    console.error("[entregador POST] Erro:", error)
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
 }
