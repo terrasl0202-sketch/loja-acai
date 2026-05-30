@@ -23,15 +23,15 @@ export function CartFooter({
   onClose
 }: CartFooterProps) {
   return (
-    <div className="border-t border-border p-4 space-y-3 bg-card/50">
+    <div className="border-t border-border p-4 space-y-3 modal-card-solid">
       {/* Resumo de valores */}
       <div className="space-y-1.5 text-sm">
-        <div className="flex justify-between text-muted-foreground">
+        <div className="flex justify-between opacity-70">
           <span>Subtotal</span>
           <span>{formatCurrency(subtotal)}</span>
         </div>
         {deliveryFee > 0 && (
-          <div className="flex justify-between text-muted-foreground">
+          <div className="flex justify-between opacity-70">
             <span>Taxa de entrega</span>
             <span>{formatCurrency(deliveryFee)}</span>
           </div>
@@ -42,7 +42,7 @@ export function CartFooter({
             <span>-{formatCurrency(discount)}</span>
           </div>
         )}
-        <div className="flex justify-between text-foreground font-bold text-base pt-2 border-t border-border">
+        <div className="flex justify-between font-bold text-base pt-2 border-t border-border">
           <span>Total</span>
           <span className="text-primary">{formatCurrency(total)}</span>
         </div>

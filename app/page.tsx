@@ -1937,10 +1937,10 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
       {/* Checkout Modal */}
       {showCheckout && (
-        <div className="fixed inset-0 z-[100] bg-background overflow-y-auto animate-slide-up">
+        <div className="fixed inset-0 z-[100] modal-solid-bg overflow-y-auto animate-slide-up">
           <div className="min-h-screen pb-8">
             {/* Modal Header Premium */}
-            <header className="sticky top-0 z-10 glass border-b border-white/5">
+            <header className="sticky top-0 z-10 modal-header-solid border-b border-border">
               <div className="max-w-lg mx-auto px-4 py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -1948,15 +1948,15 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                       <ShoppingCart className="w-5 h-5 text-primary" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-foreground">
+                      <h2 className="text-lg font-bold">
                         {paymentStatus === "confirmed" ? "Pedido Confirmado" : "Finalizar Pedido"}
                       </h2>
-                      <p className="text-xs text-muted-foreground">{getTotalItems()} {getTotalItems() === 1 ? 'item' : 'itens'} no carrinho</p>
+                      <p className="text-xs opacity-70">{getTotalItems()} {getTotalItems() === 1 ? 'item' : 'itens'} no carrinho</p>
                     </div>
                   </div>
                   <button 
                     onClick={handleCloseCheckout}
-                    className="p-2.5 bg-secondary/60 hover:bg-secondary rounded-xl text-foreground/70 hover:text-foreground transition-all duration-200 active:scale-95"
+                    className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all duration-200 active:scale-95"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -2170,7 +2170,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                             placeholder="Codigo do cupom"
                             disabled={isOrderBlocked}
-                            className="premium-input flex-1 px-4 py-3 bg-input/50 border border-border/50 rounded-xl text-foreground text-sm placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="premium-input modal-input-solid flex-1 px-4 py-3 border rounded-xl text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                           <button
                             onClick={applyCoupon}
@@ -2349,7 +2349,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             onChange={(e) => !isOrderBlocked && setFormData({ ...formData, nome: e.target.value })}
                             disabled={isOrderBlocked}
                             placeholder="Seu nome completo"
-                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
+                            className="premium-input modal-input-solid w-full px-4 py-3.5 border rounded-xl focus:outline-none disabled:opacity-50"
                           />
                         </div>
 
@@ -2370,7 +2370,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               setFormData({ ...formData, telefone: formatted })
                             }}
                             placeholder="(11) 99999-9999"
-                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+                            className="premium-input modal-input-solid w-full px-4 py-3.5 border rounded-xl focus:outline-none"
                           />
                         </div>
 
@@ -2387,7 +2387,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                 onChange={(e) => !isOrderBlocked && setFormData({ ...formData, endereco: e.target.value })}
                                 disabled={isOrderBlocked}
                                 placeholder="Rua"
-                                className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
+                                className="premium-input modal-input-solid w-full px-4 py-3.5 border rounded-xl focus:outline-none disabled:opacity-50"
                               />
                             </div>
 
@@ -2403,7 +2403,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               onChange={(e) => !isOrderBlocked && setFormData({ ...formData, numero: e.target.value })}
                               disabled={isOrderBlocked}
                               placeholder="Numero"
-                              className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
+                              className="premium-input modal-input-solid w-full px-4 py-3.5 border rounded-xl focus:outline-none disabled:opacity-50"
                             />
                           </div>
                         </div>
@@ -2418,7 +2418,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             value={formData.bairro}
                             onChange={(e) => !isOrderBlocked && setFormData({ ...formData, bairro: e.target.value })}
                             disabled={isOrderBlocked}
-                            className={`premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground focus:outline-none appearance-none ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            className={`premium-input modal-input-solid w-full px-4 py-3.5 border rounded-xl focus:outline-none appearance-none ${isOrderBlocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center', backgroundSize: '18px' }}
                           >
                             <option value="">Selecione seu bairro</option>
@@ -2471,7 +2471,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             onChange={(e) => !isOrderBlocked && setFormData({ ...formData, referencia: e.target.value })}
                             disabled={isOrderBlocked}
                             placeholder="Ponto de referencia"
-                            className="premium-input w-full px-4 py-3.5 bg-input/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-50"
+                            className="premium-input modal-input-solid w-full px-4 py-3.5 border rounded-xl focus:outline-none disabled:opacity-50"
                           />
                         </div>
 

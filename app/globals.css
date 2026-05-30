@@ -266,8 +266,10 @@
 
 /* Premium Card - Elegante com profundidade */
 .premium-card {
-  @apply relative overflow-hidden bg-card text-card-foreground;
-  border: 1px solid var(--border);
+  @apply relative overflow-hidden;
+  background-color: oklch(0.19 0.025 285);
+  color: oklch(0.97 0.005 285);
+  border: 1px solid oklch(0.28 0.04 285);
   box-shadow: 
     0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 2px 4px -2px rgba(0, 0, 0, 0.1);
@@ -353,6 +355,39 @@
   @apply bg-card/80;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+/* Modal/Checkout/Pix - Fundo SOLIDO obrigatorio (nunca transparente) */
+.modal-solid-bg {
+  background-color: oklch(0.145 0.02 285) !important;
+  color: oklch(0.97 0.005 285) !important;
+}
+
+.modal-header-solid {
+  background-color: oklch(0.17 0.025 285) !important;
+  color: oklch(0.97 0.005 285) !important;
+}
+
+.modal-card-solid {
+  background-color: oklch(0.19 0.025 285) !important;
+  color: oklch(0.97 0.005 285) !important;
+  border-color: oklch(0.28 0.04 285) !important;
+}
+
+.modal-input-solid {
+  background-color: oklch(0.14 0.02 285) !important;
+  color: oklch(0.97 0.005 285) !important;
+  border-color: oklch(0.28 0.04 285) !important;
+}
+
+.modal-input-solid::placeholder {
+  color: oklch(0.55 0.03 285) !important;
+}
+
+/* Overlay escuro para modais */
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(4px);
 }
 
 /* Frost overlay for hero */

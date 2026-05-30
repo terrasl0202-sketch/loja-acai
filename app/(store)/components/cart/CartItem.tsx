@@ -13,10 +13,10 @@ interface CartItemProps {
 
 export function CartItem({ id, name, price, quantity, onUpdateQuantity }: CartItemProps) {
   return (
-    <div className="flex items-center gap-3 p-3 bg-secondary/30 rounded-xl group">
+    <div className="flex items-center gap-3 p-3 modal-card-solid rounded-xl group">
       {/* Produto info */}
       <div className="flex-1 min-w-0">
-        <h4 className="font-medium text-foreground text-sm truncate">{name}</h4>
+        <h4 className="font-medium text-sm truncate">{name}</h4>
         <p className="text-primary font-bold text-sm">{formatCurrency(price)}</p>
       </div>
       

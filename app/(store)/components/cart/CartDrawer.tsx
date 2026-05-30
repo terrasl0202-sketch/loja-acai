@@ -48,28 +48,28 @@ export function CartDrawer({
     <>
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        className="fixed inset-0 z-[90] modal-overlay animate-in fade-in duration-200"
         onClick={onClose}
       />
       
       {/* Drawer */}
-      <div className="fixed inset-y-0 right-0 z-[95] w-full max-w-md bg-card border-l border-border shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
+      <div className="fixed inset-y-0 right-0 z-[95] w-full max-w-md modal-solid-bg border-l border-border shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
         {/* Header */}
-        <header className="flex items-center justify-between p-4 border-b border-border bg-card/80 backdrop-blur-sm">
+        <header className="flex items-center justify-between p-4 border-b border-border modal-header-solid">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary/15 rounded-xl flex items-center justify-center">
               <ShoppingCart className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h2 className="font-bold text-foreground">Meu Carrinho</h2>
-              <p className="text-xs text-muted-foreground">
+              <h2 className="font-bold">Meu Carrinho</h2>
+              <p className="text-xs opacity-70">
                 {totalItems} {totalItems === 1 ? "item" : "itens"}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 bg-secondary/60 hover:bg-secondary rounded-xl text-muted-foreground hover:text-foreground transition-all"
+            className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
             aria-label="Fechar carrinho"
           >
             <X className="w-5 h-5" />
