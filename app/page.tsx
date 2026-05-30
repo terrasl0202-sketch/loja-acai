@@ -121,6 +121,7 @@ export default function Home() {
   // Config do site carregada da API
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultConfig)
   const [customization, setCustomization] = useState<StoreCustomization>(defaultCustomization)
+  const [carouselBanners, setCarouselBanners] = useState<Array<{id: number, imageUrl: string, title: string, subtitle: string, linkUrl: string, active: boolean}>>([])
   const [configLoaded, setConfigLoaded] = useState(false)
 
   // Dados derivados da config
@@ -1130,25 +1131,32 @@ export default function Home() {
     const loadConfig = async () => {
       try {
         // 1. Carregar store-settings do Supabase (fonte principal)
-        const [settingsRes, productsRes, neighborhoodsRes, couponsRes, customizationRes] = await Promise.all([
+        const [settingsRes, productsRes, neighborhoodsRes, couponsRes, customizationRes, bannersRes] = await Promise.all([
           fetch("/api/store-settings", { cache: "no-store" }),
           fetch("/api/products", { cache: "no-store" }),
           fetch("/api/neighborhoods", { cache: "no-store" }),
           fetch("/api/coupons", { cache: "no-store" }),
           fetch("/api/customization", { cache: "no-store" }),
+          fetch("/api/banners", { cache: "no-store" }),
         ])
         
-        const [settingsData, productsData, neighborhoodsData, couponsData, customizationData] = await Promise.all([
+        const [settingsData, productsData, neighborhoodsData, couponsData, customizationData, bannersData] = await Promise.all([
           settingsRes.json(),
           productsRes.json(),
           neighborhoodsRes.json(),
           couponsRes.json(),
           customizationRes.json(),
+          bannersRes.json(),
         ])
         
         // Carregar customizacao
         if (customizationData.customization) {
           setCustomization(customizationData.customization)
+        }
+        
+        // Carregar banners do carousel
+        if (Array.isArray(bannersData)) {
+          setCarouselBanners(bannersData)
         }
         
         // Montar config a partir das APIs do Supabase
@@ -1926,6 +1934,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         banner={siteConfig.banner}
         coverImageUrl={customization.identity.coverImageUrl}
         hero={customization.hero}
+        carouselBanners={carouselBanners}
       />
       
       {/* Aviso Loja Fechada Premium */}

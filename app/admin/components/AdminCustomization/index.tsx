@@ -12,7 +12,8 @@ import {
   Loader2,
   Save,
   RotateCcw,
-  Image
+  Image,
+  Images
 } from "lucide-react"
 import { StoreCustomization, defaultCustomization } from "@/lib/config-types"
 import { IdentityTab } from "./tabs/IdentityTab"
@@ -23,13 +24,15 @@ import { InfoTab } from "./tabs/InfoTab"
 import { PaymentsTab } from "./tabs/PaymentsTab"
 import { PreviewTab } from "./tabs/PreviewTab"
 import { HeroTab } from "./tabs/HeroTab"
+import { BannersTab } from "./tabs/BannersTab"
 
-type CustomizationTab = "identity" | "theme" | "hero" | "layout" | "elements" | "info" | "payments" | "preview"
+type CustomizationTab = "identity" | "theme" | "hero" | "banners" | "layout" | "elements" | "info" | "payments" | "preview"
 
 const TABS: { id: CustomizationTab; label: string; icon: React.ReactNode }[] = [
   { id: "identity", label: "Identidade", icon: <Palette className="w-4 h-4" /> },
   { id: "theme", label: "Temas", icon: <Sun className="w-4 h-4" /> },
-  { id: "hero", label: "Banner", icon: <Image className="w-4 h-4" /> },
+  { id: "hero", label: "Hero", icon: <Image className="w-4 h-4" /> },
+  { id: "banners", label: "Banners", icon: <Images className="w-4 h-4" /> },
   { id: "layout", label: "Layout", icon: <Layout className="w-4 h-4" /> },
   { id: "elements", label: "Elementos", icon: <Sparkles className="w-4 h-4" /> },
   { id: "info", label: "Informacoes", icon: <Info className="w-4 h-4" /> },
@@ -223,6 +226,9 @@ export function AdminCustomization({ onSave }: AdminCustomizationProps) {
             hero={customization.hero}
             onUpdate={(updates) => updateSection("hero", updates)}
           />
+        )}
+        {activeTab === "banners" && (
+          <BannersTab />
         )}
         {activeTab === "layout" && (
           <LayoutTab
