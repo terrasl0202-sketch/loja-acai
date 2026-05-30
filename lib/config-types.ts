@@ -7,6 +7,14 @@ export interface Product {
   stock: number
   outOfStock?: boolean
   order?: number
+  // Campos de badge
+  badgeEnabled?: boolean
+  badgeText?: string
+  badgeType?: string
+  badgeColor?: string
+  // Campos de serving
+  servingText?: string
+  showServingText?: boolean
 }
 
 export interface BannerConfig {

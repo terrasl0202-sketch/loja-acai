@@ -288,10 +288,13 @@
 
 /* Product Card - Ultra Premium */
 .product-card {
-  @apply relative overflow-hidden rounded-3xl bg-card text-card-foreground;
+  @apply relative rounded-3xl bg-card text-card-foreground;
   z-index: 1;
   border: 1px solid var(--border);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Permite badge aparecer acima do card */
+  overflow: visible;
+  margin-top: 10px;
 }
 
 /* Tema Escuro - Glass Effect Sutil */

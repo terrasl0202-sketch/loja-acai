@@ -70,10 +70,10 @@ export function ProductCard({
   
   return (
     <div className="product-card p-5 animate-fadeIn">
-      {/* Badge Premium - canto superior esquerdo */}
+      {/* Badge Premium - posicionado para nao cortar */}
       {showBadge && (
         <span 
-          className={`absolute -top-2 left-4 ${badgeClass} flex items-center gap-1.5 z-10`}
+          className={`absolute -top-3 left-4 ${badgeClass} flex items-center gap-1.5 z-20 shadow-lg`}
           style={product.badgeColor ? { background: product.badgeColor } : undefined}
         >
           <BadgeIcon className="w-3 h-3 fill-white" />

@@ -78,16 +78,16 @@ function getMutedForeground(bgHex: string): string {
 // Paletas de cores PREMIUM pre-definidas por tema
 const THEME_PALETTES = {
   dark: {
-    // Tema Escuro Premium - Netflix/Stripe Dark Style
-    background: "#0A0A0F",    // Preto profundo com tom azulado
-    foreground: "#FFFFFF",    // Branco puro
-    card: "#13131A",          // Card elegante
+    // Tema Escuro Premium - Stripe/Netflix Style
+    background: "#09090B",    // Preto profundo elegante
+    foreground: "#FAFAFA",    // Branco off-white
+    card: "#18181B",          // Card destaca do fundo
     muted: "#A1A1AA",         // Texto secundario legivel
-    border: "#262637",        // Bordas sutis com tom roxo
+    border: "#27272A",        // Bordas discretas
   },
   light: {
     // Tema Claro Premium - Apple/iFood Style
-    background: "#F8FAFC",    // Off-white sofisticado
+    background: "#F5F7FA",    // Off-white sofisticado
     foreground: "#0F172A",    // Azul escuro elegante
     card: "#FFFFFF",          // Branco puro para cards
     muted: "#64748B",         // Cinza azulado refinado

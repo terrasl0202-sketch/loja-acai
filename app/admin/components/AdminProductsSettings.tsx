@@ -1,7 +1,17 @@
 "use client"
 
-import { Plus, ChevronUp, ChevronDown, GripVertical, Eye, EyeOff, Trash2, AlertCircle } from "lucide-react"
+import { Plus, ChevronUp, ChevronDown, GripVertical, Eye, EyeOff, Trash2, AlertCircle, Tag, Star, Sparkles, Flame, Zap } from "lucide-react"
 import type { Product } from "@/lib/config-types"
+
+// Tipos de badge disponiveis
+const BADGE_TYPES = [
+  { value: "mais_vendido", label: "Mais Vendido", icon: Star },
+  { value: "promocao", label: "Promocao", icon: Tag },
+  { value: "novidade", label: "Novidade", icon: Sparkles },
+  { value: "otimo_preco", label: "Otimo Preco", icon: Tag },
+  { value: "destaque", label: "Destaque", icon: Flame },
+  { value: "personalizado", label: "Personalizado", icon: Zap },
+]
 
 interface AdminProductsSettingsProps {
   products: Product[]
@@ -147,6 +157,98 @@ export function AdminProductsSettings({
                       <AlertCircle className="w-4 h-4" />
                       {product.outOfStock ? "Esgotado" : "Disponivel"}
                     </button>
+                  </div>
+                </div>
+
+                {/* Secao: Exibicao no Card */}
+                <div className="pt-4 border-t border-border space-y-4">
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-primary" />
+                    Exibicao no Card
+                  </h4>
+                  
+                  {/* Badge/Selo */}
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={product.badgeEnabled || false}
+                        onChange={(e) => onUpdateProduct(product.id, "badgeEnabled", e.target.checked)}
+                        className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                      <span className="text-sm text-foreground">Mostrar selo/badge</span>
+                    </label>
+                    
+                    {product.badgeEnabled && (
+                      <div className="grid sm:grid-cols-2 gap-3 pl-6">
+                        <div>
+                          <label className="text-xs text-muted-foreground">Texto do selo</label>
+                          <input
+                            type="text"
+                            value={product.badgeText || ""}
+                            onChange={(e) => onUpdateProduct(product.id, "badgeText", e.target.value)}
+                            placeholder="Ex: Mais vendido"
+                            className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Tipo do selo</label>
+                          <select
+                            value={product.badgeType || "mais_vendido"}
+                            onChange={(e) => onUpdateProduct(product.id, "badgeType", e.target.value)}
+                            className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          >
+                            {BADGE_TYPES.map((type) => (
+                              <option key={type.value} value={type.value}>{type.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-xs text-muted-foreground">Cor personalizada (opcional)</label>
+                          <div className="flex gap-2 mt-1">
+                            <input
+                              type="color"
+                              value={product.badgeColor || "#F59E0B"}
+                              onChange={(e) => onUpdateProduct(product.id, "badgeColor", e.target.value)}
+                              className="w-10 h-10 rounded-lg border border-border cursor-pointer"
+                            />
+                            <input
+                              type="text"
+                              value={product.badgeColor || ""}
+                              onChange={(e) => onUpdateProduct(product.id, "badgeColor", e.target.value)}
+                              placeholder="#F59E0B"
+                              className="flex-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Texto de Porcao */}
+                  <div className="space-y-3 pt-3 border-t border-border/50">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={product.showServingText || false}
+                        onChange={(e) => onUpdateProduct(product.id, "showServingText", e.target.checked)}
+                        className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                      <span className="text-sm text-foreground">Mostrar texto de porcao/tamanho</span>
+                    </label>
+                    
+                    {product.showServingText && (
+                      <div className="pl-6">
+                        <label className="text-xs text-muted-foreground">Texto</label>
+                        <input
+                          type="text"
+                          value={product.servingText || ""}
+                          onChange={(e) => onUpdateProduct(product.id, "servingText", e.target.value)}
+                          placeholder="Ex: Serve 1 pessoa, 500ml, 1 litro"
+                          className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
