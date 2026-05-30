@@ -288,24 +288,26 @@
 
 /* Product Card - Ultra Premium */
 .product-card {
-  @apply relative overflow-hidden rounded-2xl transition-all duration-300 bg-card text-card-foreground;
+  @apply relative overflow-hidden rounded-2xl bg-card text-card-foreground;
   z-index: 1;
   border: 1px solid var(--border);
   box-shadow: 
-    0 4px 20px -4px rgba(0, 0, 0, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .product-card:hover {
-  border-color: var(--primary);
+  border-color: color-mix(in oklch, var(--primary) 40%, var(--border));
   box-shadow: 
-    0 8px 30px -8px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  transform: translateY(-2px);
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    0 12px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-4px);
 }
 
 .product-card:active {
-  transform: translateY(0) scale(0.995);
+  transform: translateY(-2px) scale(0.99);
+  transition: all 0.1s ease;
 }
 
 /* Premium Button */
@@ -326,19 +328,61 @@
   transform: translateX(100%);
 }
 
-/* Quantity Button */
+/* Quantity Button Premium - iFood Style */
 .qty-btn {
   @apply flex items-center justify-center rounded-xl transition-all duration-200;
 }
 
-.qty-btn:active {
-  animation: pop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+.qty-btn-plus {
+  @apply bg-primary text-primary-foreground;
+  box-shadow: 0 2px 8px color-mix(in oklch, var(--primary) 30%, transparent);
 }
 
-/* Premium Badge */
+.qty-btn-plus:hover {
+  box-shadow: 0 4px 12px color-mix(in oklch, var(--primary) 40%, transparent);
+  transform: scale(1.05);
+}
+
+.qty-btn-plus:active {
+  transform: scale(0.95);
+  box-shadow: 0 1px 4px color-mix(in oklch, var(--primary) 20%, transparent);
+}
+
+.qty-btn-minus {
+  @apply bg-transparent text-foreground border border-border;
+}
+
+.qty-btn-minus:hover {
+  @apply border-foreground/30;
+  transform: scale(1.05);
+}
+
+.qty-btn-minus:active {
+  transform: scale(0.95);
+}
+
+/* Premium Badge - Gradient Style */
 .premium-badge {
-  @apply text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide;
+  @apply text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider;
   box-shadow: 0 2px 8px -2px currentColor;
+}
+
+.badge-bestseller {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.badge-promo {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.badge-new {
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
 }
 
 /* Glow Effects - Sutis e Elegantes */
@@ -350,11 +394,46 @@
   box-shadow: 0 0 20px rgba(139, 92, 246, 0.08);
 }
 
-/* Glass Effect */
+/* Glass Effect Premium */
 .glass {
-  @apply bg-card/80;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  @apply bg-card/85;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.glass-header {
+  @apply bg-card/90;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 1px 0 var(--border);
+}
+
+/* Cart Bar Premium */
+.cart-bar {
+  @apply bg-card/95;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Microanimations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Modal/Checkout/Pix - Fundo SOLIDO obrigatorio (nunca transparente) */

@@ -75,21 +75,23 @@ function getMutedForeground(bgHex: string): string {
   return lum < 0.5 ? "oklch(0.65 0.015 285)" : "oklch(0.45 0.02 285)"
 }
 
-// Paletas de cores pre-definidas por tema
+// Paletas de cores PREMIUM pre-definidas por tema
 const THEME_PALETTES = {
   dark: {
-    background: "#0a0a0a",
-    foreground: "#fafafa",
-    card: "#171717",
-    muted: "#737373",
-    border: "#262626",
+    // Tema Escuro Premium - Netflix/Stripe Dark Style
+    background: "#0A0A0F",    // Preto profundo com tom azulado
+    foreground: "#FFFFFF",    // Branco puro
+    card: "#13131A",          // Card elegante
+    muted: "#A1A1AA",         // Texto secundario legivel
+    border: "#262637",        // Bordas sutis com tom roxo
   },
   light: {
-    background: "#ffffff",
-    foreground: "#111827",
-    card: "#ffffff",
-    muted: "#6b7280",
-    border: "#e5e7eb",
+    // Tema Claro Premium - Apple/iFood Style
+    background: "#F8FAFC",    // Off-white sofisticado
+    foreground: "#0F172A",    // Azul escuro elegante
+    card: "#FFFFFF",          // Branco puro para cards
+    muted: "#64748B",         // Cinza azulado refinado
+    border: "#E2E8F0",        // Bordas suaves
   },
 }
 

@@ -39,7 +39,7 @@ export function StoreHeader({
   const displaySubtitle = storeSubtitle || ''
 
   return (
-    <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-xl border-b border-border shadow-xl shadow-black/10">
+    <header className="sticky top-0 z-50 glass-header transition-all duration-300">
       <div className="max-w-lg mx-auto px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="relative flex items-center gap-3 min-w-0 flex-1">
@@ -47,21 +47,21 @@ export function StoreHeader({
               <img 
                 src={logoUrl} 
                 alt={displayName} 
-                className="h-10 w-10 rounded-xl object-cover shadow-lg shadow-primary/20 flex-shrink-0"
+                className="h-12 w-12 rounded-2xl object-cover shadow-lg shadow-black/20 ring-1 ring-border flex-shrink-0 transition-transform duration-300 hover:scale-105"
               />
             ) : null}
             <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-black text-primary truncate">
+              <h1 className="text-lg font-bold text-foreground truncate tracking-tight">
                 {displayName}
               </h1>
               {displaySubtitle && (
-                <p className="text-[10px] text-muted-foreground font-medium tracking-widest uppercase truncate">
+                <p className="text-[10px] text-muted-foreground font-medium tracking-wide uppercase truncate">
                   {displaySubtitle}
                 </p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2.5 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {/* Icone de Perfil/Conta */}
             <div className="relative">
               <button
