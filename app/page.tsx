@@ -68,6 +68,13 @@ function getContrastForeground(bgHex: string): string {
   return lum < 0.5 ? "oklch(0.97 0.005 285)" : "oklch(0.12 0.025 285)"
 }
 
+// Retorna cor de texto muted com contraste adequado
+function getMutedForeground(bgHex: string): string {
+  const lum = getLuminance(bgHex)
+  // Se fundo escuro, texto cinza claro; se fundo claro, texto cinza escuro
+  return lum < 0.5 ? "oklch(0.65 0.015 285)" : "oklch(0.45 0.02 285)"
+}
+
 export default function Home() {
   // Config do site carregada da API
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultConfig)
@@ -1823,7 +1830,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
           --primary: ${hexToOklch(customization.colors.primary)};
           --primary-foreground: ${getContrastForeground(customization.colors.primary)};
           --muted: ${hexToOklch(customization.colors.muted)};
-          --muted-foreground: ${hexToOklch(customization.colors.muted)};
+          --muted-foreground: ${getMutedForeground(customization.colors.background)};
           --accent: ${hexToOklch(customization.colors.accent)};
           --accent-foreground: ${getContrastForeground(customization.colors.accent)};
           --border: ${hexToOklch(customization.colors.border)};
@@ -1905,9 +1912,11 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       
       {/* Footer */}
       <StoreFooter 
-        storeName={STORE_NAME}
-        slogan={siteConfig.banner?.secondaryText}
-        whatsapp={WHATSAPP_NUMBER}
+        storeName={customization.identity.storeName || STORE_NAME}
+        slogan={customization.identity.slogan || siteConfig.banner?.secondaryText}
+        whatsapp={customization.social.whatsapp || WHATSAPP_NUMBER}
+        instagram={customization.social.instagram || siteConfig.instagram}
+        address={customization.social.address || siteConfig.address}
       />
 
       {/* Fixed Bottom Button */}
