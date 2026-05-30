@@ -9,6 +9,14 @@ interface Product {
   description: string
   price: number
   image?: string
+  // Novos campos de badge
+  badgeEnabled?: boolean
+  badgeText?: string
+  badgeType?: string
+  badgeColor?: string
+  // Novos campos de serving
+  servingText?: string
+  showServingText?: boolean
 }
 
 interface ProductListProps {
@@ -34,14 +42,12 @@ export function ProductList({
         <Sparkles className="w-4 h-4 text-primary/50" />
       </h3>
       
-      {products.map((product, index) => (
+      {products.map((product) => (
         <ProductCard
           key={product.id}
           product={product}
           quantity={quantities[product.id] || 0}
           onUpdateQuantity={onUpdateQuantity}
-          isBestSeller={index === 0}
-          isGoodPrice={product.price < 20 && index !== 0}
           isFavorite={customerFavorites.includes(product.id)}
           onToggleFavorite={onToggleFavorite}
         />

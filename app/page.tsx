@@ -1925,6 +1925,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         storeSlogan={customization.identity.slogan || siteConfig.banner?.secondaryText}
         banner={siteConfig.banner}
         coverImageUrl={customization.identity.coverImageUrl}
+        hero={customization.hero}
       />
       
       {/* Aviso Loja Fechada Premium */}

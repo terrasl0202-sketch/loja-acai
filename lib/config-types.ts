@@ -150,6 +150,20 @@ export interface CustomizationGateways {
   stripeEnabled: boolean
 }
 
+export interface HeroBadge {
+  text: string
+  icon: string
+  enabled: boolean
+}
+
+export interface CustomizationHero {
+  title: string
+  subtitle: string
+  badge1: HeroBadge
+  badge2: HeroBadge
+  badge3: HeroBadge
+}
+
 export interface StoreCustomization {
   identity: CustomizationIdentity
   colors: CustomizationColors
@@ -157,6 +171,7 @@ export interface StoreCustomization {
   elements: CustomizationElements
   social: CustomizationSocial
   gateways: CustomizationGateways
+  hero?: CustomizationHero
 }
 
 export const defaultCustomization: StoreCustomization = {
@@ -210,6 +225,13 @@ export const defaultCustomization: StoreCustomization = {
     mercadopagoEnabled: false,
     pagbankEnabled: false,
     stripeEnabled: false,
+  },
+  hero: {
+    title: "",
+    subtitle: "",
+    badge1: { text: "30-45 min", icon: "clock", enabled: true },
+    badge2: { text: "Geladinho", icon: "snowflake", enabled: true },
+    badge3: { text: "Premium", icon: "award", enabled: true },
   },
 }
 

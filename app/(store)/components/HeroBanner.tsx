@@ -1,8 +1,9 @@
 "use client"
 
 import Image from "next/image"
-import { Snowflake, Award, Clock } from "lucide-react"
+import { Snowflake, Award, Clock, Star, Truck, Heart } from "lucide-react"
 import { useState } from "react"
+import type { CustomizationHero } from "@/lib/config-types"
 
 interface BannerData {
   mainText?: string
@@ -18,16 +19,40 @@ interface HeroBannerProps {
   storeSlogan?: string
   banner?: BannerData | null
   coverImageUrl?: string
+  hero?: CustomizationHero
 }
 
-export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl }: HeroBannerProps) {
+// Mapeia nome do icone para componente
+function getIcon(iconName: string) {
+  const icons: Record<string, typeof Clock> = {
+    clock: Clock,
+    snowflake: Snowflake,
+    award: Award,
+    star: Star,
+    truck: Truck,
+    heart: Heart,
+  }
+  return icons[iconName] || Clock
+}
+
+export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl, hero }: HeroBannerProps) {
   const [imageError, setImageError] = useState(false)
   const displayName = storeName || 'Delivery'
   const displaySlogan = storeSlogan || ''
   
-  // Usa dados do banner via props (fonte unica de verdade)
-  const bannerMainText = banner?.mainText || ''
-  const bannerSecondaryText = banner?.secondaryText || displaySlogan
+  // Usa dados do hero customizado se disponivel, senao usa banner legacy
+  const heroTitle = hero?.title || banner?.mainText || ''
+  const heroSubtitle = hero?.subtitle || banner?.secondaryText || displaySlogan
+  
+  // Badges do hero - usa valores customizados ou defaults
+  const badge1 = hero?.badge1 || { text: "30-45 min", icon: "clock", enabled: true }
+  const badge2 = hero?.badge2 || { text: "Geladinho", icon: "snowflake", enabled: true }
+  const badge3 = hero?.badge3 || { text: "Premium", icon: "award", enabled: true }
+  
+  // Icones dinamicos
+  const Icon1 = getIcon(badge1.icon)
+  const Icon2 = getIcon(badge2.icon)
+  const Icon3 = getIcon(badge3.icon)
   
   // Prioridade: coverImageUrl (customization) > banner.imageUrl > fallback
   // Se der erro no carregamento, usa fallback
@@ -70,10 +95,14 @@ export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl }: He
       
       {/* Conteudo do banner */}
       <div className="absolute bottom-6 left-6 right-6">
-        <h2 className="text-3xl sm:text-4xl font-black text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)] tracking-tight leading-tight">
-          {bannerMainText.split(' ').slice(0, 2).join(' ')}<br/>{bannerMainText.split(' ').slice(2).join(' ')}
-        </h2>
-        <p className="text-white/90 text-sm mt-2 font-medium drop-shadow-lg">{bannerSecondaryText}</p>
+        {heroTitle && (
+          <h2 className="text-3xl sm:text-4xl font-black text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)] tracking-tight leading-tight">
+            {heroTitle.split(' ').slice(0, 2).join(' ')}<br/>{heroTitle.split(' ').slice(2).join(' ')}
+          </h2>
+        )}
+        {heroSubtitle && (
+          <p className="text-white/90 text-sm mt-2 font-medium drop-shadow-lg">{heroSubtitle}</p>
+        )}
         
         {banner?.promoActive && banner?.promoText && (
           <div className="mt-4">
@@ -84,19 +113,26 @@ export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl }: He
           </div>
         )}
         
+        {/* Badges dinamicos */}
         <div className="flex flex-wrap items-center gap-2.5 mt-5">
-          <span className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-lg">
-            <Clock className="w-4 h-4 text-amber-400" />
-            30-45 min
-          </span>
-          <span className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-lg">
-            <Snowflake className="w-4 h-4 text-cyan-400" />
-            Geladinho
-          </span>
-          <span className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-lg">
-            <Award className="w-4 h-4 text-yellow-400" />
-            Premium
-          </span>
+          {badge1.enabled && badge1.text && (
+            <span className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-lg">
+              <Icon1 className="w-4 h-4 text-amber-400" />
+              {badge1.text}
+            </span>
+          )}
+          {badge2.enabled && badge2.text && (
+            <span className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-lg">
+              <Icon2 className="w-4 h-4 text-cyan-400" />
+              {badge2.text}
+            </span>
+          )}
+          {badge3.enabled && badge3.text && (
+            <span className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-lg">
+              <Icon3 className="w-4 h-4 text-yellow-400" />
+              {badge3.text}
+            </span>
+          )}
         </div>
       </div>
     </section>

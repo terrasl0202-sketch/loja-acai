@@ -62,7 +62,18 @@ export async function GET() {
         footer_text,
         gateway_mercadopago_enabled,
         gateway_pagbank_enabled,
-        gateway_stripe_enabled
+        gateway_stripe_enabled,
+        hero_title,
+        hero_subtitle,
+        hero_badge_1_text,
+        hero_badge_1_icon,
+        hero_badge_1_enabled,
+        hero_badge_2_text,
+        hero_badge_2_icon,
+        hero_badge_2_enabled,
+        hero_badge_3_text,
+        hero_badge_3_icon,
+        hero_badge_3_enabled
       `)
       .eq("id", "main")
       .single()
@@ -124,6 +135,25 @@ export async function GET() {
         mercadopagoEnabled: data?.gateway_mercadopago_enabled ?? false,
         pagbankEnabled: data?.gateway_pagbank_enabled ?? false,
         stripeEnabled: data?.gateway_stripe_enabled ?? false,
+      },
+      hero: {
+        title: data?.hero_title || "",
+        subtitle: data?.hero_subtitle || "",
+        badge1: {
+          text: data?.hero_badge_1_text || "30-45 min",
+          icon: data?.hero_badge_1_icon || "clock",
+          enabled: data?.hero_badge_1_enabled ?? true,
+        },
+        badge2: {
+          text: data?.hero_badge_2_text || "Geladinho",
+          icon: data?.hero_badge_2_icon || "snowflake",
+          enabled: data?.hero_badge_2_enabled ?? true,
+        },
+        badge3: {
+          text: data?.hero_badge_3_text || "Premium",
+          icon: data?.hero_badge_3_icon || "award",
+          enabled: data?.hero_badge_3_enabled ?? true,
+        },
       },
     }
 
@@ -203,6 +233,27 @@ export async function PUT(req: NextRequest) {
       if (customization.gateways.mercadopagoEnabled !== undefined) updateData.gateway_mercadopago_enabled = customization.gateways.mercadopagoEnabled
       if (customization.gateways.pagbankEnabled !== undefined) updateData.gateway_pagbank_enabled = customization.gateways.pagbankEnabled
       if (customization.gateways.stripeEnabled !== undefined) updateData.gateway_stripe_enabled = customization.gateways.stripeEnabled
+    }
+
+    // Hero Banner
+    if (customization.hero) {
+      if (customization.hero.title !== undefined) updateData.hero_title = customization.hero.title
+      if (customization.hero.subtitle !== undefined) updateData.hero_subtitle = customization.hero.subtitle
+      if (customization.hero.badge1) {
+        if (customization.hero.badge1.text !== undefined) updateData.hero_badge_1_text = customization.hero.badge1.text
+        if (customization.hero.badge1.icon !== undefined) updateData.hero_badge_1_icon = customization.hero.badge1.icon
+        if (customization.hero.badge1.enabled !== undefined) updateData.hero_badge_1_enabled = customization.hero.badge1.enabled
+      }
+      if (customization.hero.badge2) {
+        if (customization.hero.badge2.text !== undefined) updateData.hero_badge_2_text = customization.hero.badge2.text
+        if (customization.hero.badge2.icon !== undefined) updateData.hero_badge_2_icon = customization.hero.badge2.icon
+        if (customization.hero.badge2.enabled !== undefined) updateData.hero_badge_2_enabled = customization.hero.badge2.enabled
+      }
+      if (customization.hero.badge3) {
+        if (customization.hero.badge3.text !== undefined) updateData.hero_badge_3_text = customization.hero.badge3.text
+        if (customization.hero.badge3.icon !== undefined) updateData.hero_badge_3_icon = customization.hero.badge3.icon
+        if (customization.hero.badge3.enabled !== undefined) updateData.hero_badge_3_enabled = customization.hero.badge3.enabled
+      }
     }
 
     // Atualizar apenas se houver dados

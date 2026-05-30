@@ -29,6 +29,14 @@ interface DbProduct {
   sort_order: number
   created_at: string
   updated_at: string
+  // Novos campos de badge
+  badge_enabled: boolean
+  badge_text: string
+  badge_type: string
+  badge_color: string
+  // Novos campos de serving
+  serving_text: string
+  show_serving_text: boolean
 }
 
 // Tipo do produto no frontend (compatibilidade com codigo existente)
@@ -43,6 +51,14 @@ interface FrontendProduct {
   featured?: boolean
   bestSeller?: boolean
   stock?: number
+  // Novos campos de badge
+  badgeEnabled?: boolean
+  badgeText?: string
+  badgeType?: string
+  badgeColor?: string
+  // Novos campos de serving
+  servingText?: string
+  showServingText?: boolean
 }
 
 // Converte DB -> Frontend
@@ -58,6 +74,13 @@ function mapDbToFrontend(db: DbProduct): FrontendProduct {
     featured: db.featured,
     bestSeller: db.best_seller,
     stock: db.stock,
+    // Novos campos
+    badgeEnabled: db.badge_enabled ?? false,
+    badgeText: db.badge_text || '',
+    badgeType: db.badge_type || 'mais_vendido',
+    badgeColor: db.badge_color || '',
+    servingText: db.serving_text || '',
+    showServingText: db.show_serving_text ?? false,
   }
 }
 
@@ -75,6 +98,13 @@ function mapFrontendToDb(product: FrontendProduct) {
     stock: product.stock ?? 100,
     sort_order: product.id || 0,
     updated_at: new Date().toISOString(),
+    // Novos campos
+    badge_enabled: product.badgeEnabled ?? false,
+    badge_text: product.badgeText || '',
+    badge_type: product.badgeType || 'mais_vendido',
+    badge_color: product.badgeColor || '',
+    serving_text: product.servingText || '',
+    show_serving_text: product.showServingText ?? false,
   }
 }
 
