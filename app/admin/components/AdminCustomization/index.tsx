@@ -13,7 +13,8 @@ import {
   Save,
   RotateCcw,
   Image,
-  Images
+  Images,
+  Layers
 } from "lucide-react"
 import { StoreCustomization, defaultCustomization } from "@/lib/config-types"
 import { IdentityTab } from "./tabs/IdentityTab"
@@ -25,10 +26,12 @@ import { PaymentsTab } from "./tabs/PaymentsTab"
 import { PreviewTab } from "./tabs/PreviewTab"
 import { HeroTab } from "./tabs/HeroTab"
 import { BannersTab } from "./tabs/BannersTab"
+import { TemplatesTab } from "./tabs/TemplatesTab"
 
-type CustomizationTab = "identity" | "theme" | "hero" | "banners" | "layout" | "elements" | "info" | "payments" | "preview"
+type CustomizationTab = "templates" | "identity" | "theme" | "hero" | "banners" | "layout" | "elements" | "info" | "payments" | "preview"
 
 const TABS: { id: CustomizationTab; label: string; icon: React.ReactNode }[] = [
+  { id: "templates", label: "Templates", icon: <Layers className="w-4 h-4" /> },
   { id: "identity", label: "Identidade", icon: <Palette className="w-4 h-4" /> },
   { id: "theme", label: "Temas", icon: <Sun className="w-4 h-4" /> },
   { id: "hero", label: "Hero", icon: <Image className="w-4 h-4" /> },
@@ -45,7 +48,7 @@ interface AdminCustomizationProps {
 }
 
 export function AdminCustomization({ onSave }: AdminCustomizationProps) {
-  const [activeTab, setActiveTab] = useState<CustomizationTab>("identity")
+  const [activeTab, setActiveTab] = useState<CustomizationTab>("templates")
   const [customization, setCustomization] = useState<StoreCustomization>(defaultCustomization)
   const [originalCustomization, setOriginalCustomization] = useState<StoreCustomization>(defaultCustomization)
   const [loading, setLoading] = useState(true)
@@ -206,6 +209,15 @@ export function AdminCustomization({ onSave }: AdminCustomizationProps) {
 
       {/* Conteudo da aba */}
       <div className="min-h-[400px]">
+        {activeTab === "templates" && (
+          <TemplatesTab
+            customization={customization}
+            onApplyTemplate={(newCustomization) => {
+              setCustomization(newCustomization)
+              setHasChanges(true)
+            }}
+          />
+        )}
         {activeTab === "identity" && (
           <IdentityTab
             identity={customization.identity}
