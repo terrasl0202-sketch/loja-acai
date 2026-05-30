@@ -15,7 +15,7 @@ import { useCustomer } from "../providers/CustomerProvider"
 import { useCartContext } from "../providers/CartProvider"
 
 // Components
-import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader } from "./index"
+import { HeroBanner, StoreClosedBanner, ProductList, CategoryNav, CartSummary, FloatingCartButton, StoreFooter, StoreHeader } from "./index"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./modals"
 
 export function StorePageContent() {
@@ -48,10 +48,11 @@ export function StorePageContent() {
   // ============================================================
   // DADOS DERIVADOS DA CONFIG
   // ============================================================
-  const products = siteConfig.products
+  const allProducts = siteConfig.products
     .filter(p => p.active !== false)
     .filter(p => !p.outOfStock)
     .sort((a, b) => (a.order || 0) - (b.order || 0))
+    
   const WHATSAPP_NUMBER = siteConfig.whatsapp?.number || ""
   const MIN_VALUE_FOR_ASAAS = Number(siteConfig.payment?.minValueForAsaas) || 15
   const PIX_MANUAL_KEY = siteConfig.pixManual?.key || ""
@@ -104,6 +105,14 @@ export function StorePageContent() {
   const [showManualPixDuringCooldown, setShowManualPixDuringCooldown] = useState(false)
   const [showNewOrderModal, setShowNewOrderModal] = useState(false)
   const [showCloseConfirmModal, setShowCloseConfirmModal] = useState(false)
+  
+  // Filtro por categoria
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null)
+  
+  // Produtos filtrados por categoria
+  const products = selectedCategory 
+    ? allProducts.filter(p => p.categoryId === selectedCategory)
+    : allProducts
   
   // Verifica se esta em cooldown (bloqueio anti-spam)
   const isInCooldown = pixCooldownEnd !== null && pixCooldownLeft > 0
@@ -543,6 +552,14 @@ export function StorePageContent() {
           closeTime={siteConfig.storeHours?.closeTime}
         />
       )}
+
+      {/* Category Navigation */}
+      <div className="px-4">
+        <CategoryNav
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+        />
+      </div>
 
       {/* Products */}
       <ProductList

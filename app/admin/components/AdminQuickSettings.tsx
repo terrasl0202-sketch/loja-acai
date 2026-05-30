@@ -1,8 +1,8 @@
 "use client"
 
-import { Zap, Store, Package, Image as ImageIcon, Clock, Truck, CreditCard, MessageCircle, Tag, Users2, BarChart3, Palette } from "lucide-react"
+import { Zap, Store, Package, Image as ImageIcon, Clock, Truck, CreditCard, MessageCircle, Tag, Users2, BarChart3, Palette, LayoutGrid } from "lucide-react"
 
-type TabType = "store" | "products" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "customization" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
+type TabType = "store" | "products" | "categories" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "customization" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
 
 interface AdminQuickSettingsProps {
   activeTab: TabType
@@ -12,6 +12,7 @@ interface AdminQuickSettingsProps {
 const settingsItems = [
   { id: "store" as TabType, icon: Store, label: "Loja" },
   { id: "products" as TabType, icon: Package, label: "Produtos" },
+  { id: "categories" as TabType, icon: LayoutGrid, label: "Categorias" },
   { id: "banner" as TabType, icon: ImageIcon, label: "Banner" },
   { id: "hours" as TabType, icon: Clock, label: "Horario" },
   { id: "delivery" as TabType, icon: Truck, label: "Entrega" },

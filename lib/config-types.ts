@@ -7,6 +7,7 @@ export interface Product {
   stock: number
   outOfStock?: boolean
   order?: number
+  categoryId?: number | null
   // Campos de badge
   badgeEnabled?: boolean
   badgeText?: string

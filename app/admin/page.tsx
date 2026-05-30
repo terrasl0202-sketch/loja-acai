@@ -34,6 +34,7 @@ import {
   AdminRevenueReport,
   AdminStoreSettings,
   AdminProductsSettings,
+  AdminCategoriesSettings,
   AdminBannerSettings,
   AdminHoursSettings,
   AdminDeliverySettings,
@@ -1271,6 +1272,7 @@ export default function AdminPage() {
             <div className="bg-card/80 rounded-2xl p-4 sm:p-6 border border-border/50 shadow-xl">
               {activeTab === "store" && <AdminStoreSettings settings={storeSettings} isLoading={loading} onSettingsChange={() => {}} onPendingChanges={handlePendingSettingsChange} />}
               {activeTab === "products" && <AdminProductsSettings products={config.products} expandedProduct={expandedProduct} onExpandedProductChange={setExpandedProduct} onAddProduct={addProduct} onUpdateProduct={updateProduct} onRemoveProduct={removeProduct} onMoveProduct={moveProduct} />}
+              {activeTab === "categories" && <AdminCategoriesSettings />}
               {activeTab === "banner" && <AdminBannerSettings config={config} onConfigChange={setConfig} />}
               {activeTab === "hours" && <AdminHoursSettings config={config} onConfigChange={setConfig} />}
               {activeTab === "delivery" && <AdminDeliverySettings config={config} onConfigChange={setConfig} onAddNeighborhoodFee={addNeighborhoodFee} onUpdateNeighborhoodFee={updateNeighborhoodFee} onRemoveNeighborhoodFee={removeNeighborhoodFee} />}

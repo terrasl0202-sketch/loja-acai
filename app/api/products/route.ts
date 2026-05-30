@@ -21,6 +21,7 @@ interface DbProduct {
   description: string
   price: number
   category: string
+  category_id: number | null
   image: string
   active: boolean
   featured: boolean
@@ -46,6 +47,7 @@ interface FrontendProduct {
   description: string
   price: number
   category: string
+  categoryId?: number | null
   image: string
   active: boolean
   featured?: boolean
@@ -69,6 +71,7 @@ function mapDbToFrontend(db: DbProduct): FrontendProduct {
     description: db.description,
     price: Number(db.price),
     category: db.category,
+    categoryId: db.category_id,
     image: db.image,
     active: db.active,
     featured: db.featured,
@@ -91,6 +94,7 @@ function mapFrontendToDb(product: FrontendProduct) {
     description: product.description || '',
     price: product.price,
     category: product.category || 'acai',
+    category_id: product.categoryId ?? null,
     image: product.image || '',
     active: product.active !== false,
     featured: product.featured || false,

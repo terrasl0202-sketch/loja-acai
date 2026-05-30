@@ -12,6 +12,7 @@ export type {
 export type TabType = 
   | "store" 
   | "products" 
+  | "categories"
   | "banner" 
   | "hours" 
   | "payment" 

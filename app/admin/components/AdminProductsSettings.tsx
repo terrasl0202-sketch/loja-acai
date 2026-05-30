@@ -1,6 +1,7 @@
 "use client"
 
-import { Plus, ChevronUp, ChevronDown, GripVertical, Eye, EyeOff, Trash2, AlertCircle, Tag, Star, Sparkles, Flame, Zap } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Plus, ChevronUp, ChevronDown, GripVertical, Eye, EyeOff, Trash2, AlertCircle, Tag, Star, Sparkles, Flame, Zap, LayoutGrid } from "lucide-react"
 import type { Product } from "@/lib/config-types"
 
 // Tipos de badge disponiveis
@@ -12,6 +13,13 @@ const BADGE_TYPES = [
   { value: "destaque", label: "Destaque", icon: Flame },
   { value: "personalizado", label: "Personalizado", icon: Zap },
 ]
+
+interface Category {
+  id: number
+  name: string
+  icon: string
+  active: boolean
+}
 
 interface AdminProductsSettingsProps {
   products: Product[]
@@ -32,6 +40,16 @@ export function AdminProductsSettings({
   onRemoveProduct,
   onMoveProduct,
 }: AdminProductsSettingsProps) {
+  const [categories, setCategories] = useState<Category[]>([])
+  
+  // Carregar categorias
+  useEffect(() => {
+    fetch('/api/categories')
+      .then(res => res.json())
+      .then(data => setCategories(data.filter((c: Category) => c.active)))
+      .catch(err => console.error('[AdminProducts] Erro ao carregar categorias:', err))
+  }, [])
+
   const sortedProducts = [...products].sort((a, b) => (a.order || 0) - (b.order || 0))
 
   return (
@@ -133,6 +151,24 @@ export function AdminProductsSettings({
                     onChange={(e) => onUpdateProduct(product.id, "description", e.target.value)}
                     className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                </div>
+
+                {/* Categoria */}
+                <div>
+                  <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    Categoria
+                  </label>
+                  <select
+                    value={(product as Product & { categoryId?: number }).categoryId || ""}
+                    onChange={(e) => onUpdateProduct(product.id, "categoryId" as keyof Product, e.target.value ? Number(e.target.value) : null as unknown as number)}
+                    className="w-full mt-1 px-3 py-2 bg-input border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">Sem categoria</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4">
