@@ -75,6 +75,46 @@ function getMutedForeground(bgHex: string): string {
   return lum < 0.5 ? "oklch(0.65 0.015 285)" : "oklch(0.45 0.02 285)"
 }
 
+// Paletas de cores pre-definidas por tema
+const THEME_PALETTES = {
+  dark: {
+    background: "#0a0a0a",
+    foreground: "#fafafa",
+    card: "#171717",
+    muted: "#737373",
+    border: "#262626",
+  },
+  light: {
+    background: "#ffffff",
+    foreground: "#111827",
+    card: "#ffffff",
+    muted: "#6b7280",
+    border: "#e5e7eb",
+  },
+}
+
+// Retorna as cores efetivas baseado no theme.mode
+function getEffectiveColors(customization: StoreCustomization): typeof customization.colors {
+  const mode = customization.theme.mode
+  
+  if (mode === "dark") {
+    return {
+      ...customization.colors,
+      ...THEME_PALETTES.dark,
+    }
+  }
+  
+  if (mode === "light") {
+    return {
+      ...customization.colors,
+      ...THEME_PALETTES.light,
+    }
+  }
+  
+  // mode === "custom" ou qualquer outro: usa cores manuais
+  return customization.colors
+}
+
 export default function Home() {
   // Config do site carregada da API
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultConfig)
@@ -1817,24 +1857,27 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
     )
   }
 
+  // Calcula cores efetivas baseado no theme.mode
+  const effectiveColors = getEffectiveColors(customization)
+  
   return (
     <main className="min-h-screen bg-background pb-24 store-customized">
       {/* CSS Variables Dinamicas da Personalizacao Premium */}
       {/* Aplicamos apenas na classe .store-customized para nao afetar modais */}
       <style dangerouslySetInnerHTML={{ __html: `
         .store-customized {
-          --background: ${hexToOklch(customization.colors.background)};
-          --foreground: ${hexToOklch(customization.colors.foreground)};
-          --card: ${hexToOklch(customization.colors.card)};
-          --card-foreground: ${getContrastForeground(customization.colors.card)};
-          --primary: ${hexToOklch(customization.colors.primary)};
-          --primary-foreground: ${getContrastForeground(customization.colors.primary)};
-          --muted: ${hexToOklch(customization.colors.muted)};
-          --muted-foreground: ${getMutedForeground(customization.colors.background)};
-          --accent: ${hexToOklch(customization.colors.accent)};
-          --accent-foreground: ${getContrastForeground(customization.colors.accent)};
-          --border: ${hexToOklch(customization.colors.border)};
-          --ring: ${hexToOklch(customization.colors.primary)};
+          --background: ${hexToOklch(effectiveColors.background)};
+          --foreground: ${hexToOklch(effectiveColors.foreground)};
+          --card: ${hexToOklch(effectiveColors.card)};
+          --card-foreground: ${getContrastForeground(effectiveColors.card)};
+          --primary: ${hexToOklch(effectiveColors.primary)};
+          --primary-foreground: ${getContrastForeground(effectiveColors.primary)};
+          --muted: ${hexToOklch(effectiveColors.muted)};
+          --muted-foreground: ${getMutedForeground(effectiveColors.background)};
+          --accent: ${hexToOklch(effectiveColors.accent)};
+          --accent-foreground: ${getContrastForeground(effectiveColors.accent)};
+          --border: ${hexToOklch(effectiveColors.border)};
+          --ring: ${hexToOklch(effectiveColors.primary)};
           --radius: ${customization.theme.borderRadius / 16}rem;
         }
       ` }} />
