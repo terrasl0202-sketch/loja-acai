@@ -39,13 +39,13 @@ export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl }: He
   const isExternalUrl = imageUrl.startsWith('http://') || imageUrl.startsWith('https://')
   
   return (
-    <section className="relative h-52 sm:h-64 overflow-hidden rounded-b-3xl mx-2">
+    <section className="relative h-56 sm:h-72 overflow-hidden rounded-3xl mx-3 mt-3 shadow-2xl shadow-black/30">
       {/* Imagem de fundo - usando img nativo para URLs externas para evitar bloqueios */}
       {isExternalUrl ? (
         <img
           src={imageUrl}
           alt={displayName}
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 hover:scale-110"
           onError={() => setImageError(true)}
         />
       ) : (
@@ -53,46 +53,48 @@ export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl }: He
           src={imageUrl}
           alt={displayName}
           fill
-          className="object-cover transition-transform duration-700 hover:scale-105"
+          className="object-cover transition-transform duration-1000 hover:scale-110"
           priority
           onError={() => setImageError(true)}
         />
       )}
       
-      {/* Overlay premium inteligente - escurece apenas embaixo para texto */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/10" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-transparent" />
+      {/* Overlay premium cinematografico */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/5" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/20" />
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent mix-blend-overlay" />
       
-      {/* Borda interna sutil */}
-      <div className="absolute inset-0 rounded-b-3xl ring-1 ring-inset ring-white/10" />
+      {/* Borda interna premium */}
+      <div className="absolute inset-0 rounded-3xl ring-1 ring-inset ring-white/15" />
+      <div className="absolute inset-[1px] rounded-3xl ring-1 ring-inset ring-black/20" />
       
       {/* Conteudo do banner */}
-      <div className="absolute bottom-5 left-5 right-5">
-        <h2 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.5)] tracking-tight leading-tight">
+      <div className="absolute bottom-6 left-6 right-6">
+        <h2 className="text-3xl sm:text-4xl font-black text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)] tracking-tight leading-tight">
           {bannerMainText.split(' ').slice(0, 2).join(' ')}<br/>{bannerMainText.split(' ').slice(2).join(' ')}
         </h2>
-        <p className="text-white/80 text-sm mt-1.5 font-medium drop-shadow-md">{bannerSecondaryText}</p>
+        <p className="text-white/90 text-sm mt-2 font-medium drop-shadow-lg">{bannerSecondaryText}</p>
         
         {banner?.promoActive && banner?.promoText && (
-          <div className="mt-3">
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 rounded-full shadow-lg shadow-orange-500/25">
+          <div className="mt-4">
+            <span className="inline-flex items-center gap-2 text-sm font-bold text-white bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 px-5 py-2.5 rounded-2xl shadow-xl shadow-orange-500/30 animate-pulse-glow">
               {banner.promoText}
               {(banner.promoPrice ?? 0) > 0 && ` - R$ ${(banner.promoPrice ?? 0).toFixed(2).replace('.', ',')}`}
             </span>
           </div>
         )}
         
-        <div className="flex flex-wrap items-center gap-2 mt-4">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-white bg-white/15 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20">
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
+        <div className="flex flex-wrap items-center gap-2.5 mt-5">
+          <span className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-lg">
+            <Clock className="w-4 h-4 text-amber-400" />
             30-45 min
           </span>
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-white bg-white/15 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20">
-            <Snowflake className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-lg">
+            <Snowflake className="w-4 h-4 text-cyan-400" />
             Geladinho
           </span>
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-white bg-white/15 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20">
-            <Award className="w-3.5 h-3.5 text-yellow-400" />
+          <span className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-lg">
+            <Award className="w-4 h-4 text-yellow-400" />
             Premium
           </span>
         </div>

@@ -40,28 +40,31 @@ export function StoreHeader({
 
   return (
     <header className="sticky top-0 z-50 glass-header transition-all duration-300">
-      <div className="max-w-lg mx-auto px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="relative flex items-center gap-3 min-w-0 flex-1">
+      <div className="max-w-lg mx-auto px-4 py-3.5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="relative flex items-center gap-3.5 min-w-0 flex-1">
             {logoUrl ? (
-              <img 
-                src={logoUrl} 
-                alt={displayName} 
-                className="h-12 w-12 rounded-2xl object-cover shadow-lg shadow-black/20 ring-1 ring-border flex-shrink-0 transition-transform duration-300 hover:scale-105"
-              />
+              <div className="relative flex-shrink-0">
+                <img 
+                  src={logoUrl} 
+                  alt={displayName} 
+                  className="h-14 w-14 rounded-2xl object-cover ring-2 ring-border/50 transition-all duration-300 hover:scale-105 hover:ring-primary/50"
+                />
+                <div className="absolute inset-0 rounded-2xl shadow-xl shadow-black/20" />
+              </div>
             ) : null}
             <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-bold text-foreground truncate tracking-tight">
+              <h1 className="text-xl font-bold text-foreground truncate tracking-tight">
                 {displayName}
               </h1>
               {displaySubtitle && (
-                <p className="text-[10px] text-muted-foreground font-medium tracking-wide uppercase truncate">
+                <p className="text-[11px] text-muted-foreground font-medium tracking-wide uppercase truncate mt-0.5">
                   {displaySubtitle}
                 </p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2.5 flex-shrink-0">
             {/* Icone de Perfil/Conta */}
             <div className="relative">
               <button
@@ -140,11 +143,11 @@ export function StoreHeader({
             {/* Carrinho */}
             <button
               onClick={onToggleCart}
-              className="relative p-2 bg-primary rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-primary/40 active:scale-95 shadow-md shadow-primary/30"
+              className="relative p-2.5 bg-primary rounded-2xl transition-all duration-300 hover:scale-105 active:scale-95 glow-soft"
             >
               <ShoppingCart className="w-5 h-5 text-primary-foreground" />
               {cartItemsCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-accent text-accent-foreground text-[10px] font-black min-w-[20px] h-[20px] px-1 rounded-full flex items-center justify-center shadow-md ring-2 ring-card animate-[pulse_2s_ease-in-out_infinite]">
+                <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-black min-w-[22px] h-[22px] px-1.5 rounded-full flex items-center justify-center shadow-lg ring-2 ring-card animate-scaleIn">
                   {cartItemsCount}
                 </span>
               )}
