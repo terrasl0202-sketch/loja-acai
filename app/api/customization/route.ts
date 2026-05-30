@@ -75,7 +75,7 @@ export async function GET() {
         hero_badge_3_icon,
         hero_badge_3_enabled
       `)
-      .eq("id", "main")
+      .eq("id", 1)
       .single()
 
     if (error) {
@@ -266,7 +266,7 @@ export async function PUT(req: NextRequest) {
     const { error } = await supabase
       .from("store_settings")
       .update(updateData)
-      .eq("id", "main")
+      .eq("id", 1)
 
     if (error) {
       console.error("Erro ao salvar customizacao:", error)
