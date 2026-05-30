@@ -1811,26 +1811,22 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
   }
 
   return (
-    <main className="min-h-screen bg-background pb-24">
+    <main className="min-h-screen bg-background pb-24 store-customized">
       {/* CSS Variables Dinamicas da Personalizacao Premium */}
+      {/* Aplicamos apenas na classe .store-customized para nao afetar modais */}
       <style dangerouslySetInnerHTML={{ __html: `
-        :root {
+        .store-customized {
           --background: ${hexToOklch(customization.colors.background)};
           --foreground: ${hexToOklch(customization.colors.foreground)};
           --card: ${hexToOklch(customization.colors.card)};
           --card-foreground: ${getContrastForeground(customization.colors.card)};
-          --popover: ${hexToOklch(customization.colors.card)};
-          --popover-foreground: ${getContrastForeground(customization.colors.card)};
           --primary: ${hexToOklch(customization.colors.primary)};
           --primary-foreground: ${getContrastForeground(customization.colors.primary)};
-          --secondary: ${hexToOklch(customization.colors.muted)};
-          --secondary-foreground: ${hexToOklch(customization.colors.foreground)};
           --muted: ${hexToOklch(customization.colors.muted)};
           --muted-foreground: ${hexToOklch(customization.colors.muted)};
           --accent: ${hexToOklch(customization.colors.accent)};
           --accent-foreground: ${getContrastForeground(customization.colors.accent)};
           --border: ${hexToOklch(customization.colors.border)};
-          --input: ${hexToOklch(customization.colors.border)};
           --ring: ${hexToOklch(customization.colors.primary)};
           --radius: ${customization.theme.borderRadius / 16}rem;
         }
