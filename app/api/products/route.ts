@@ -28,6 +28,7 @@ interface DbProduct {
   best_seller: boolean
   stock: number
   sort_order: number
+  display_order: number
   created_at: string
   updated_at: string
   // Novos campos de badge
@@ -53,6 +54,7 @@ interface FrontendProduct {
   featured?: boolean
   bestSeller?: boolean
   stock?: number
+  displayOrder?: number
   // Novos campos de badge
   badgeEnabled?: boolean
   badgeText?: string
@@ -77,6 +79,7 @@ function mapDbToFrontend(db: DbProduct): FrontendProduct {
     featured: db.featured,
     bestSeller: db.best_seller,
     stock: db.stock,
+    displayOrder: db.display_order ?? db.sort_order ?? 0,
     // Novos campos
     badgeEnabled: db.badge_enabled ?? false,
     badgeText: db.badge_text || '',
@@ -101,6 +104,7 @@ function mapFrontendToDb(product: FrontendProduct) {
     best_seller: product.bestSeller || false,
     stock: product.stock ?? 100,
     sort_order: product.id || 0,
+    display_order: product.displayOrder ?? 0,
     updated_at: new Date().toISOString(),
     // Novos campos
     badge_enabled: product.badgeEnabled ?? false,
@@ -132,6 +136,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('products')
       .select('*')
+      .order('display_order', { ascending: true, nullsFirst: false })
       .order('sort_order', { ascending: true })
     
     if (error) {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, ChevronUp, ChevronDown, GripVertical, Eye, EyeOff, Trash2, AlertCircle, Tag, Star, Sparkles, Flame, Zap, LayoutGrid } from "lucide-react"
+import { Plus, ChevronUp, ChevronDown, GripVertical, Eye, EyeOff, Trash2, AlertCircle, Tag, Star, Sparkles, Flame, Zap, LayoutGrid, ChevronsUp, ChevronsDown } from "lucide-react"
 import type { Product } from "@/lib/config-types"
 
 // Tipos de badge disponiveis
@@ -28,7 +28,7 @@ interface AdminProductsSettingsProps {
   onAddProduct: () => void
   onUpdateProduct: (id: number, field: keyof Product, value: string | number | boolean) => void
   onRemoveProduct: (id: number) => void
-  onMoveProduct: (id: number, direction: "up" | "down") => void
+  onMoveProduct: (id: number, direction: "up" | "down" | "top" | "bottom") => void
 }
 
 export function AdminProductsSettings({
@@ -83,11 +83,21 @@ export function AdminProductsSettings({
               onClick={() => onExpandedProductChange(expandedProduct === product.id ? null : product.id)}
             >
               <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
+                {/* Botoes de ordenacao */}
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onMoveProduct(product.id, "top") }}
+                    disabled={index === 0}
+                    className="p-0.5 hover:bg-primary/20 hover:text-primary rounded disabled:opacity-30 transition-colors"
+                    title="Mover para o topo"
+                  >
+                    <ChevronsUp className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); onMoveProduct(product.id, "up") }}
                     disabled={index === 0}
                     className="p-0.5 hover:bg-secondary rounded disabled:opacity-30"
+                    title="Subir uma posicao"
                   >
                     <ChevronUp className="w-4 h-4" />
                   </button>
@@ -95,11 +105,25 @@ export function AdminProductsSettings({
                     onClick={(e) => { e.stopPropagation(); onMoveProduct(product.id, "down") }}
                     disabled={index === sortedProducts.length - 1}
                     className="p-0.5 hover:bg-secondary rounded disabled:opacity-30"
+                    title="Descer uma posicao"
                   >
                     <ChevronDown className="w-4 h-4" />
                   </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onMoveProduct(product.id, "bottom") }}
+                    disabled={index === sortedProducts.length - 1}
+                    className="p-0.5 hover:bg-primary/20 hover:text-primary rounded disabled:opacity-30 transition-colors"
+                    title="Mover para o final"
+                  >
+                    <ChevronsDown className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <GripVertical className="w-4 h-4 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground font-mono bg-secondary/50 px-1.5 py-0.5 rounded">
+                    #{index + 1}
+                  </span>
+                  <GripVertical className="w-4 h-4 text-muted-foreground" />
+                </div>
                 <div>
                   <p className="font-medium text-foreground">{product.name}</p>
                   <p className="text-sm text-muted-foreground">

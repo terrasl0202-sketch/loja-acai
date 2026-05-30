@@ -51,7 +51,12 @@ export function StorePageContent() {
   const allProducts = siteConfig.products
     .filter(p => p.active !== false)
     .filter(p => !p.outOfStock)
-    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .sort((a, b) => {
+      // Prioriza display_order, senao usa order como fallback
+      const orderA = a.displayOrder ?? a.order ?? 0
+      const orderB = b.displayOrder ?? b.order ?? 0
+      return orderA - orderB
+    })
     
   const WHATSAPP_NUMBER = siteConfig.whatsapp?.number || ""
   const MIN_VALUE_FOR_ASAAS = Number(siteConfig.payment?.minValueForAsaas) || 15

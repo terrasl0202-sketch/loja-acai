@@ -749,15 +749,31 @@ export default function AdminPage() {
     }
   }
 
-  const moveProduct = (id: number, direction: "up" | "down") => {
+  const moveProduct = (id: number, direction: "up" | "down" | "top" | "bottom") => {
     const products = [...config.products].sort((a, b) => (a.order || 0) - (b.order || 0))
     const index = products.findIndex(p => p.id === id)
-    if ((direction === "up" && index === 0) || (direction === "down" && index === products.length - 1)) return
-    const newIndex = direction === "up" ? index - 1 : index + 1
-    const temp = products[index].order
-    products[index].order = products[newIndex].order
-    products[newIndex].order = temp
-    setConfig(prev => ({ ...prev, products }))
+    
+    if (direction === "up" && index === 0) return
+    if (direction === "down" && index === products.length - 1) return
+    if (direction === "top" && index === 0) return
+    if (direction === "bottom" && index === products.length - 1) return
+    
+    let newProducts = [...products]
+    const [movedProduct] = newProducts.splice(index, 1)
+    
+    if (direction === "up") {
+      newProducts.splice(index - 1, 0, movedProduct)
+    } else if (direction === "down") {
+      newProducts.splice(index + 1, 0, movedProduct)
+    } else if (direction === "top") {
+      newProducts.unshift(movedProduct)
+    } else if (direction === "bottom") {
+      newProducts.push(movedProduct)
+    }
+    
+    // Atualizar ordem de todos os produtos
+    newProducts = newProducts.map((p, i) => ({ ...p, order: i, displayOrder: i }))
+    setConfig(prev => ({ ...prev, products: newProducts }))
   }
 
   // ========== FUNCOES DE CUPOM ==========
