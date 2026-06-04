@@ -110,17 +110,18 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
     const checkScroll = () => {
       if (scrollRef.current) {
         const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current
-        setShowLeftArrow(scrollLeft > 0)
+        setShowLeftArrow(scrollLeft > 10)
         setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 10)
       }
     }
     
     checkScroll()
-    scrollRef.current?.addEventListener('scroll', checkScroll)
+    const el = scrollRef.current
+    el?.addEventListener('scroll', checkScroll)
     window.addEventListener('resize', checkScroll)
     
     return () => {
-      scrollRef.current?.removeEventListener('scroll', checkScroll)
+      el?.removeEventListener('scroll', checkScroll)
       window.removeEventListener('resize', checkScroll)
     }
   }, [categories])
@@ -143,12 +144,13 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
   }
 
   return (
-    <div className="relative py-4">
+    <div className="relative py-3">
       {/* Seta esquerda */}
       {showLeftArrow && (
         <button
           onClick={() => scroll('left')}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center bg-card/95 backdrop-blur-sm border border-border rounded-full shadow-lg text-foreground hover:bg-secondary transition-all"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-full transition-all"
+          style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
           aria-label="Scroll esquerda"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -158,20 +160,24 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
       {/* Container com scroll horizontal */}
       <div
         ref={scrollRef}
-        className="flex gap-2 overflow-x-auto scrollbar-hide px-1 scroll-smooth snap-x"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        className="flex gap-2 overflow-x-auto px-1 scroll-smooth"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
       >
         {/* Botao "Todos" */}
         <button
           onClick={() => onSelectCategory(null)}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap transition-all duration-300 shrink-0 snap-start ${
-            selectedCategory === null
-              ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-105"
-              : "bg-card border border-border text-foreground hover:bg-secondary hover:border-primary/30"
-          }`}
+          className="flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-all duration-200 shrink-0"
+          style={selectedCategory === null ? {
+            backgroundColor: 'var(--primary)',
+            color: 'var(--primary-foreground)',
+          } : {
+            backgroundColor: 'var(--card)',
+            border: '1px solid var(--border)',
+            color: 'var(--foreground)',
+          }}
         >
           <LayoutGrid className="w-4 h-4" />
-          <span className="text-sm font-semibold">Todos</span>
+          <span className="text-sm font-medium">Todos</span>
         </button>
 
         {/* Categorias */}
@@ -184,14 +190,18 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
             <button
               key={category.id}
               onClick={() => onSelectCategory(category.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap transition-all duration-300 shrink-0 snap-start ${
-                isSelected
-                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-105"
-                  : "bg-card border border-border text-foreground hover:bg-secondary hover:border-primary/30"
-              }`}
+              className="flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-all duration-200 shrink-0"
+              style={isSelected ? {
+                backgroundColor: 'var(--primary)',
+                color: 'var(--primary-foreground)',
+              } : {
+                backgroundColor: 'var(--card)',
+                border: '1px solid var(--border)',
+                color: 'var(--foreground)',
+              }}
             >
               {hasImage ? (
-                <div className="w-5 h-5 rounded-md overflow-hidden relative flex-shrink-0">
+                <div className="w-5 h-5 rounded-full overflow-hidden relative flex-shrink-0">
                   <Image
                     src={category.image_url!}
                     alt={category.name}
@@ -202,7 +212,7 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
               ) : (
                 <IconComponent className="w-4 h-4 flex-shrink-0" />
               )}
-              <span className="text-sm font-semibold">{category.name}</span>
+              <span className="text-sm font-medium">{category.name}</span>
             </button>
           )
         })}
@@ -212,20 +222,20 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
       {showRightArrow && (
         <button
           onClick={() => scroll('right')}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center bg-card/95 backdrop-blur-sm border border-border rounded-full shadow-lg text-foreground hover:bg-secondary transition-all"
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-full transition-all"
+          style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
           aria-label="Scroll direita"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
       )}
       
-      {/* Gradientes nas bordas */}
-      {showLeftArrow && (
-        <div className="absolute left-8 top-0 bottom-0 w-6 bg-gradient-to-r from-background to-transparent pointer-events-none" />
-      )}
-      {showRightArrow && (
-        <div className="absolute right-8 top-0 bottom-0 w-6 bg-gradient-to-l from-background to-transparent pointer-events-none" />
-      )}
+      {/* CSS para esconder scrollbar */}
+      <style jsx>{`
+        div::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </div>
   )
 }

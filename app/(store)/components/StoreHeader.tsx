@@ -38,54 +38,64 @@ export function StoreHeader({
   const [logoLoaded, setLogoLoaded] = useState(false)
   const [logoError, setLogoError] = useState(false)
   
-  // Dados vem via props do page.tsx (fonte unica de verdade)
   const displayName = storeName || ''
   const displaySubtitle = storeSubtitle || ''
 
   return (
-    <header className="sticky top-0 z-50 glass-header transition-all duration-300">
-      <div className="max-w-lg mx-auto px-4 py-3.5">
+    <header 
+      className="sticky top-0 z-50 transition-all duration-300"
+      style={{ 
+        backgroundColor: 'var(--card)', 
+        borderBottom: '1px solid var(--border)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+      }}
+    >
+      <div className="max-w-lg mx-auto px-4 py-3">
         <div className="flex items-center justify-between gap-4">
-          <div className="relative flex items-center gap-3.5 min-w-0 flex-1">
+          <div className="relative flex items-center gap-3 min-w-0 flex-1">
             {logoUrl && !logoError ? (
               <div className="relative flex-shrink-0">
-                {/* Skeleton enquanto carrega */}
                 {!logoLoaded && (
-                  <div className="h-14 w-14 rounded-2xl bg-muted animate-pulse" />
+                  <div className="h-12 w-12 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--muted)' }} />
                 )}
                 <img 
                   src={logoUrl} 
                   alt={displayName} 
-                  className={`h-14 w-14 rounded-2xl object-cover ring-2 ring-border/50 transition-all duration-300 hover:scale-105 hover:ring-primary/50 ${
+                  className={`h-12 w-12 rounded-xl object-cover transition-all duration-300 ${
                     logoLoaded ? 'opacity-100' : 'opacity-0 absolute'
                   }`}
+                  style={{ border: '1px solid var(--border)' }}
                   onLoad={() => setLogoLoaded(true)}
                   onError={() => { setLogoError(true); setLogoLoaded(true); }}
                 />
-                <div className="absolute inset-0 rounded-2xl shadow-xl shadow-black/20" />
               </div>
             ) : null}
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl font-bold text-foreground truncate tracking-tight">
+              <h1 className="text-lg font-bold truncate" style={{ color: 'var(--foreground)' }}>
                 {displayName}
               </h1>
               {displaySubtitle && (
-                <p className="text-[11px] text-muted-foreground font-medium tracking-wide uppercase truncate mt-0.5">
+                <p className="text-xs font-medium truncate mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
                   {displaySubtitle}
                 </p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2.5 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {/* Icone de Perfil/Conta */}
             <div className="relative">
               <button
                 onClick={onToggleProfileMenu}
-                className={`p-2.5 rounded-xl transition-all duration-300 ${
-                  customer 
-                    ? "bg-primary/15 text-primary hover:bg-primary/25 shadow-lg shadow-primary/20 ring-1 ring-primary/30" 
-                    : "bg-card text-foreground hover:bg-card/80 hover:text-primary border border-border"
-                }`}
+                className="p-2 rounded-xl transition-all duration-200"
+                style={customer ? {
+                  backgroundColor: 'color-mix(in oklch, var(--primary) 15%, transparent)',
+                  color: 'var(--primary)',
+                  border: '1px solid color-mix(in oklch, var(--primary) 30%, transparent)'
+                } : {
+                  backgroundColor: 'var(--card)',
+                  color: 'var(--foreground)',
+                  border: '1px solid var(--border)'
+                }}
               >
                 <User className="w-5 h-5" />
                 {customer?.isVip && (
@@ -100,36 +110,41 @@ export function StoreHeader({
                     className="fixed inset-0 z-40" 
                     onClick={onCloseProfileMenu}
                   />
-                  <div className="absolute right-0 mt-2 w-56 bg-card rounded-xl border border-border shadow-xl z-50 overflow-hidden">
+                  <div 
+                    className="absolute right-0 mt-2 w-56 rounded-xl shadow-xl z-50 overflow-hidden"
+                    style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+                  >
                     {customer ? (
                       <>
-                        <div className="p-3 border-b border-border bg-card">
-                          <p className="font-medium text-foreground flex items-center gap-2">
+                        <div className="p-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                          <p className="font-medium flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
                             {customer.name}
                             {customer.isVip && (
                               <span className="text-xs bg-yellow-500/20 text-yellow-600 px-1.5 py-0.5 rounded">VIP</span>
                             )}
                           </p>
-                          <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                          <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{customer.phone}</p>
                         </div>
-                        <div className="py-1 bg-card">
+                        <div className="py-1">
                           <button
                             onClick={onOpenMyAccount}
-                            className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-primary/10 flex items-center gap-3"
+                            className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 transition-colors hover:bg-primary/10"
+                            style={{ color: 'var(--foreground)' }}
                           >
                             <User className="w-4 h-4" />
                             Minha Conta
                           </button>
                           <button
                             onClick={onOpenMyOrders}
-                            className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-primary/10 flex items-center gap-3"
+                            className="w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 transition-colors hover:bg-primary/10"
+                            style={{ color: 'var(--foreground)' }}
                           >
                             <Package className="w-4 h-4" />
                             Meus Pedidos
                           </button>
                           <button
                             onClick={onLogout}
-                            className="w-full px-4 py-2.5 text-left text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-3"
+                            className="w-full px-4 py-2.5 text-left text-sm text-red-500 flex items-center gap-3 transition-colors hover:bg-red-500/10"
                           >
                             <LogOut className="w-4 h-4" />
                             Sair
@@ -137,10 +152,11 @@ export function StoreHeader({
                         </div>
                       </>
                     ) : (
-                      <div className="py-1 bg-card">
+                      <div className="py-1">
                         <button
                           onClick={onOpenLogin}
-                          className="w-full px-4 py-3 text-left text-sm text-foreground hover:bg-primary/10 flex items-center gap-3"
+                          className="w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors hover:bg-primary/10"
+                          style={{ color: 'var(--foreground)' }}
                         >
                           <User className="w-4 h-4" />
                           Entrar / Criar Conta
@@ -155,11 +171,15 @@ export function StoreHeader({
             {/* Carrinho */}
             <button
               onClick={onToggleCart}
-              className="relative p-2.5 bg-primary rounded-2xl transition-all duration-300 hover:scale-105 active:scale-95 glow-soft"
+              className="relative p-2 rounded-xl transition-all duration-200"
+              style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
             >
-              <ShoppingCart className="w-5 h-5 text-primary-foreground" />
+              <ShoppingCart className="w-5 h-5" />
               {cartItemsCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-black min-w-[22px] h-[22px] px-1.5 rounded-full flex items-center justify-center shadow-lg ring-2 ring-card animate-scaleIn">
+                <span 
+                  className="absolute -top-1.5 -right-1.5 text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)' }}
+                >
                   {cartItemsCount}
                 </span>
               )}

@@ -2007,9 +2007,16 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
       <StoreFooter 
         storeName={customization.identity.storeName || STORE_NAME}
         slogan={customization.identity.slogan || siteConfig.banner?.secondaryText}
+        logoUrl={customization.identity.logoUrl}
         whatsapp={customization.social.whatsapp || WHATSAPP_NUMBER}
         instagram={customization.social.instagram || siteConfig.instagram}
+        facebook={customization.social.facebook}
+        tiktok={customization.social.tiktok}
         address={customization.social.address || siteConfig.address}
+        openTime={siteConfig.storeHours?.openTime}
+        closeTime={siteConfig.storeHours?.closeTime}
+        footerText={customization.social.footerText}
+        deliveryPolicy={customization.social.deliveryPolicy}
       />
 
       {/* Fixed Bottom Button */}
