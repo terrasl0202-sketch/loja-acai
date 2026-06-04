@@ -264,10 +264,29 @@ export async function PUT(req: NextRequest) {
 
     updateData.updated_at = new Date().toISOString()
 
-    const { error } = await supabase
+    // Buscar o primeiro registro existente
+    const { data: existingData } = await supabase
       .from("store_settings")
-      .update(updateData)
-      .eq("id", "main")
+      .select("id")
+      .order('id', { ascending: true })
+      .limit(1)
+      .single()
+
+    let error
+    if (existingData) {
+      // Atualizar registro existente
+      const result = await supabase
+        .from("store_settings")
+        .update(updateData)
+        .eq("id", existingData.id)
+      error = result.error
+    } else {
+      // Inserir novo registro
+      const result = await supabase
+        .from("store_settings")
+        .insert(updateData)
+      error = result.error
+    }
 
     if (error) {
       console.error("Erro ao salvar customizacao:", error)

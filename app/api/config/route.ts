@@ -55,7 +55,8 @@ export async function GET(request: Request) {
         const { data: storeData, error: storeError } = await supabase
           .from('store_settings')
           .select('*')
-          .eq('id', 'main')
+          .order('id', { ascending: true })
+          .limit(1)
           .single()
         
         if (!error && data) {
