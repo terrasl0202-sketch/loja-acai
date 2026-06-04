@@ -188,7 +188,6 @@ export async function POST(request: Request) {
     dataToSave.closed_message = body.closed_message ?? body.closedMessage ?? ''
   }
   if (body.whatsapp !== undefined) dataToSave.whatsapp = body.whatsapp
-  if (body.instagram !== undefined) dataToSave.instagram = body.instagram
   if (body.address !== undefined) dataToSave.address = body.address
   if (body.open_time !== undefined || body.openTime !== undefined) {
     dataToSave.open_time = body.open_time ?? body.openTime ?? ''

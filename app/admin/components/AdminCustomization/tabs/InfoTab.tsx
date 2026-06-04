@@ -1,6 +1,6 @@
 "use client"
 
-import { Facebook, FileText, Truck, Share2, Info } from "lucide-react"
+import { Facebook, Instagram, FileText, Truck, Share2, Info } from "lucide-react"
 import { CustomizationSocial } from "@/lib/config-types"
 
 // TikTok icon component
@@ -26,24 +26,39 @@ export function InfoTab({ social, onUpdate }: InfoTabProps) {
           <Info className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-sm text-blue-400">
-              <strong>Fonte unica de dados:</strong> Nome da loja, subtitulo, slogan, WhatsApp, Instagram e endereco sao configurados em{" "}
-              <span className="font-semibold">Configuracoes da Loja</span> para evitar duplicidades.
+              <strong>Fonte unica de dados:</strong> Nome da loja, subtitulo, slogan, WhatsApp e endereco sao configurados em{" "}
+              <span className="font-semibold">Configuracoes da Loja</span>. Redes sociais e rodape ficam aqui.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Redes Sociais Adicionais */}
+      {/* Redes Sociais */}
       <div className="space-y-4">
         <div>
           <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <Share2 className="w-5 h-5 text-primary" />
-            Redes Sociais Adicionais
+            Redes Sociais
           </h3>
-          <p className="text-sm text-muted-foreground">Facebook e TikTok exibidos no rodape da loja</p>
+          <p className="text-sm text-muted-foreground">Links exibidos no rodape da loja</p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
+          {/* Instagram */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Instagram className="w-4 h-4 text-pink-500" />
+              Instagram
+            </label>
+            <input
+              type="text"
+              value={social.instagram || ''}
+              onChange={(e) => onUpdate({ instagram: e.target.value })}
+              placeholder="@sualoja"
+              className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
+
           {/* Facebook */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground flex items-center gap-2">

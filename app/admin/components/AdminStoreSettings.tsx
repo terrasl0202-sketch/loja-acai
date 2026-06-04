@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Store, AlertCircle, Loader2, Clock, Phone, Instagram, MapPin } from "lucide-react"
+import { Store, AlertCircle, Loader2, Clock, Phone, MapPin } from "lucide-react"
 
 // ============================================================
 // ADMIN STORE SETTINGS v94
@@ -15,7 +15,6 @@ interface StoreSettingsData {
   slogan: string
   closedMessage: string
   whatsapp: string
-  instagram: string
   address: string
   openTime: string
   closeTime: string
@@ -38,7 +37,6 @@ export function AdminStoreSettings({ settings, isLoading, onSettingsChange, onPe
     slogan: '',
     closedMessage: '',
     whatsapp: '',
-    instagram: '',
     address: '',
     openTime: '',
     closeTime: '',
@@ -58,7 +56,6 @@ export function AdminStoreSettings({ settings, isLoading, onSettingsChange, onPe
         slogan: settings.slogan || '',
         closedMessage: settings.closedMessage || '',
         whatsapp: settings.whatsapp || '',
-        instagram: settings.instagram || '',
         address: settings.address || '',
         openTime: settings.openTime || '',
         closeTime: settings.closeTime || '',
@@ -250,21 +247,6 @@ export function AdminStoreSettings({ settings, isLoading, onSettingsChange, onPe
             className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
           />
           <p className="text-xs text-muted-foreground mt-1">Formato: 5511999999999 (com codigo do pais)</p>
-        </div>
-
-        {/* Contato - Instagram */}
-        <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-            <Instagram className="w-3 h-3" /> Instagram
-          </label>
-          <input
-            type="text"
-            value={localValues.instagram}
-            onChange={(e) => handleFieldChange('instagram', e.target.value)}
-            disabled={isLoading}
-            placeholder="@suaacai"
-            className="w-full mt-1.5 px-4 py-3 bg-background/50 border border-border/50 rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all disabled:opacity-50"
-          />
         </div>
 
         {/* Contato - Endereco */}

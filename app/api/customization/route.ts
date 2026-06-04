@@ -223,6 +223,7 @@ export async function PUT(req: NextRequest) {
 
     // Social
     if (customization.social) {
+      if (customization.social.instagram !== undefined) updateData.instagram = customization.social.instagram
       if (customization.social.facebook !== undefined) updateData.facebook = customization.social.facebook
       if (customization.social.tiktok !== undefined) updateData.tiktok = customization.social.tiktok
       if (customization.social.deliveryPolicy !== undefined) updateData.delivery_policy = customization.social.deliveryPolicy
