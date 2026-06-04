@@ -96,11 +96,9 @@ export function ElementsTab({ elements, onUpdate }: ElementsTabProps) {
             active={elements.showCategories}
             onToggle={() => onUpdate({ showCategories: !elements.showCategories })}
           />
-          <ToggleRow
-            title="Avaliacoes"
-            description="Mostra estrelas de avaliacao"
-            active={elements.showReviews}
-            onToggle={() => onUpdate({ showReviews: !elements.showReviews })}
+          <ToggleRowDisabled
+            title="Avaliacoes (em breve)"
+            description="Mostra estrelas de avaliacao - funcionalidade em desenvolvimento"
           />
           <ToggleRow
             title="Descricoes dos Produtos"
@@ -213,6 +211,32 @@ function ToggleRow({
           }`}
         />
       </button>
+    </div>
+  )
+}
+
+// Componente auxiliar para toggle desabilitado (em breve)
+function ToggleRowDisabled({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
+  return (
+    <div className="flex items-center justify-between p-4 bg-card/30 border border-border/50 rounded-xl opacity-60">
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-secondary text-muted-foreground">
+          <EyeOff className="w-4 h-4" />
+        </div>
+        <div>
+          <h4 className="font-medium text-muted-foreground">{title}</h4>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <div className="relative w-12 h-6 rounded-full bg-secondary cursor-not-allowed">
+        <span className="absolute top-1 left-1 w-4 h-4 bg-gray-400 rounded-full" />
+      </div>
     </div>
   )
 }

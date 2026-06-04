@@ -1,7 +1,7 @@
 "use client"
 
-import { Store, Facebook, Instagram, MessageCircle, MapPin, FileText, Clock, Phone } from "lucide-react"
-import { CustomizationSocial, CustomizationIdentity } from "@/lib/config-types"
+import { Facebook, Instagram, FileText, MapPin, Truck } from "lucide-react"
+import { CustomizationSocial } from "@/lib/config-types"
 
 // TikTok icon component
 function TikTokIcon({ className }: { className?: string }) {
@@ -14,105 +14,18 @@ function TikTokIcon({ className }: { className?: string }) {
 
 interface InfoTabProps {
   social: CustomizationSocial
-  identity: CustomizationIdentity
-  onUpdateSocial: (updates: Partial<CustomizationSocial>) => void
-  onUpdateIdentity: (updates: Partial<CustomizationIdentity>) => void
+  onUpdate: (updates: Partial<CustomizationSocial>) => void
 }
 
-export function InfoTab({ social, identity, onUpdateSocial, onUpdateIdentity }: InfoTabProps) {
+export function InfoTab({ social, onUpdate }: InfoTabProps) {
   return (
     <div className="space-y-8">
-      {/* Dados da Loja */}
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <Store className="w-5 h-5 text-primary" />
-            Dados da Loja
-          </h3>
-          <p className="text-sm text-muted-foreground">Informacoes basicas exibidas na loja</p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Nome da Loja */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Nome da Loja</label>
-            <input
-              type="text"
-              value={identity.storeName || ''}
-              onChange={(e) => onUpdateIdentity({ storeName: e.target.value })}
-              placeholder="Ex: Acai da Terra"
-              className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-          </div>
-
-          {/* Subtitulo */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Subtitulo</label>
-            <input
-              type="text"
-              value={identity.subtitle || ''}
-              onChange={(e) => onUpdateIdentity({ subtitle: e.target.value })}
-              placeholder="Ex: Delivery de Acai Premium"
-              className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-          </div>
-        </div>
-
-        {/* Slogan */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">Slogan</label>
-          <input
-            type="text"
-            value={identity.slogan || ''}
-            onChange={(e) => onUpdateIdentity({ slogan: e.target.value })}
-            placeholder="Ex: O melhor acai da cidade"
-            className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-        </div>
-      </div>
-
-      {/* Contato */}
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <Phone className="w-5 h-5 text-primary" />
-            Contato
-          </h3>
-          <p className="text-sm text-muted-foreground">WhatsApp e endereco da loja</p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* WhatsApp */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-green-500" />
-              WhatsApp
-            </label>
-            <input
-              type="text"
-              value={social.whatsapp || ''}
-              onChange={(e) => onUpdateSocial({ whatsapp: e.target.value })}
-              placeholder="5511999999999"
-              className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-            <p className="text-xs text-muted-foreground">Formato: 5511999999999 (com codigo do pais)</p>
-          </div>
-
-          {/* Endereco */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-red-500" />
-              Endereco
-            </label>
-            <input
-              type="text"
-              value={social.address || ''}
-              onChange={(e) => onUpdateSocial({ address: e.target.value })}
-              placeholder="Rua Principal, 123 - Centro"
-              className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-          </div>
-        </div>
+      {/* Aviso sobre dados principais */}
+      <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+        <p className="text-sm text-blue-400">
+          <strong>Nota:</strong> Nome da loja, subtitulo, slogan, WhatsApp e endereco sao configurados em{" "}
+          <span className="font-semibold">Configuracoes da Loja</span>.
+        </p>
       </div>
 
       {/* Redes Sociais */}
@@ -122,10 +35,10 @@ export function InfoTab({ social, identity, onUpdateSocial, onUpdateIdentity }: 
             <Instagram className="w-5 h-5 text-primary" />
             Redes Sociais
           </h3>
-          <p className="text-sm text-muted-foreground">Links para suas redes sociais</p>
+          <p className="text-sm text-muted-foreground">Links exibidos no rodape da loja</p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
           {/* Instagram */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -135,7 +48,7 @@ export function InfoTab({ social, identity, onUpdateSocial, onUpdateIdentity }: 
             <input
               type="text"
               value={social.instagram || ''}
-              onChange={(e) => onUpdateSocial({ instagram: e.target.value })}
+              onChange={(e) => onUpdate({ instagram: e.target.value })}
               placeholder="@sualoja"
               className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
@@ -150,7 +63,7 @@ export function InfoTab({ social, identity, onUpdateSocial, onUpdateIdentity }: 
             <input
               type="text"
               value={social.facebook || ''}
-              onChange={(e) => onUpdateSocial({ facebook: e.target.value })}
+              onChange={(e) => onUpdate({ facebook: e.target.value })}
               placeholder="facebook.com/sualoja"
               className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
@@ -165,7 +78,7 @@ export function InfoTab({ social, identity, onUpdateSocial, onUpdateIdentity }: 
             <input
               type="text"
               value={social.tiktok || ''}
-              onChange={(e) => onUpdateSocial({ tiktok: e.target.value })}
+              onChange={(e) => onUpdate({ tiktok: e.target.value })}
               placeholder="@sualoja"
               className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
@@ -173,26 +86,11 @@ export function InfoTab({ social, identity, onUpdateSocial, onUpdateIdentity }: 
         </div>
       </div>
 
-      {/* Horario de Funcionamento */}
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <Clock className="w-5 h-5 text-primary" />
-            Horario de Funcionamento
-          </h3>
-          <p className="text-sm text-muted-foreground">Exibido no rodape da loja</p>
-        </div>
-
-        <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-sm text-amber-400">
-          <strong>Nota:</strong> O horario de abertura/fechamento e controlado na aba Configuracoes da Loja, junto com o status aberto/fechado.
-        </div>
-      </div>
-
       {/* Politica de Entrega */}
       <div className="space-y-4">
         <div>
           <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-primary" />
+            <Truck className="w-5 h-5 text-primary" />
             Politica de Entrega
           </h3>
           <p className="text-sm text-muted-foreground">Informacoes sobre entrega exibidas no checkout</p>
@@ -200,7 +98,7 @@ export function InfoTab({ social, identity, onUpdateSocial, onUpdateIdentity }: 
 
         <textarea
           value={social.deliveryPolicy || ''}
-          onChange={(e) => onUpdateSocial({ deliveryPolicy: e.target.value })}
+          onChange={(e) => onUpdate({ deliveryPolicy: e.target.value })}
           placeholder="Ex: Entregas de segunda a sabado, das 10h as 22h. Tempo estimado de 30 a 45 minutos."
           rows={3}
           className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
@@ -219,7 +117,7 @@ export function InfoTab({ social, identity, onUpdateSocial, onUpdateIdentity }: 
 
         <textarea
           value={social.footerText || ''}
-          onChange={(e) => onUpdateSocial({ footerText: e.target.value })}
+          onChange={(e) => onUpdate({ footerText: e.target.value })}
           placeholder="Ex: Acai premium feito com frutas selecionadas da Amazonia. Produtos 100% naturais."
           rows={3}
           className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"

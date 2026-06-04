@@ -32,17 +32,17 @@ import { TemplatesTab } from "./tabs/TemplatesTab"
 
 type CustomizationTab = "templates" | "identity" | "theme" | "hero" | "banners" | "layout" | "elements" | "info" | "payments" | "preview"
 
-const TABS: { id: CustomizationTab; label: string; icon: React.ReactNode }[] = [
-  { id: "templates", label: "Templates", icon: <Layers className="w-4 h-4" /> },
-  { id: "identity", label: "Identidade", icon: <Palette className="w-4 h-4" /> },
-  { id: "theme", label: "Temas", icon: <Sun className="w-4 h-4" /> },
-  { id: "hero", label: "Hero", icon: <Image className="w-4 h-4" /> },
-  { id: "banners", label: "Banners", icon: <Images className="w-4 h-4" /> },
-  { id: "layout", label: "Layout", icon: <Layout className="w-4 h-4" /> },
-  { id: "elements", label: "Elementos", icon: <Sparkles className="w-4 h-4" /> },
-  { id: "info", label: "Informacoes", icon: <Info className="w-4 h-4" /> },
-  { id: "payments", label: "Pagamentos", icon: <CreditCard className="w-4 h-4" /> },
-  { id: "preview", label: "Preview", icon: <Eye className="w-4 h-4" /> },
+const TABS: { id: CustomizationTab; label: string; icon: React.ReactNode; description: string }[] = [
+  { id: "templates", label: "Templates", icon: <Layers className="w-4 h-4" />, description: "Modelos prontos" },
+  { id: "identity", label: "Aparencia", icon: <Palette className="w-4 h-4" />, description: "Logo, cores, imagens" },
+  { id: "theme", label: "Tema", icon: <Sun className="w-4 h-4" />, description: "Claro ou escuro" },
+  { id: "hero", label: "Banner", icon: <Image className="w-4 h-4" />, description: "Banner principal" },
+  { id: "banners", label: "Carrossel", icon: <Images className="w-4 h-4" />, description: "Banners rotativos" },
+  { id: "layout", label: "Layout", icon: <Layout className="w-4 h-4" />, description: "Estilo dos cards" },
+  { id: "elements", label: "Elementos", icon: <Sparkles className="w-4 h-4" />, description: "Mostrar/ocultar secoes" },
+  { id: "info", label: "Redes e Rodape", icon: <Info className="w-4 h-4" />, description: "Redes sociais e rodape" },
+  { id: "payments", label: "Pagamentos", icon: <CreditCard className="w-4 h-4" />, description: "Gateways" },
+  { id: "preview", label: "Preview", icon: <Eye className="w-4 h-4" />, description: "Visualizar loja" },
 ]
 
 interface AdminCustomizationProps {
@@ -265,9 +265,7 @@ export function AdminCustomization({ onSave }: AdminCustomizationProps) {
         {activeTab === "info" && (
           <InfoTab
             social={customization.social}
-            identity={customization.identity}
-            onUpdateSocial={(updates) => updateSection("social", updates)}
-            onUpdateIdentity={(updates) => updateSection("identity", updates)}
+            onUpdate={(updates) => updateSection("social", updates)}
           />
         )}
         {activeTab === "payments" && (
