@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { ShoppingCart, User, Star, Package, LogOut } from "lucide-react"
 import type { Customer } from "@/lib/config-types"
 
@@ -34,6 +35,9 @@ export function StoreHeader({
   onLogout,
   onOpenLogin
 }: StoreHeaderProps) {
+  const [logoLoaded, setLogoLoaded] = useState(false)
+  const [logoError, setLogoError] = useState(false)
+  
   // Dados vem via props do page.tsx (fonte unica de verdade)
   const displayName = storeName || ''
   const displaySubtitle = storeSubtitle || ''
@@ -43,12 +47,20 @@ export function StoreHeader({
       <div className="max-w-lg mx-auto px-4 py-3.5">
         <div className="flex items-center justify-between gap-4">
           <div className="relative flex items-center gap-3.5 min-w-0 flex-1">
-            {logoUrl ? (
+            {logoUrl && !logoError ? (
               <div className="relative flex-shrink-0">
+                {/* Skeleton enquanto carrega */}
+                {!logoLoaded && (
+                  <div className="h-14 w-14 rounded-2xl bg-muted animate-pulse" />
+                )}
                 <img 
                   src={logoUrl} 
                   alt={displayName} 
-                  className="h-14 w-14 rounded-2xl object-cover ring-2 ring-border/50 transition-all duration-300 hover:scale-105 hover:ring-primary/50"
+                  className={`h-14 w-14 rounded-2xl object-cover ring-2 ring-border/50 transition-all duration-300 hover:scale-105 hover:ring-primary/50 ${
+                    logoLoaded ? 'opacity-100' : 'opacity-0 absolute'
+                  }`}
+                  onLoad={() => setLogoLoaded(true)}
+                  onError={() => { setLogoError(true); setLogoLoaded(true); }}
                 />
                 <div className="absolute inset-0 rounded-2xl shadow-xl shadow-black/20" />
               </div>

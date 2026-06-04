@@ -45,8 +45,27 @@ function getIcon(iconName: string) {
   return icons[iconName] || Clock
 }
 
+// Skeleton para carregamento
+function HeroBannerSkeleton() {
+  return (
+    <section className="relative h-56 sm:h-72 overflow-hidden rounded-3xl mx-3 mt-3 shadow-2xl shadow-black/30 bg-muted animate-pulse">
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+      <div className="absolute bottom-6 left-6 right-6 space-y-3">
+        <div className="h-8 w-48 bg-white/20 rounded-lg" />
+        <div className="h-4 w-32 bg-white/10 rounded" />
+        <div className="flex gap-2 mt-4">
+          <div className="h-8 w-24 bg-white/10 rounded-xl" />
+          <div className="h-8 w-24 bg-white/10 rounded-xl" />
+          <div className="h-8 w-24 bg-white/10 rounded-xl" />
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl, hero, carouselBanners = [] }: HeroBannerProps) {
   const [imageError, setImageError] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
   
@@ -124,14 +143,22 @@ export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl, hero
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
+      {/* Skeleton enquanto imagem carrega */}
+      {!imageLoaded && (
+        <div className="absolute inset-0 bg-muted animate-pulse">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+        </div>
+      )}
+      
       {/* Imagem de fundo com transicao suave */}
-      <div className="absolute inset-0 transition-opacity duration-700">
+      <div className={`absolute inset-0 transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}>
         {isExternalUrl ? (
           <img
             src={imageUrl}
             alt={displayName}
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 hover:scale-105"
-            onError={() => setImageError(true)}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => { setImageError(true); setImageLoaded(true); }}
           />
         ) : (
           <Image
@@ -140,7 +167,8 @@ export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl, hero
             fill
             className="object-cover transition-transform duration-1000 hover:scale-105"
             priority
-            onError={() => setImageError(true)}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => { setImageError(true); setImageLoaded(true); }}
           />
         )}
       </div>

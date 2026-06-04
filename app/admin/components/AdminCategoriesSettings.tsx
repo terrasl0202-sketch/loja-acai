@@ -19,8 +19,10 @@ import {
   Sandwich,
   Salad,
   Soup,
-  Cookie
+  Cookie,
+  Check
 } from "lucide-react"
+import { toast } from "sonner"
 
 // Icones disponiveis para categorias
 const CATEGORY_ICONS = [
@@ -152,10 +154,11 @@ export function AdminCategoriesSettings({ onSave }: AdminCategoriesSettingsProps
       // Recarregar para pegar IDs reais
       await fetchCategories()
       setHasChanges(false)
+      toast.success('Categorias salvas com sucesso!')
       onSave?.()
     } catch (error) {
       console.error('[AdminCategories] Erro ao salvar:', error)
-      alert('Erro ao salvar categorias')
+      toast.error('Erro ao salvar categorias')
     } finally {
       setSaving(false)
     }

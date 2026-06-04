@@ -106,9 +106,11 @@ export function ProductCard({
               </button>
             )}
           </div>
-          <p className="text-sm text-muted-foreground mt-3 leading-relaxed line-clamp-2">
-            {product.description}
-          </p>
+          {product.description && product.description.trim() && (
+            <p className="text-sm text-muted-foreground mt-3 leading-relaxed line-clamp-2">
+              {product.description}
+            </p>
+          )}
           <div className="mt-4">
             <span className="text-2xl font-black text-primary tracking-tight">
               {formatCurrency(product.price)}

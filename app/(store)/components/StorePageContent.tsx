@@ -15,7 +15,7 @@ import { useCustomer } from "../providers/CustomerProvider"
 import { useCartContext } from "../providers/CartProvider"
 
 // Components
-import { HeroBanner, StoreClosedBanner, ProductList, CategoryNav, CartSummary, FloatingCartButton, StoreFooter, StoreHeader } from "./index"
+import { HeroBanner, StoreClosedBanner, PromoBanner, ProductList, CategoryNav, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, FeaturedSections } from "./index"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./modals"
 
 export function StorePageContent() {
@@ -542,6 +542,13 @@ export function StorePageContent() {
         }}
       />
 
+      {/* Banner Promocional */}
+      <PromoBanner
+        message={siteConfig.customization?.elements?.promoMessage}
+        icon="truck"
+        enabled={siteConfig.customization?.elements?.showPromoBanner !== false}
+      />
+
       {/* Hero - Cinematografico Premium */}
       <HeroBanner 
         storeName={STORE_NAME}
@@ -566,6 +573,20 @@ export function StorePageContent() {
         />
       </div>
 
+      {/* Featured Sections - Mais Vendidos, Promocoes, Novidades */}
+      {!selectedCategory && (
+        <FeaturedSections
+          products={allProducts}
+          quantities={quantities}
+          onUpdateQuantity={updateQuantity}
+          customerFavorites={customer?.favorites || []}
+          onToggleFavorite={toggleFavorite}
+          showBestsellers={siteConfig.customization?.elements?.showBestsellersSection !== false}
+          showPromos={siteConfig.customization?.elements?.showPromoBadge !== false}
+          showNew={siteConfig.customization?.elements?.showNewBadge !== false}
+        />
+      )}
+
       {/* Products */}
       <ProductList
         products={products}
@@ -585,8 +606,19 @@ export function StorePageContent() {
       {/* Spacer for fixed button */}
       <div className="h-24" />
 
-      {/* Footer */}
-      <StoreFooter />
+      {/* Footer Premium */}
+      <StoreFooter
+        storeName={STORE_NAME}
+        slogan={siteConfig.banner?.secondaryText}
+        whatsapp={WHATSAPP_NUMBER}
+        instagram={siteConfig.customization?.social?.instagram || siteConfig.instagram}
+        facebook={siteConfig.customization?.social?.facebook}
+        tiktok={siteConfig.customization?.social?.tiktok}
+        address={siteConfig.customization?.social?.address || siteConfig.address}
+        openTime={siteConfig.storeHours?.openTime}
+        closeTime={siteConfig.storeHours?.closeTime}
+        footerText={siteConfig.customization?.social?.footerText}
+      />
 
       {/* Fixed Bottom Button */}
       <FloatingCartButton

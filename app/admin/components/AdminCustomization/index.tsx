@@ -14,8 +14,10 @@ import {
   RotateCcw,
   Image,
   Images,
-  Layers
+  Layers,
+  Check
 } from "lucide-react"
+import { toast } from "sonner"
 import { StoreCustomization, defaultCustomization } from "@/lib/config-types"
 import { IdentityTab } from "./tabs/IdentityTab"
 import { ThemeTab } from "./tabs/ThemeTab"
@@ -53,9 +55,8 @@ export function AdminCustomization({ onSave }: AdminCustomizationProps) {
   const [originalCustomization, setOriginalCustomization] = useState<StoreCustomization>(defaultCustomization)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
 
   // Carregar configuracoes
   const loadCustomization = useCallback(async () => {
@@ -70,7 +71,9 @@ export function AdminCustomization({ onSave }: AdminCustomizationProps) {
       }
     } catch (err) {
       console.error("Erro ao carregar customizacao:", err)
-      setError("Erro ao carregar configuracoes")
+      toast.error("Erro ao carregar configuracoes", {
+        description: "Recarregue a pagina para tentar novamente.",
+      })
     } finally {
       setLoading(false)
     }
@@ -90,7 +93,7 @@ export function AdminCustomization({ onSave }: AdminCustomizationProps) {
   const saveCustomization = async () => {
     try {
       setSaving(true)
-      setError("")
+      setSaveSuccess(false)
       
       const res = await fetch("/api/customization", {
         method: "PUT",
@@ -105,12 +108,23 @@ export function AdminCustomization({ onSave }: AdminCustomizationProps) {
       }
 
       setOriginalCustomization(customization)
-      setSuccess("Configuracoes salvas com sucesso!")
+      setHasChanges(false)
+      setSaveSuccess(true)
+      
+      toast.success("Configuracoes salvas com sucesso!", {
+        description: "As alteracoes ja estao visiveis na loja.",
+        duration: 4000,
+      })
+      
       onSave?.()
       
-      setTimeout(() => setSuccess(""), 3000)
+      // Reset do icone de sucesso apos 2s
+      setTimeout(() => setSaveSuccess(false), 2000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao salvar")
+      toast.error("Erro ao salvar", {
+        description: err instanceof Error ? err.message : "Tente novamente em alguns segundos.",
+        duration: 5000,
+      })
     } finally {
       setSaving(false)
     }
@@ -165,29 +179,23 @@ export function AdminCustomization({ onSave }: AdminCustomizationProps) {
           <button
             onClick={saveCustomization}
             disabled={saving || !hasChanges}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+              saveSuccess 
+                ? "bg-green-500 text-white" 
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {saving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
+            ) : saveSuccess ? (
+              <Check className="w-4 h-4" />
             ) : (
               <Save className="w-4 h-4" />
             )}
-            Salvar
+            {saving ? "Salvando..." : saveSuccess ? "Salvo!" : "Salvar"}
           </button>
         </div>
       </div>
-
-      {/* Alertas */}
-      {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-500">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg text-sm text-green-500">
-          {success}
-        </div>
-      )}
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-secondary/50 rounded-xl overflow-x-auto">
