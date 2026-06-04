@@ -570,6 +570,7 @@ export function StorePageContent() {
         <CategoryNav
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
+          enabled={siteConfig.customization?.elements?.showCategories !== false}
         />
       </div>
 
@@ -594,6 +595,7 @@ export function StorePageContent() {
         onUpdateQuantity={updateQuantity}
         customerFavorites={customer?.favorites || []}
         onToggleFavorite={toggleFavorite}
+        showDescriptions={siteConfig.customization?.elements?.showDescriptions !== false}
       />
 
       {/* Cart Summary */}

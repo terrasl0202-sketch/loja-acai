@@ -265,7 +265,9 @@ export function AdminCustomization({ onSave }: AdminCustomizationProps) {
         {activeTab === "info" && (
           <InfoTab
             social={customization.social}
-            onUpdate={(updates) => updateSection("social", updates)}
+            identity={customization.identity}
+            onUpdateSocial={(updates) => updateSection("social", updates)}
+            onUpdateIdentity={(updates) => updateSection("identity", updates)}
           />
         )}
         {activeTab === "payments" && (

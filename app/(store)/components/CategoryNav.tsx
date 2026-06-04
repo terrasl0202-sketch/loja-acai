@@ -41,9 +41,10 @@ interface Category {
 interface CategoryNavProps {
   selectedCategory: number | null
   onSelectCategory: (categoryId: number | null) => void
+  enabled?: boolean
 }
 
-export function CategoryNav({ selectedCategory, onSelectCategory }: CategoryNavProps) {
+export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true }: CategoryNavProps) {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -93,8 +94,8 @@ export function CategoryNav({ selectedCategory, onSelectCategory }: CategoryNavP
     return ICON_MAP[iconName] || Utensils
   }
 
-  // Nao mostrar se nao tem categorias
-  if (loading || categories.length === 0) {
+  // Nao mostrar se desabilitado ou nao tem categorias
+  if (!enabled || loading || categories.length === 0) {
     return null
   }
 

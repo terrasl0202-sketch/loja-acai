@@ -25,6 +25,7 @@ interface ProductCardProps {
   onUpdateQuantity: (id: number, delta: number) => void
   isFavorite?: boolean
   onToggleFavorite?: (id: number) => void
+  showDescription?: boolean
 }
 
 // Mapeia tipo de badge para classe CSS
@@ -58,7 +59,8 @@ export function ProductCard({
   quantity,
   onUpdateQuantity,
   isFavorite,
-  onToggleFavorite
+  onToggleFavorite,
+  showDescription = true
 }: ProductCardProps) {
   // Verifica se deve mostrar badge
   const showBadge = product.badgeEnabled && product.badgeText
@@ -106,7 +108,7 @@ export function ProductCard({
               </button>
             )}
           </div>
-          {product.description && product.description.trim() && (
+          {showDescription && product.description && product.description.trim() && (
             <p className="text-sm text-muted-foreground mt-3 leading-relaxed line-clamp-2">
               {product.description}
             </p>
