@@ -44,8 +44,16 @@ export async function GET(request: Request) {
     
     if (supabase) {
       try {
+        // Buscar admin_settings (configuracoes da loja)
         const { data, error } = await supabase
           .from('admin_settings')
+          .select('*')
+          .eq('id', 'main')
+          .single()
+        
+        // Buscar store_settings (personalizacao)
+        const { data: storeData, error: storeError } = await supabase
+          .from('store_settings')
           .select('*')
           .eq('id', 'main')
           .single()
@@ -80,6 +88,93 @@ export async function GET(request: Request) {
               receiverName: data.pix_receiver_name || defaultConfig.pixManual.receiverName,
               city: data.pix_city || defaultConfig.pixManual.city || 'SAO PAULO',
             },
+            // Adicionar customization de store_settings
+            customization: storeData && !storeError ? {
+              ...defaultConfig.customization,
+              // Identidade
+              identity: {
+                ...defaultConfig.customization?.identity,
+                storeName: storeData.store_name || defaultConfig.customization?.identity?.storeName || '',
+                subtitle: storeData.subtitle || '',
+                slogan: storeData.slogan || '',
+                logoUrl: storeData.logo_url || storeData.store_logo || '',
+                faviconUrl: storeData.favicon_url || '',
+                coverImageUrl: storeData.cover_image_url || storeData.store_cover || '',
+              },
+              // Cores
+              colors: {
+                ...defaultConfig.customization?.colors,
+                primary: storeData.color_primary || storeData.primary_color || '#7C3AED',
+                secondary: storeData.color_secondary || storeData.secondary_color || '#A855F7',
+                accent: storeData.color_accent || storeData.accent_color || '#F59E0B',
+                background: storeData.color_background || storeData.background_color || '#FFFFFF',
+                foreground: storeData.color_foreground || storeData.text_color || '#1F2937',
+                card: storeData.color_card || '#FFFFFF',
+                muted: storeData.color_muted || '#6B7280',
+                border: storeData.color_border || '#E5E7EB',
+              },
+              // Hero
+              hero: {
+                ...defaultConfig.customization?.hero,
+                title: storeData.hero_title || '',
+                subtitle: storeData.hero_subtitle || '',
+                badge1: {
+                  text: storeData.hero_badge_1_text || '30-45 min',
+                  icon: storeData.hero_badge_1_icon || 'clock',
+                  enabled: storeData.hero_badge_1_enabled !== false,
+                },
+                badge2: {
+                  text: storeData.hero_badge_2_text || 'Geladinho',
+                  icon: storeData.hero_badge_2_icon || 'snowflake',
+                  enabled: storeData.hero_badge_2_enabled !== false,
+                },
+                badge3: {
+                  text: storeData.hero_badge_3_text || 'Premium',
+                  icon: storeData.hero_badge_3_icon || 'award',
+                  enabled: storeData.hero_badge_3_enabled !== false,
+                },
+              },
+              // Elementos (toggles da UI)
+              elements: {
+                ...defaultConfig.customization?.elements,
+                showPromoBanner: storeData.show_promo_banner === true,
+                promoMessage: storeData.promo_message || '',
+                showBestsellersSection: storeData.show_bestsellers_section !== false,
+                showFeaturedSection: storeData.show_featured_section !== false,
+                showCategories: storeData.show_categories !== false,
+                showReviews: storeData.show_reviews !== false,
+                showDescriptions: storeData.show_descriptions !== false,
+                showBestsellerBadge: storeData.show_bestseller_badge !== false,
+                showPromoBadge: storeData.show_promo_badge !== false,
+                showNewBadge: storeData.show_new_badge !== false,
+              },
+              // Social
+              social: {
+                ...defaultConfig.customization?.social,
+                instagram: storeData.instagram || '',
+                facebook: storeData.facebook || '',
+                tiktok: storeData.tiktok || '',
+                whatsapp: storeData.whatsapp || '',
+                address: storeData.address || storeData.store_address || '',
+                footerText: storeData.footer_text || '',
+                deliveryPolicy: storeData.delivery_policy || '',
+              },
+              // Theme (layout settings)
+              theme: {
+                ...defaultConfig.customization?.theme,
+                mode: (storeData.theme_mode === 'dark' ? 'dark' : storeData.theme_mode === 'auto' ? 'auto' : 'light') as 'light' | 'dark' | 'auto',
+                layoutType: (storeData.layout_type === 'classic' ? 'classic' : storeData.layout_type === 'minimal' ? 'minimal' : storeData.layout_type === 'premium' ? 'premium' : 'modern') as 'classic' | 'modern' | 'premium' | 'minimal',
+                borderRadius: typeof storeData.border_radius === 'number' ? storeData.border_radius : 12,
+                cardsShadow: storeData.cards_shadow !== false,
+                bannerHeight: (storeData.banner_height === 'small' ? 'small' : storeData.banner_height === 'large' ? 'large' : 'medium') as 'small' | 'medium' | 'large',
+              },
+              // Gateways de pagamento
+              gateways: {
+                mercadopagoEnabled: storeData.gateway_mercadopago_enabled === true,
+                pagbankEnabled: storeData.gateway_pagbank_enabled === true,
+                stripeEnabled: storeData.gateway_stripe_enabled === true,
+              },
+            } : defaultConfig.customization,
           }
           
           return NextResponse.json({ success: true, config, source: 'supabase' }, { headers: noCacheHeaders })
