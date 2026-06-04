@@ -572,8 +572,7 @@ export function StorePageContent() {
       )}
 
       {/* Category Navigation */}
-      <div className="px-4 border-2 border-red-500">
-        <p className="text-red-500">DEBUG: showCategories = {String(siteConfig.customization?.elements?.showCategories)}</p>
+      <div className="px-4">
         <CategoryNav
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}

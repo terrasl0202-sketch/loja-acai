@@ -10,7 +10,7 @@ import type { PaymentStatus, DeliveryType, OrderSnapshot, PixData, CustomerOrder
 import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURATION, FALLBACK_NEIGHBORHOOD_FEES } from "./(store)/constants"
 import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode, normalizePixKey } from "./(store)/utils"
 import { useCart } from "./(store)/hooks/useCart"
-import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer } from "./(store)/components"
+import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer, CategoryNav } from "./(store)/components"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./(store)/components/modals"
 
 // Converte hex para OKLCH para compatibilidade com Tailwind CSS 4
@@ -333,6 +333,7 @@ export default function Home() {
   
   const [showChangePaymentModal, setShowChangePaymentModal] = useState(false)
   const [showManualPixDuringCooldown, setShowManualPixDuringCooldown] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null)
   
   // Verifica se esta em cooldown (bloqueio anti-spam)
   const isInCooldown = pixCooldownEnd !== null && pixCooldownLeft > 0
@@ -1951,9 +1952,18 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         />
       )}
 
+      {/* Category Navigation */}
+      <div className="px-4">
+        <CategoryNav
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+          enabled={customization.elements.showCategories !== false}
+        />
+      </div>
+
       {/* Products */}
       <ProductList
-        products={products}
+        products={selectedCategory ? products.filter(p => p.categoryId === selectedCategory) : products}
         quantities={quantities}
         onUpdateQuantity={updateQuantity}
         customerFavorites={customer?.favorites || []}

@@ -82,22 +82,14 @@ interface CategoryNavProps {
 }
 
 export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true }: CategoryNavProps) {
-  // DEBUG - Verificar se componente monta
-  if (typeof window !== 'undefined') {
-    console.log('[v0] CategoryNav MONTANDO - enabled:', enabled)
-  }
-  
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showLeftArrow, setShowLeftArrow] = useState(false)
   const [showRightArrow, setShowRightArrow] = useState(false)
 
-  console.log('[v0] CategoryNav - enabled:', enabled)
-
   // Carregar categorias
   useEffect(() => {
-    console.log('[v0] CategoryNav - useEffect, enabled:', enabled)
     if (!enabled) {
       setLoading(false)
       return
@@ -106,9 +98,7 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
     fetch('/api/categories')
       .then(res => res.json())
       .then(data => {
-        console.log('[v0] CategoryNav - data recebida:', data)
         const activeCategories = data.filter((c: Category) => c.active)
-        console.log('[v0] CategoryNav - categorias ativas:', activeCategories.length)
         setCategories(activeCategories)
       })
       .catch(err => console.error('[CategoryNav] Erro:', err))
