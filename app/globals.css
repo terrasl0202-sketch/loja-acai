@@ -554,31 +554,31 @@
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
-/* Modal/Checkout/Pix - Fundo SOLIDO obrigatorio (nunca transparente) */
+/* Modal/Checkout/Pix - Usa CSS variables para consistencia com tema */
 .modal-solid-bg {
-  background-color: oklch(0.145 0.02 285) !important;
-  color: oklch(0.97 0.005 285) !important;
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
 }
 
 .modal-header-solid {
-  background-color: oklch(0.17 0.025 285) !important;
-  color: oklch(0.97 0.005 285) !important;
+  background-color: var(--card) !important;
+  color: var(--card-foreground) !important;
 }
 
 .modal-card-solid {
-  background-color: oklch(0.19 0.025 285) !important;
-  color: oklch(0.97 0.005 285) !important;
-  border-color: oklch(0.28 0.04 285) !important;
+  background-color: var(--card) !important;
+  color: var(--card-foreground) !important;
+  border-color: var(--border) !important;
 }
 
 .modal-input-solid {
-  background-color: oklch(0.14 0.02 285) !important;
-  color: oklch(0.97 0.005 285) !important;
-  border-color: oklch(0.28 0.04 285) !important;
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+  border-color: var(--border) !important;
 }
 
 .modal-input-solid::placeholder {
-  color: oklch(0.55 0.03 285) !important;
+  color: var(--muted-foreground) !important;
 }
 
 /* Overlay escuro para modais */

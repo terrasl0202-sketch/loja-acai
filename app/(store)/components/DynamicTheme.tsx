@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useStore } from "../providers/StoreProvider"
 
-// Funcao para converter hex para HSL (mais compativel com CSS)
+// Funcao para converter hex para HSL
 function hexToHSL(hex: string): { h: number; s: number; l: number } | null {
   if (!hex || !hex.startsWith('#')) return null
   
@@ -25,50 +25,42 @@ function hexToHSL(hex: string): { h: number; s: number; l: number } | null {
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
     
     switch (max) {
-      case r:
-        h = ((g - b) / d + (g < b ? 6 : 0)) / 6
-        break
-      case g:
-        h = ((b - r) / d + 2) / 6
-        break
-      case b:
-        h = ((r - g) / d + 4) / 6
-        break
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
+      case g: h = ((b - r) / d + 2) / 6; break
+      case b: h = ((r - g) / d + 4) / 6; break
     }
   }
   
-  return {
-    h: Math.round(h * 360),
-    s: Math.round(s * 100),
-    l: Math.round(l * 100)
-  }
+  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) }
 }
 
-// Determina se uma cor e clara ou escura
-function isLightColor(hex: string): boolean {
-  if (!hex || !hex.startsWith('#')) return false
+// Calcula luminancia relativa (WCAG)
+function getLuminance(hex: string): number {
+  if (!hex || !hex.startsWith('#')) return 0
   hex = hex.replace('#', '')
-  const r = parseInt(hex.substring(0, 2), 16)
-  const g = parseInt(hex.substring(2, 4), 16)
-  const b = parseInt(hex.substring(4, 6), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.5
+  const r = parseInt(hex.substring(0, 2), 16) / 255
+  const g = parseInt(hex.substring(2, 4), 16) / 255
+  const b = parseInt(hex.substring(4, 6), 16) / 255
+  
+  const toLinear = (c: number) => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b)
 }
 
-// Gera uma versao mais escura de uma cor
-function darkenColor(hex: string, amount: number = 20): string {
-  const hsl = hexToHSL(hex)
-  if (!hsl) return hex
-  const newL = Math.max(0, hsl.l - amount)
-  return `hsl(${hsl.h}, ${hsl.s}%, ${newL}%)`
+// Determina cor de texto com contraste WCAG AA (4.5:1)
+function getContrastColor(bgHex: string): string {
+  const luminance = getLuminance(bgHex)
+  // Se luminancia > 0.179, a cor e clara, usar texto escuro
+  return luminance > 0.179 ? '#09090B' : '#FAFAFA'
 }
 
-// Gera uma versao mais clara de uma cor
-function lightenColor(hex: string, amount: number = 20): string {
-  const hsl = hexToHSL(hex)
-  if (!hsl) return hex
-  const newL = Math.min(100, hsl.l + amount)
-  return `hsl(${hsl.h}, ${hsl.s}%, ${newL}%)`
+// Gera cor muted baseada na cor de fundo
+function getMutedColor(bgHex: string): string {
+  const hsl = hexToHSL(bgHex)
+  if (!hsl) return '#71717A'
+  const luminance = getLuminance(bgHex)
+  // Se fundo escuro, muted mais claro. Se fundo claro, muted mais escuro.
+  const newL = luminance > 0.179 ? Math.max(30, hsl.l - 40) : Math.min(70, hsl.l + 40)
+  return `hsl(${hsl.h}, ${Math.max(5, hsl.s - 30)}%, ${newL}%)`
 }
 
 export function DynamicTheme() {
@@ -96,71 +88,70 @@ export function DynamicTheme() {
     }
     
     // Aplica modo de tema
-    if (theme?.mode) {
-      applyThemeMode(theme.mode)
-    } else {
-      // Default: dark
-      applyThemeMode('dark')
-    }
+    applyThemeMode(theme?.mode || 'dark')
     
     // Aplica cores customizadas via CSS variables
     if (colors) {
-      // Primary
+      // Primary com contraste automatico
       if (colors.primary) {
         root.style.setProperty('--primary', colors.primary)
         root.style.setProperty('--ring', colors.primary)
         root.style.setProperty('--sidebar-primary', colors.primary)
         root.style.setProperty('--chart-1', colors.primary)
-        
-        // Primary foreground baseado na luminosidade
-        const primaryFg = isLightColor(colors.primary) ? '#09090B' : '#FAFAFA'
-        root.style.setProperty('--primary-foreground', primaryFg)
-        root.style.setProperty('--sidebar-primary-foreground', primaryFg)
+        root.style.setProperty('--primary-foreground', getContrastColor(colors.primary))
+        root.style.setProperty('--sidebar-primary-foreground', getContrastColor(colors.primary))
       }
       
-      // Secondary
+      // Secondary com contraste automatico
       if (colors.secondary) {
         root.style.setProperty('--secondary', colors.secondary)
         root.style.setProperty('--chart-2', colors.secondary)
-        
-        const secondaryFg = isLightColor(colors.secondary) ? '#09090B' : '#FAFAFA'
-        root.style.setProperty('--secondary-foreground', secondaryFg)
+        root.style.setProperty('--secondary-foreground', getContrastColor(colors.secondary))
       }
       
-      // Accent
+      // Accent com contraste automatico
       if (colors.accent) {
         root.style.setProperty('--accent', colors.accent)
         root.style.setProperty('--chart-3', colors.accent)
-        
-        const accentFg = isLightColor(colors.accent) ? '#09090B' : '#FAFAFA'
-        root.style.setProperty('--accent-foreground', accentFg)
+        root.style.setProperty('--accent-foreground', getContrastColor(colors.accent))
       }
       
-      // Background
+      // Background e derivados
       if (colors.background) {
         root.style.setProperty('--background', colors.background)
         root.style.setProperty('--sidebar', colors.background)
       }
       
-      // Foreground
+      // Foreground (texto principal)
       if (colors.foreground) {
         root.style.setProperty('--foreground', colors.foreground)
-        root.style.setProperty('--card-foreground', colors.foreground)
-        root.style.setProperty('--popover-foreground', colors.foreground)
         root.style.setProperty('--sidebar-foreground', colors.foreground)
+      } else if (colors.background) {
+        // Auto-derivar foreground do background
+        const autoFg = getContrastColor(colors.background)
+        root.style.setProperty('--foreground', autoFg)
+        root.style.setProperty('--sidebar-foreground', autoFg)
       }
       
-      // Card
+      // Card com contraste automatico
       if (colors.card) {
         root.style.setProperty('--card', colors.card)
         root.style.setProperty('--popover', colors.card)
         root.style.setProperty('--sidebar-accent', colors.card)
+        root.style.setProperty('--card-foreground', getContrastColor(colors.card))
+        root.style.setProperty('--popover-foreground', getContrastColor(colors.card))
+        root.style.setProperty('--sidebar-accent-foreground', getContrastColor(colors.card))
       }
       
-      // Muted
+      // Muted com contraste automatico
       if (colors.muted) {
         root.style.setProperty('--muted', colors.muted)
-        root.style.setProperty('--muted-foreground', colors.muted)
+        root.style.setProperty('--muted-foreground', getContrastColor(colors.muted))
+      } else if (colors.background) {
+        // Auto-derivar muted do background
+        const autoMuted = getMutedColor(colors.background)
+        root.style.setProperty('--muted', autoMuted)
+        root.style.setProperty('--muted-foreground', getContrastColor(colors.background))
       }
       
       // Border
@@ -173,8 +164,18 @@ export function DynamicTheme() {
     
     // Aplica border radius
     if (theme?.borderRadius !== undefined) {
-      const radius = typeof theme.borderRadius === 'number' ? theme.borderRadius : 16
-      root.style.setProperty('--radius', `${radius}px`)
+      const radiusMap: Record<string, string> = {
+        'none': '0px',
+        'sm': '8px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '20px',
+        'full': '9999px'
+      }
+      const radius = typeof theme.borderRadius === 'string' 
+        ? radiusMap[theme.borderRadius] || '16px'
+        : `${theme.borderRadius}px`
+      root.style.setProperty('--radius', radius)
     }
     
     setApplied(true)
@@ -191,6 +192,5 @@ export function DynamicTheme() {
     }
   }, [siteConfig.customization?.colors, siteConfig.customization?.theme, isClient])
   
-  // Nao renderiza nada visualmente
   return null
 }

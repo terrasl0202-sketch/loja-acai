@@ -23,7 +23,7 @@ export function CartFooter({
   onClose
 }: CartFooterProps) {
   return (
-    <div className="border-t border-border p-6 space-y-5 modal-card-solid">
+    <div className="border-t border-border p-6 space-y-5 bg-card">
       {/* Resumo de valores */}
       <div className="space-y-3">
         <div className="flex justify-between text-sm text-muted-foreground">

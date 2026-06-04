@@ -13,7 +13,7 @@ interface CartItemProps {
 
 export function CartItem({ id, name, price, quantity, onUpdateQuantity }: CartItemProps) {
   return (
-    <div className="flex items-center gap-3 p-3 modal-card-solid rounded-xl group">
+    <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-xl group">
       {/* Produto info */}
       <div className="flex-1 min-w-0">
         <h4 className="font-medium text-sm truncate">{name}</h4>

@@ -9,6 +9,7 @@ export interface StoreTemplate {
   name: string
   description: string
   icon: string
+  heroImage: string  // URL da imagem padrao do hero
   previewColors: {
     primary: string
     secondary: string
@@ -24,6 +25,7 @@ export const STORE_TEMPLATES: StoreTemplate[] = [
     name: "Acaiteria",
     description: "Cores vibrantes e tropicais para lojas de acai e frutas",
     icon: "grape",
+    heroImage: "https://images.unsplash.com/photo-1590301157890-4810ed352733?w=1200&h=600&fit=crop&q=80",
     previewColors: {
       primary: "#7C3AED",
       secondary: "#A855F7",
@@ -54,6 +56,7 @@ export const STORE_TEMPLATES: StoreTemplate[] = [
     name: "Marmitaria",
     description: "Visual caseiro e acolhedor para comida de verdade",
     icon: "utensils",
+    heroImage: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=1200&h=600&fit=crop&q=80",
     previewColors: {
       primary: "#DC2626",
       secondary: "#F97316",
@@ -84,6 +87,7 @@ export const STORE_TEMPLATES: StoreTemplate[] = [
     name: "Hamburgueria",
     description: "Visual gourmet e marcante para hamburguerias artesanais",
     icon: "beef",
+    heroImage: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=1200&h=600&fit=crop&q=80",
     previewColors: {
       primary: "#B91C1C",
       secondary: "#1F2937",
@@ -114,6 +118,7 @@ export const STORE_TEMPLATES: StoreTemplate[] = [
     name: "Pizzaria",
     description: "Cores quentes e apetitosas para pizzarias tradicionais",
     icon: "pizza",
+    heroImage: "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=1200&h=600&fit=crop&q=80",
     previewColors: {
       primary: "#DC2626",
       secondary: "#EA580C",
@@ -144,6 +149,7 @@ export const STORE_TEMPLATES: StoreTemplate[] = [
     name: "Sorveteria",
     description: "Tons gelados e refrescantes para sorveterias e gelaterias",
     icon: "ice-cream-cone",
+    heroImage: "https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?w=1200&h=600&fit=crop&q=80",
     previewColors: {
       primary: "#06B6D4",
       secondary: "#EC4899",
@@ -174,6 +180,7 @@ export const STORE_TEMPLATES: StoreTemplate[] = [
     name: "Cafeteria",
     description: "Tons terrosos e aconchegantes para cafeterias e padarias",
     icon: "coffee",
+    heroImage: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=1200&h=600&fit=crop&q=80",
     previewColors: {
       primary: "#78350F",
       secondary: "#92400E",
@@ -222,6 +229,11 @@ export function applyTemplate(
       ...currentCustomization.colors,
       ...(template.customization.colors || {}),
     },
+    identity: {
+      ...currentCustomization.identity,
+      // Aplica imagem do hero do template se nao houver imagem personalizada
+      coverImageUrl: currentCustomization.identity?.coverImageUrl || template.heroImage,
+    },
     hero: {
       title: templateHero?.title ?? currentHero.title,
       subtitle: templateHero?.subtitle ?? currentHero.subtitle,
@@ -229,7 +241,12 @@ export function applyTemplate(
       badge2: templateHero?.badge2 ?? currentHero.badge2,
       badge3: templateHero?.badge3 ?? currentHero.badge3,
     },
-    // Mantemos identity, theme, elements, social e gateways intactos
-    // Apenas cores e hero sao atualizados
+    // Mantemos theme, elements, social e gateways intactos
   }
+}
+
+// Funcao para obter imagem padrao do hero baseado no template
+export function getTemplateHeroImage(templateId: string): string {
+  const template = STORE_TEMPLATES.find(t => t.id === templateId)
+  return template?.heroImage || STORE_TEMPLATES[0].heroImage
 }
