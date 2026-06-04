@@ -1876,6 +1876,26 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
   // Calcula cores efetivas baseado no theme.mode
   const effectiveColors = getEffectiveColors(customization)
   
+  // CSS Variables como objeto style para aplicar em modais que ficam fora do .store-customized
+  const themeStyleVars: React.CSSProperties = {
+    '--background': hexToOklch(effectiveColors.background),
+    '--foreground': hexToOklch(effectiveColors.foreground),
+    '--card': hexToOklch(effectiveColors.card),
+    '--card-foreground': getContrastForeground(effectiveColors.card),
+    '--primary': hexToOklch(effectiveColors.primary),
+    '--primary-foreground': getContrastForeground(effectiveColors.primary),
+    '--muted': hexToOklch(effectiveColors.muted),
+    '--muted-foreground': getMutedForeground(effectiveColors.background),
+    '--accent': hexToOklch(effectiveColors.accent),
+    '--accent-foreground': getContrastForeground(effectiveColors.accent),
+    '--border': hexToOklch(effectiveColors.border),
+    '--ring': hexToOklch(effectiveColors.primary),
+    '--radius': `${customization.theme.borderRadius / 16}rem`,
+    '--secondary': hexToOklch(effectiveColors.card),
+    '--secondary-foreground': getContrastForeground(effectiveColors.card),
+    '--input': hexToOklch(effectiveColors.border),
+  } as React.CSSProperties
+  
   return (
     <main className="min-h-screen bg-background pb-24 store-customized">
       {/* CSS Variables Dinamicas da Personalizacao Premium */}
@@ -2015,7 +2035,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
       {/* Checkout Modal */}
       {showCheckout && (
-        <div className="checkout-modal fixed inset-0 z-[100] modal-solid-bg overflow-y-auto animate-slide-up">
+        <div className="checkout-modal fixed inset-0 z-[100] overflow-y-auto animate-slide-up" style={{...themeStyleVars, backgroundColor: 'var(--background)', color: 'var(--foreground)'}}>
           <div className="min-h-screen pb-8">
             {/* Modal Header Premium */}
             <header className="sticky top-0 z-10 modal-header-solid border-b border-border">
@@ -2061,7 +2081,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   </div>
 
                   {/* Order Details Premium */}
-                  <div className="premium-card rounded-2xl p-5 space-y-4">
+                  <div className="rounded-2xl p-5 space-y-4 border" style={{backgroundColor: 'var(--card)', color: 'var(--card-foreground)', borderColor: 'var(--border)'}}>
                     <div className="flex justify-between items-center border-b border-primary/10 pb-4">
                       <span className="text-muted-foreground text-sm flex items-center gap-2">
                         <Package className="w-4 h-4" />
@@ -2171,7 +2191,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
               {paymentStatus !== "confirmed" && (
                 <>
                   {/* Order Summary Premium */}
-                  <section className="premium-card rounded-2xl p-5 animate-scale-in">
+                  <section className="rounded-2xl p-5 border animate-scale-in" style={{backgroundColor: 'var(--card)', color: 'var(--card-foreground)', borderColor: 'var(--border)'}}>
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="font-bold text-foreground flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
@@ -2307,7 +2327,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   )}
 
                   {/* Delivery Type Premium */}
-                  <section className={`premium-card rounded-2xl p-5 animate-scale-in ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`} style={{ animationDelay: '0.1s' }}>
+                  <section className={`rounded-2xl p-5 border animate-scale-in ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`} style={{ animationDelay: '0.1s', backgroundColor: 'var(--card)', color: 'var(--card-foreground)', borderColor: 'var(--border)' }}>
                     <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                         <Truck className="w-4 h-4 text-primary" />
@@ -2361,7 +2381,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   </section>
 
                   {/* Customer Info Premium */}
-                  <section className={`premium-card rounded-2xl p-5 space-y-5 animate-scale-in ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`} style={{ animationDelay: '0.15s' }}>
+                  <section className={`rounded-2xl p-5 space-y-5 border animate-scale-in ${isOrderBlocked ? 'opacity-50 pointer-events-none' : ''}`} style={{ animationDelay: '0.15s', backgroundColor: 'var(--card)', color: 'var(--card-foreground)', borderColor: 'var(--border)' }}>
                     <h3 className="font-bold text-foreground flex items-center gap-2">
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                         <User className="w-4 h-4 text-primary" />
@@ -2588,7 +2608,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                   </section>
 
                   {/* Payment Method Premium */}
-                  <section className="premium-card rounded-2xl p-5 space-y-5 animate-scale-in" style={{ animationDelay: '0.2s' }}>
+                  <section className="rounded-2xl p-5 space-y-5 border animate-scale-in" style={{ animationDelay: '0.2s', backgroundColor: 'var(--card)', color: 'var(--card-foreground)', borderColor: 'var(--border)' }}>
                     <h3 className="font-bold text-foreground flex items-center gap-2">
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                         <CreditCard className="w-4 h-4 text-primary" />
@@ -3231,25 +3251,25 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
       {/* Modal de confirmacao para alterar forma de pagamento */}
       {showChangePaymentModal && (
-        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl p-6 max-w-sm w-full border border-border animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4" style={themeStyleVars}>
+          <div className="rounded-2xl p-6 max-w-sm w-full border animate-in fade-in zoom-in duration-200" style={{backgroundColor: 'var(--card)', color: 'var(--card-foreground)', borderColor: 'var(--border)'}}>
             <div className="text-center">
               <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-foreground mb-2">Alterar Forma de Pagamento</h3>
-              <p className="text-sm text-muted-foreground mb-6">
+              <h3 className="text-lg font-bold mb-2">Alterar Forma de Pagamento</h3>
+              <p className="text-sm mb-6" style={{color: 'var(--muted-foreground)'}}>
                 Se voce alterar a forma de pagamento, so sera possivel gerar um novo PIX automatico apos 5 minutos.
               </p>
               
               <div className="space-y-3">
                 <button
                   onClick={() => setShowChangePaymentModal(false)}
-                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
+                  className="w-full py-3 rounded-xl font-medium transition-colors" style={{backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)'}}
                 >
                   Continuar com este PIX
                 </button>
                 <button
                   onClick={handleChangePaymentMethod}
-                  className="w-full py-3 bg-secondary text-secondary-foreground rounded-xl font-medium hover:bg-secondary/80 transition-colors"
+                  className="w-full py-3 rounded-xl font-medium transition-colors" style={{backgroundColor: 'var(--secondary)', color: 'var(--secondary-foreground)'}}
                 >
                   Alterar forma de pagamento
                 </button>

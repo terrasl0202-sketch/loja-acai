@@ -601,11 +601,7 @@
   color: var(--muted-foreground) !important;
 }
 
-.checkout-modal .bg-secondary,
-.checkout-modal .from-secondary\\/80,
-.checkout-modal .from-secondary\\/60,
-.checkout-modal .from-secondary\\/50,
-.checkout-modal .from-secondary\\/30 {
+.checkout-modal .bg-secondary {
   background-color: var(--card) !important;
 }
 
