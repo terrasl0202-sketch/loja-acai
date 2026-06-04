@@ -303,12 +303,19 @@
 /* Premium Card - Elegante com profundidade */
 .premium-card {
   @apply relative overflow-hidden;
-  background-color: oklch(0.19 0.025 285);
-  color: oklch(0.97 0.005 285);
-  border: 1px solid oklch(0.28 0.04 285);
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
   box-shadow: 
     0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+/* Premium card dentro do checkout modal herda as cores do tema */
+.checkout-modal .premium-card {
+  background-color: var(--card) !important;
+  color: var(--card-foreground) !important;
+  border-color: var(--border) !important;
 }
 
 .premium-card::before {
@@ -579,6 +586,35 @@
 
 .modal-input-solid::placeholder {
   color: var(--muted-foreground) !important;
+}
+
+/* Checkout modal override - garante que todas as cores sao corretas */
+.checkout-modal {
+  --input: var(--border);
+}
+
+.checkout-modal .text-foreground {
+  color: var(--foreground) !important;
+}
+
+.checkout-modal .text-muted-foreground {
+  color: var(--muted-foreground) !important;
+}
+
+.checkout-modal .bg-secondary,
+.checkout-modal .from-secondary\\/80,
+.checkout-modal .from-secondary\\/60,
+.checkout-modal .from-secondary\\/50,
+.checkout-modal .from-secondary\\/30 {
+  background-color: var(--card) !important;
+}
+
+.checkout-modal .border-border {
+  border-color: var(--border) !important;
+}
+
+.checkout-modal .bg-input {
+  background-color: var(--input) !important;
 }
 
 /* Overlay escuro para modais */

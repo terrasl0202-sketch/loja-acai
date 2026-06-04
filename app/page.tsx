@@ -1879,9 +1879,9 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
   return (
     <main className="min-h-screen bg-background pb-24 store-customized">
       {/* CSS Variables Dinamicas da Personalizacao Premium */}
-      {/* Aplicamos apenas na classe .store-customized para nao afetar modais */}
+      {/* Aplicamos nas classes .store-customized e .checkout-modal para consistencia */}
       <style dangerouslySetInnerHTML={{ __html: `
-        .store-customized {
+        .store-customized, .checkout-modal {
           --background: ${hexToOklch(effectiveColors.background)};
           --foreground: ${hexToOklch(effectiveColors.foreground)};
           --card: ${hexToOklch(effectiveColors.card)};
@@ -1895,6 +1895,9 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
           --border: ${hexToOklch(effectiveColors.border)};
           --ring: ${hexToOklch(effectiveColors.primary)};
           --radius: ${customization.theme.borderRadius / 16}rem;
+          --secondary: ${hexToOklch(effectiveColors.card)};
+          --secondary-foreground: ${getContrastForeground(effectiveColors.card)};
+          --input: ${hexToOklch(effectiveColors.border)};
         }
       ` }} />
       
@@ -2012,7 +2015,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
 
       {/* Checkout Modal */}
       {showCheckout && (
-        <div className="fixed inset-0 z-[100] modal-solid-bg overflow-y-auto animate-slide-up">
+        <div className="checkout-modal fixed inset-0 z-[100] modal-solid-bg overflow-y-auto animate-slide-up">
           <div className="min-h-screen pb-8">
             {/* Modal Header Premium */}
             <header className="sticky top-0 z-10 modal-header-solid border-b border-border">
@@ -2026,12 +2029,12 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                       <h2 className="text-lg font-bold">
                         {paymentStatus === "confirmed" ? "Pedido Confirmado" : "Finalizar Pedido"}
                       </h2>
-                      <p className="text-xs opacity-70">{getTotalItems()} {getTotalItems() === 1 ? 'item' : 'itens'} no carrinho</p>
+                      <p className="text-xs text-muted-foreground">{getTotalItems()} {getTotalItems() === 1 ? 'item' : 'itens'} no carrinho</p>
                     </div>
                   </div>
                   <button 
                     onClick={handleCloseCheckout}
-                    className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all duration-200 active:scale-95"
+                    className="p-2.5 bg-secondary hover:bg-secondary/80 rounded-xl transition-all duration-200 active:scale-95"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -2328,7 +2331,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             <MapPin className="w-4 h-4" />
                             <span>Entrega</span>
                             {DELIVERY_FEE > 0 && deliveryType !== "entrega" && (
-                              <span className="text-[10px] opacity-60">(+R${DELIVERY_FEE})</span>
+                              <span className="text-[10px] text-muted-foreground">(+R${DELIVERY_FEE})</span>
                             )}
                           </button>
                         )}
