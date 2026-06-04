@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import Image from "next/image"
 import { 
   IceCream, 
   Coffee, 
@@ -14,21 +15,56 @@ import {
   Cookie,
   ChevronLeft,
   ChevronRight,
-  LayoutGrid
+  LayoutGrid,
+  UtensilsCrossed,
+  Drumstick,
+  Beef,
+  Fish,
+  Croissant,
+  Cherry,
+  Milk,
+  Wine
 } from "lucide-react"
 
 // Mapeia nomes de icones para componentes
 const ICON_MAP: Record<string, React.ElementType> = {
   "ice-cream": IceCream,
+  "icecream": IceCream,
   "coffee": Coffee,
+  "cafe": Coffee,
   "pizza": Pizza,
   "utensils": Utensils,
   "cup-soda": CupSoda,
+  "bebida": CupSoda,
+  "drink": CupSoda,
   "cake": Cake,
+  "bolo": Cake,
+  "sobremesa": Cake,
   "sandwich": Sandwich,
+  "lanche": Sandwich,
   "salad": Salad,
+  "salada": Salad,
   "soup": Soup,
+  "sopa": Soup,
   "cookie": Cookie,
+  "biscoito": Cookie,
+  "acai": IceCream,
+  "frango": Drumstick,
+  "chicken": Drumstick,
+  "carne": Beef,
+  "meat": Beef,
+  "peixe": Fish,
+  "fish": Fish,
+  "pao": Croissant,
+  "bread": Croissant,
+  "fruta": Cherry,
+  "fruit": Cherry,
+  "leite": Milk,
+  "milk": Milk,
+  "vinho": Wine,
+  "wine": Wine,
+  "restaurante": UtensilsCrossed,
+  "restaurant": UtensilsCrossed,
 }
 
 interface Category {
@@ -36,6 +72,7 @@ interface Category {
   name: string
   icon: string
   active: boolean
+  image_url?: string
 }
 
 interface CategoryNavProps {
@@ -91,7 +128,8 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
   }
 
   const getIcon = (iconName: string) => {
-    return ICON_MAP[iconName] || Utensils
+    const normalized = iconName?.toLowerCase().replace(/[^a-z]/g, '') || ''
+    return ICON_MAP[normalized] || ICON_MAP[iconName] || Utensils
   }
 
   // Nao mostrar se desabilitado ou nao tem categorias
@@ -105,7 +143,7 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
       {showLeftArrow && (
         <button
           onClick={() => scroll('left')}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center bg-card/90 backdrop-blur-sm border border-border rounded-full shadow-lg text-foreground hover:bg-card transition-all"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center bg-card/95 backdrop-blur-sm border border-border rounded-full shadow-lg text-foreground hover:bg-secondary transition-all"
           aria-label="Scroll esquerda"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -115,39 +153,51 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
       {/* Container com scroll horizontal */}
       <div
         ref={scrollRef}
-        className="flex gap-2 overflow-x-auto scrollbar-hide px-1 scroll-smooth"
+        className="flex gap-2 overflow-x-auto scrollbar-hide px-1 scroll-smooth snap-x"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {/* Botao "Todos" */}
         <button
           onClick={() => onSelectCategory(null)}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl whitespace-nowrap transition-all shrink-0 ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap transition-all duration-300 shrink-0 snap-start ${
             selectedCategory === null
-              ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
-              : "bg-card border border-border text-foreground hover:bg-secondary"
+              ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-105"
+              : "bg-card border border-border text-foreground hover:bg-secondary hover:border-primary/30"
           }`}
         >
           <LayoutGrid className="w-4 h-4" />
-          <span className="text-sm font-medium">Todos</span>
+          <span className="text-sm font-semibold">Todos</span>
         </button>
 
         {/* Categorias */}
         {categories.map((category) => {
           const IconComponent = getIcon(category.icon)
           const isSelected = selectedCategory === category.id
+          const hasImage = category.image_url
           
           return (
             <button
               key={category.id}
               onClick={() => onSelectCategory(category.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl whitespace-nowrap transition-all shrink-0 ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap transition-all duration-300 shrink-0 snap-start ${
                 isSelected
-                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
-                  : "bg-card border border-border text-foreground hover:bg-secondary"
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-105"
+                  : "bg-card border border-border text-foreground hover:bg-secondary hover:border-primary/30"
               }`}
             >
-              <IconComponent className="w-4 h-4" />
-              <span className="text-sm font-medium">{category.name}</span>
+              {hasImage ? (
+                <div className="w-5 h-5 rounded-md overflow-hidden relative flex-shrink-0">
+                  <Image
+                    src={category.image_url!}
+                    alt={category.name}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+              ) : (
+                <IconComponent className="w-4 h-4 flex-shrink-0" />
+              )}
+              <span className="text-sm font-semibold">{category.name}</span>
             </button>
           )
         })}
@@ -157,11 +207,19 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
       {showRightArrow && (
         <button
           onClick={() => scroll('right')}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center bg-card/90 backdrop-blur-sm border border-border rounded-full shadow-lg text-foreground hover:bg-card transition-all"
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center bg-card/95 backdrop-blur-sm border border-border rounded-full shadow-lg text-foreground hover:bg-secondary transition-all"
           aria-label="Scroll direita"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
+      )}
+      
+      {/* Gradientes nas bordas */}
+      {showLeftArrow && (
+        <div className="absolute left-8 top-0 bottom-0 w-6 bg-gradient-to-r from-background to-transparent pointer-events-none" />
+      )}
+      {showRightArrow && (
+        <div className="absolute right-8 top-0 bottom-0 w-6 bg-gradient-to-l from-background to-transparent pointer-events-none" />
       )}
     </div>
   )

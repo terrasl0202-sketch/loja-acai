@@ -26,6 +26,7 @@ interface ProductListProps {
   customerFavorites?: number[]
   onToggleFavorite?: (id: number) => void
   showDescriptions?: boolean
+  cardsShadow?: boolean
 }
 
 export function ProductList({
@@ -34,7 +35,8 @@ export function ProductList({
   onUpdateQuantity,
   customerFavorites = [],
   onToggleFavorite,
-  showDescriptions = true
+  showDescriptions = true,
+  cardsShadow = true
 }: ProductListProps) {
   return (
     <section className="mt-6 space-y-3 px-3">
@@ -53,6 +55,7 @@ export function ProductList({
           isFavorite={customerFavorites.includes(product.id)}
           onToggleFavorite={onToggleFavorite}
           showDescription={showDescriptions}
+          cardsShadow={cardsShadow}
         />
       ))}
     </section>

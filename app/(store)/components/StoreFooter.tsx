@@ -1,6 +1,7 @@
 "use client"
 
-import { MessageCircle, Instagram, Facebook, MapPin, Clock } from "lucide-react"
+import Image from "next/image"
+import { MessageCircle, Instagram, Facebook, MapPin, Clock, Phone, Mail, ExternalLink } from "lucide-react"
 
 // TikTok icon (nao existe no lucide)
 function TikTokIcon({ className }: { className?: string }) {
@@ -14,6 +15,7 @@ function TikTokIcon({ className }: { className?: string }) {
 interface StoreFooterProps {
   storeName?: string
   slogan?: string
+  logoUrl?: string
   whatsapp?: string
   instagram?: string
   facebook?: string
@@ -22,11 +24,13 @@ interface StoreFooterProps {
   openTime?: string
   closeTime?: string
   footerText?: string
+  deliveryPolicy?: string
 }
 
 export function StoreFooter({ 
   storeName, 
   slogan, 
+  logoUrl,
   whatsapp, 
   instagram,
   facebook,
@@ -34,7 +38,8 @@ export function StoreFooter({
   address,
   openTime,
   closeTime,
-  footerText
+  footerText,
+  deliveryPolicy
 }: StoreFooterProps) {
   const currentYear = new Date().getFullYear()
 
@@ -53,30 +58,51 @@ export function StoreFooter({
   const hasContent = storeName || slogan || hasSocial || address || hasHours
 
   return (
-    <footer className="border-t border-border mt-8 pb-24 bg-card/30">
+    <footer className="border-t border-border mt-8 pb-24 bg-gradient-to-b from-card/50 to-card">
       <div className="max-w-lg mx-auto px-4 py-8">
         {hasContent && (
           <>
             {/* Logo e info */}
-            {(storeName || slogan) && (
-              <div className="text-center mb-6">
-                {storeName && <h3 className="text-lg font-bold text-foreground mb-1">{storeName}</h3>}
-                {slogan && <p className="text-sm text-muted-foreground">{slogan}</p>}
-              </div>
-            )}
+            <div className="text-center mb-8">
+              {/* Logo */}
+              {logoUrl && (
+                <div className="flex justify-center mb-4">
+                  <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-card border border-border shadow-lg">
+                    <Image
+                      src={logoUrl}
+                      alt={storeName || 'Logo'}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {storeName && (
+                <h3 className="text-xl font-bold text-foreground mb-1">{storeName}</h3>
+              )}
+              {slogan && (
+                <p className="text-sm text-muted-foreground max-w-xs mx-auto">{slogan}</p>
+              )}
+            </div>
             
-            {/* Redes Sociais */}
+            {/* Redes Sociais - Grid Premium */}
             {hasSocial && (
-              <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
+              <div className="grid grid-cols-2 gap-2 mb-8">
                 {whatsapp && (
                   <a
                     href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(`Ola ${storeName || ''}!`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-green-500/15 text-green-500 rounded-xl text-sm font-medium hover:bg-green-500/25 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 text-green-500 rounded-2xl transition-all group"
                   >
-                    <MessageCircle className="w-4 h-4" />
-                    {whatsappFormatted}
+                    <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <MessageCircle className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-green-400/70 font-medium">WhatsApp</p>
+                      <p className="text-sm font-semibold truncate">{whatsappFormatted}</p>
+                    </div>
                   </a>
                 )}
                 {instagram && (
@@ -84,10 +110,15 @@ export function StoreFooter({
                     href={`https://instagram.com/${instagram.replace("@", "")}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-pink-500/15 text-pink-500 rounded-xl text-sm font-medium hover:bg-pink-500/25 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 text-pink-500 rounded-2xl transition-all group"
                   >
-                    <Instagram className="w-4 h-4" />
-                    {instagram.startsWith('@') ? instagram : `@${instagram}`}
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Instagram className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-pink-400/70 font-medium">Instagram</p>
+                      <p className="text-sm font-semibold truncate">{instagram.startsWith('@') ? instagram : `@${instagram}`}</p>
+                    </div>
                   </a>
                 )}
                 {facebook && (
@@ -95,10 +126,15 @@ export function StoreFooter({
                     href={`https://facebook.com/${facebook}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/15 text-blue-500 rounded-xl text-sm font-medium hover:bg-blue-500/25 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-500 rounded-2xl transition-all group"
                   >
-                    <Facebook className="w-4 h-4" />
-                    Facebook
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Facebook className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-blue-400/70 font-medium">Facebook</p>
+                      <p className="text-sm font-semibold truncate">Seguir</p>
+                    </div>
                   </a>
                 )}
                 {tiktok && (
@@ -106,51 +142,83 @@ export function StoreFooter({
                     href={`https://tiktok.com/@${tiktok.replace("@", "")}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-foreground/10 text-foreground rounded-xl text-sm font-medium hover:bg-foreground/20 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 bg-foreground/5 hover:bg-foreground/10 border border-foreground/10 text-foreground rounded-2xl transition-all group"
                   >
-                    <TikTokIcon className="w-4 h-4" />
-                    TikTok
+                    <div className="w-10 h-10 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <TikTokIcon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground font-medium">TikTok</p>
+                      <p className="text-sm font-semibold truncate">{tiktok.startsWith('@') ? tiktok : `@${tiktok}`}</p>
+                    </div>
                   </a>
                 )}
               </div>
             )}
             
-            {/* Informacoes adicionais */}
-            <div className="flex flex-col items-center gap-2 text-center mb-6">
+            {/* Informacoes da Loja - Cards Premium */}
+            <div className="space-y-3 mb-8">
               {/* Endereco */}
               {address && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="w-4 h-4 flex-shrink-0" />
-                  <span>{address}</span>
+                <div className="flex items-start gap-3 px-4 py-3 bg-card border border-border rounded-2xl">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium mb-0.5">Endereco</p>
+                    <p className="text-sm text-foreground">{address}</p>
+                  </div>
                 </div>
               )}
               
               {/* Horario */}
               {hasHours && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="w-4 h-4 flex-shrink-0" />
-                  <span>Aberto das {openTime} as {closeTime}</span>
+                <div className="flex items-start gap-3 px-4 py-3 bg-card border border-border rounded-2xl">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                    <Clock className="w-5 h-5 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium mb-0.5">Horario de Funcionamento</p>
+                    <p className="text-sm text-foreground font-medium">
+                      {openTime} as {closeTime}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
             
+            {/* Politica de Entrega */}
+            {deliveryPolicy && (
+              <div className="mb-8 p-4 bg-muted/30 rounded-2xl border border-border">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Politica de Entrega</h4>
+                <p className="text-sm text-foreground/80 leading-relaxed">
+                  {deliveryPolicy}
+                </p>
+              </div>
+            )}
+            
             {/* Texto customizado */}
             {footerText && (
-              <p className="text-center text-xs text-muted-foreground mb-6">
+              <p className="text-center text-sm text-muted-foreground mb-8 px-4">
                 {footerText}
               </p>
             )}
           </>
         )}
         
-        {/* Copyright */}
-        <div className="text-center pt-4 border-t border-border/50">
-          <p className="text-xs text-muted-foreground">
-            {currentYear} {storeName || 'Delivery'}. Todos os direitos reservados.
+        {/* Copyright - Elegante */}
+        <div className="text-center pt-6 border-t border-border/50">
+          <p className="text-sm text-muted-foreground">
+            {currentYear} <span className="font-semibold text-foreground">{storeName || 'Delivery'}</span>
           </p>
-          <p className="text-[10px] text-muted-foreground/60 mt-2 tracking-wider">
-            DEVELOPED BY <span className="font-semibold text-foreground/50">AILTON</span>
+          <p className="text-xs text-muted-foreground/50 mt-1">
+            Todos os direitos reservados
           </p>
+          <div className="mt-4 pt-4 border-t border-border/30">
+            <p className="text-[10px] text-muted-foreground/40 tracking-widest uppercase">
+              Powered by <span className="font-bold text-primary/60">Ailton Tech</span>
+            </p>
+          </div>
         </div>
       </div>
     </footer>

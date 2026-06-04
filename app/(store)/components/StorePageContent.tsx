@@ -15,7 +15,7 @@ import { useCustomer } from "../providers/CustomerProvider"
 import { useCartContext } from "../providers/CartProvider"
 
 // Components
-import { HeroBanner, StoreClosedBanner, PromoBanner, ProductList, CategoryNav, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, FeaturedSections } from "./index"
+import { HeroBanner, StoreClosedBanner, PromoBanner, ProductList, CategoryNav, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, FeaturedSections, DynamicTheme } from "./index"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./modals"
 
 export function StorePageContent() {
@@ -512,6 +512,9 @@ export function StorePageContent() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* Tema dinamico - aplica cores do Admin */}
+      <DynamicTheme />
+      
       {/* Audio elements */}
       <audio ref={audioRef} src="/confirm.mp3" preload="auto" />
       <audio ref={addToCartAudioRef} src="/add-to-cart.mp3" preload="auto" />
@@ -552,8 +555,11 @@ export function StorePageContent() {
       {/* Hero - Cinematografico Premium */}
       <HeroBanner 
         storeName={STORE_NAME}
-        storeSlogan={siteConfig.banner?.secondaryText}
+        storeSlogan={siteConfig.customization?.identity?.slogan || siteConfig.banner?.secondaryText}
         banner={siteConfig.banner}
+        coverImageUrl={siteConfig.customization?.identity?.coverImageUrl}
+        hero={siteConfig.customization?.hero}
+        bannerHeight={siteConfig.customization?.theme?.bannerHeight}
       />
 
       {/* Aviso Loja Fechada Premium */}
@@ -583,8 +589,11 @@ export function StorePageContent() {
           customerFavorites={customer?.favorites || []}
           onToggleFavorite={toggleFavorite}
           showBestsellers={siteConfig.customization?.elements?.showBestsellersSection !== false}
+          showFeatured={siteConfig.customization?.elements?.showFeaturedSection !== false}
           showPromos={siteConfig.customization?.elements?.showPromoBadge !== false}
           showNew={siteConfig.customization?.elements?.showNewBadge !== false}
+          showDescriptions={siteConfig.customization?.elements?.showDescriptions !== false}
+          cardsShadow={siteConfig.customization?.theme?.cardsShadow !== false}
         />
       )}
 
@@ -596,6 +605,7 @@ export function StorePageContent() {
         customerFavorites={customer?.favorites || []}
         onToggleFavorite={toggleFavorite}
         showDescriptions={siteConfig.customization?.elements?.showDescriptions !== false}
+        cardsShadow={siteConfig.customization?.theme?.cardsShadow !== false}
       />
 
       {/* Cart Summary */}
@@ -611,7 +621,8 @@ export function StorePageContent() {
       {/* Footer Premium */}
       <StoreFooter
         storeName={STORE_NAME}
-        slogan={siteConfig.banner?.secondaryText}
+        slogan={siteConfig.customization?.identity?.slogan || siteConfig.banner?.secondaryText}
+        logoUrl={siteConfig.customization?.identity?.logoUrl}
         whatsapp={WHATSAPP_NUMBER}
         instagram={siteConfig.customization?.social?.instagram || siteConfig.instagram}
         facebook={siteConfig.customization?.social?.facebook}
@@ -620,6 +631,7 @@ export function StorePageContent() {
         openTime={siteConfig.storeHours?.openTime}
         closeTime={siteConfig.storeHours?.closeTime}
         footerText={siteConfig.customization?.social?.footerText}
+        deliveryPolicy={siteConfig.customization?.social?.deliveryPolicy}
       />
 
       {/* Fixed Bottom Button */}

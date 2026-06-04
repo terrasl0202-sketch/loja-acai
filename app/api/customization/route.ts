@@ -75,7 +75,8 @@ export async function GET() {
         hero_badge_3_icon,
         hero_badge_3_enabled
       `)
-      .eq("id", "main")
+      .order('id', { ascending: true })
+      .limit(1)
       .single()
 
     if (error) {

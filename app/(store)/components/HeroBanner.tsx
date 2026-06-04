@@ -30,6 +30,7 @@ interface HeroBannerProps {
   coverImageUrl?: string
   hero?: CustomizationHero
   carouselBanners?: CarouselBanner[]
+  bannerHeight?: 'small' | 'medium' | 'large'
 }
 
 // Mapeia nome do icone para componente
@@ -63,7 +64,7 @@ function HeroBannerSkeleton() {
   )
 }
 
-export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl, hero, carouselBanners = [] }: HeroBannerProps) {
+export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl, hero, carouselBanners = [], bannerHeight = 'medium' }: HeroBannerProps) {
   const [imageError, setImageError] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
@@ -71,6 +72,13 @@ export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl, hero
   
   const displayName = storeName || 'Delivery'
   const displaySlogan = storeSlogan || ''
+  
+  // Altura do banner baseada na configuracao
+  const heightClass = {
+    small: 'h-40 sm:h-52',
+    medium: 'h-56 sm:h-72',
+    large: 'h-72 sm:h-96'
+  }[bannerHeight]
   
   // Filtra apenas banners ativos com imagem
   const activeBanners = carouselBanners.filter(b => b.active && b.imageUrl)
@@ -139,7 +147,7 @@ export function HeroBanner({ storeName, storeSlogan, banner, coverImageUrl, hero
   
   return (
     <section 
-      className="relative h-56 sm:h-72 overflow-hidden rounded-3xl mx-3 mt-3 shadow-2xl shadow-black/30"
+      className={`relative ${heightClass} overflow-hidden rounded-3xl mx-3 mt-3 shadow-2xl shadow-black/30`}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
