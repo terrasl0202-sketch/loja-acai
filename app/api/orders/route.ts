@@ -331,21 +331,31 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "orderId required" }, { status: 400 })
     }
 
-    console.log("[orders PATCH] Atualizando pedido:", orderId, { status, paymentStatus, manuallyConfirmed, entregadorId, limparEntregador })
-
     const supabase = getSupabase()
       
     // Montar objeto de atualizacao apenas com campos fornecidos
     const updates: Record<string, unknown> = {}
     
+    // REGRA CRITICA DE SINCRONIZACAO:
+    // Se status for confirmed/preparing/delivering/completed, 
+    // payment_status DEVE ser 'confirmed' automaticamente
+    const statusesQueImplicamPagamento = ['confirmed', 'preparing', 'delivering', 'completed']
+    
     if (status !== undefined) {
       updates.status = status
+      // Sincronizar payment_status automaticamente
+      if (statusesQueImplicamPagamento.includes(status)) {
+        updates.payment_status = 'confirmed'
+        updates.paid_at = updates.paid_at || new Date().toISOString()
+      }
     }
 
     // Confirmacao manual de pagamento
     if (manuallyConfirmed === true) {
       updates.status = 'confirmed'
-      console.log("[orders PATCH] Confirmacao manual - status atualizado para confirmed")
+      updates.payment_status = 'confirmed'
+      updates.manually_confirmed = true
+      updates.paid_at = new Date().toISOString()
     }
 
     // Atribuir entregador
