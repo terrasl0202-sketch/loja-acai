@@ -252,10 +252,13 @@ export const defaultCustomization: StoreCustomization = {
 export interface Coupon {
   id: string
   code: string
-  type: "percentage" | "fixed"
+  type: "percentage" | "fixed" | "free_shipping" | "shipping_discount"
   value: number
   active: boolean
   minimumOrder: number
+  // Campos para desconto no frete
+  shippingDiscountType?: "fixed" | "percentage"
+  shippingDiscountValue?: number
 }
 
 export interface Entregador {

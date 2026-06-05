@@ -873,18 +873,62 @@ export default function Home() {
       return
     }
     
+    // Se cupom de frete e cliente escolheu retirada, avisar
+    if ((coupon.type === 'free_shipping' || coupon.type === 'shipping_discount') && deliveryType === 'retirada') {
+      setCouponError("Este cupom e valido apenas para entregas")
+      return
+    }
+    
     setAppliedCoupon(coupon)
     setCouponCode("")
   }
 
-  // Calcula desconto
+  // Calcula desconto no subtotal (produtos)
   const getDiscount = () => {
     if (!appliedCoupon) return 0
     const subtotal = getSubtotal()
+    
+    // Cupons de frete nao dao desconto no subtotal
+    if (appliedCoupon.type === 'free_shipping' || appliedCoupon.type === 'shipping_discount') {
+      return 0
+    }
+    
     if (appliedCoupon.type === "percentage") {
       return subtotal * (appliedCoupon.value / 100)
     }
     return Math.min(appliedCoupon.value, subtotal)
+  }
+  
+  // Calcula desconto no frete
+  const getShippingDiscount = () => {
+    if (!appliedCoupon) return 0
+    if (deliveryType === 'retirada') return 0 // Retirada nao tem frete
+    
+    const originalFee = getDeliveryFee()
+    if (originalFee <= 0) return 0
+    
+    if (appliedCoupon.type === 'free_shipping') {
+      return originalFee // Zera 100% do frete
+    }
+    
+    if (appliedCoupon.type === 'shipping_discount') {
+      const discountType = appliedCoupon.shippingDiscountType || 'fixed'
+      const discountValue = appliedCoupon.shippingDiscountValue || 0
+      
+      if (discountType === 'percentage') {
+        return Math.min(originalFee, originalFee * (discountValue / 100))
+      }
+      return Math.min(discountValue, originalFee) // Nunca deixar negativo
+    }
+    
+    return 0
+  }
+  
+  // Frete final apos desconto
+  const getFinalDeliveryFee = () => {
+    const originalFee = getDeliveryFee()
+    const shippingDiscount = getShippingDiscount()
+    return Math.max(0, originalFee - shippingDiscount)
   }
 
   // Subtotal (sem entrega e sem desconto)
@@ -899,7 +943,7 @@ export default function Home() {
   const getTotal = () => {
     const subtotal = getSubtotal()
     const discount = getDiscount()
-    const deliveryFee = getDeliveryFee()
+    const deliveryFee = getFinalDeliveryFee() // Usa frete com desconto aplicado
     return Math.max(0, subtotal - discount + deliveryFee)
   }
 
@@ -2027,7 +2071,8 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         />
 
         {/* Spacer for fixed button - altura suficiente para nao sobrepor */}
-      <div className="h-24" />
+      {/* Espaco para o botao fixo nao cobrir conteudo */}
+      <div className="h-28" />
       
       {/* Footer */}
       <StoreFooter 
@@ -2272,13 +2317,31 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                         </div>
                       )}
                       {deliveryType === "entrega" && getDeliveryFee() > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground flex items-center gap-1.5">
-                            <Truck className="w-3.5 h-3.5" />
-                            Taxa de entrega
-                          </span>
-                          <span className="text-foreground tabular-nums">{formatCurrency(getDeliveryFee())}</span>
-                        </div>
+                        <>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground flex items-center gap-1.5">
+                              <Truck className="w-3.5 h-3.5" />
+                              Taxa de entrega
+                            </span>
+                            {getShippingDiscount() > 0 ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground line-through text-xs tabular-nums">{formatCurrency(getDeliveryFee())}</span>
+                                <span className="text-foreground tabular-nums font-medium">{formatCurrency(getFinalDeliveryFee())}</span>
+                              </div>
+                            ) : (
+                              <span className="text-foreground tabular-nums">{formatCurrency(getDeliveryFee())}</span>
+                            )}
+                          </div>
+                          {appliedCoupon && getShippingDiscount() > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-green-400 flex items-center gap-1.5">
+                                <Tag className="w-3.5 h-3.5" />
+                                {appliedCoupon.type === 'free_shipping' ? 'Frete gratis' : `Desconto no frete`}
+                              </span>
+                              <span className="text-green-400 font-semibold">-{formatCurrency(getShippingDiscount())}</span>
+                            </div>
+                          )}
+                        </>
                       )}
                         
                       {/* Total Premium */}

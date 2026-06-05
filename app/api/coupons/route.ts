@@ -59,6 +59,9 @@ export async function GET() {
     currentUses: c.current_uses || 0,
     validFrom: c.valid_from,
     validUntil: c.valid_until,
+    // Campos de desconto no frete
+    shippingDiscountType: c.shipping_discount_type || null,
+    shippingDiscountValue: c.shipping_discount_value || null,
   }))
   
   console.log(`[${BUILD_LABEL}] GET OK: ${coupons.length} cupons`)
@@ -113,6 +116,8 @@ export async function POST(request: Request) {
       currentUses?: number
       validFrom?: string
       validUntil?: string
+      shippingDiscountType?: string
+      shippingDiscountValue?: number
     }) => ({
       id: (c.id && !c.id.startsWith('coupon-')) ? c.id : crypto.randomUUID(),
       code: c.code.toUpperCase(),
@@ -124,6 +129,8 @@ export async function POST(request: Request) {
       current_uses: c.currentUses || 0,
       valid_from: c.validFrom || null,
       valid_until: c.validUntil || null,
+      shipping_discount_type: c.shippingDiscountType || null,
+      shipping_discount_value: c.shippingDiscountValue || null,
     }))
     
     if (couponsToSave.length > 0) {
@@ -160,6 +167,8 @@ export async function POST(request: Request) {
       current_uses: body.currentUses || 0,
       valid_from: body.validFrom || null,
       valid_until: body.validUntil || null,
+      shipping_discount_type: body.shippingDiscountType || null,
+      shipping_discount_value: body.shippingDiscountValue || null,
     }
     
     const { data, error } = await supabase

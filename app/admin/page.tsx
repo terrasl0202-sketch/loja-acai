@@ -779,7 +779,7 @@ export default function AdminPage() {
     setConfig(prev => ({ ...prev, coupons: [...(prev.coupons || []), newCoupon] }))
   }
 
-  const updateCoupon = (id: string, field: keyof Coupon, value: string | number | boolean) => {
+  const updateCoupon = (id: string, field: keyof Coupon, value: string | number | boolean | undefined) => {
     setConfig(prev => ({ ...prev, coupons: (prev.coupons || []).map(c => c.id === id ? { ...c, [field]: value } : c) }))
   }
 
@@ -1236,7 +1236,7 @@ export default function AdminPage() {
   // ========== TELA DE LOGIN ==========
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="dark min-h-screen bg-background flex items-center justify-center p-4">
         <div className="fixed top-20 left-10 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
         <div className="fixed bottom-20 right-10 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
         <div className="w-full max-w-sm relative">
@@ -1266,7 +1266,7 @@ export default function AdminPage() {
 
   // ========== PAINEL ADMIN ==========
   return (
-    <div className="min-h-screen bg-background">
+    <div className="dark min-h-screen bg-background">
       <AdminHeader storeName={storeSettings.storeName} newOrdersCount={newOrdersCount} soundActivated={soundActivated} soundEnabled={soundEnabled} saving={saving} saveSuccess={saveSuccess} onRefresh={() => loadOrdersWithNotification()} onActivateSound={activateSound} onTestSound={playTestSound} onToggleSound={() => setSoundEnabled(!soundEnabled)} onSave={handleSave} onLogout={handleLogout} onMarkAsSeen={markOrdersAsSeen} />
       {saveSuccess && <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-2.5 text-center text-sm font-medium animate-in slide-in-from-top shadow-lg">Alteracoes salvas com sucesso!</div>}
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
