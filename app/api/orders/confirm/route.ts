@@ -187,6 +187,24 @@ export async function POST(request: NextRequest) {
         // Nao falha a confirmacao se houver erro no Premium
         console.error("[orders/confirm] Erro ao gerar recompensas (nao critico):", rewardError)
       }
+
+      // === VERIFICAR GAMIFICACAO ===
+      // Verificar conquistas, missoes, streaks e badges
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
+        await fetch(`${baseUrl}/api/gamification/check`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            customerId: updated.customer_id,
+            event: "order_confirmed"
+          })
+        })
+        console.log("[orders/confirm] Gamificacao verificada para cliente:", updated.customer_id)
+      } catch (gamificationError) {
+        // Nao falha a confirmacao se houver erro na gamificacao
+        console.error("[orders/confirm] Erro ao verificar gamificacao (nao critico):", gamificationError)
+      }
     }
 
     return NextResponse.json({ 

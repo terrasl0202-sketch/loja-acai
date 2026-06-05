@@ -147,6 +147,24 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // === VERIFICAR GAMIFICACAO ===
+    // Verificar conquistas e missoes relacionadas a avaliacoes
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
+      await fetch(`${baseUrl}/api/gamification/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          customerId: customerId,
+          event: "review_submitted"
+        })
+      })
+      console.log("[reviews] Gamificacao verificada para cliente:", customerId)
+    } catch (gamificationError) {
+      // Nao falha se houver erro na gamificacao
+      console.error("[reviews] Erro ao verificar gamificacao (nao critico):", gamificationError)
+    }
     
     return NextResponse.json({ success: true, review: data })
   } catch (err) {

@@ -24,7 +24,12 @@ import {
   Award,
   Medal,
   Gem,
-  TrendingUp
+  TrendingUp,
+  Trophy,
+  Target,
+  Flame,
+  Zap,
+  CheckCircle
 } from "lucide-react"
 
 interface CustomerData {
@@ -93,6 +98,57 @@ interface VipStatus {
   totalOrders: number
 }
 
+// Gamificacao
+interface Achievement {
+  id: number
+  name: string
+  description: string
+  icon: string
+  type: string
+  target: number
+  points_reward: number
+  cashback_reward: number
+  unlocked: boolean
+  unlockedAt: string | null
+}
+
+interface Mission {
+  id: number
+  title: string
+  description: string
+  type: string
+  target: number
+  reward_type: string
+  reward_value: number
+  currentProgress: number
+  progressPercent: number
+  completed: boolean
+}
+
+interface Badge {
+  id: number
+  name: string
+  description: string
+  icon: string
+  color: string
+  earned: boolean
+  earnedAt: string | null
+}
+
+interface Streak {
+  currentStreak: number
+  bestStreak: number
+  lastOrderDate: string | null
+}
+
+interface RankingItem {
+  position: number
+  customerId: number
+  customerName: string
+  totalSpent: number
+  totalOrders: number
+}
+
 export default function MinhaContaPage() {
   const params = useParams()
   const router = useRouter()
@@ -108,7 +164,16 @@ export default function MinhaContaPage() {
   const [reviewedOrders, setReviewedOrders] = useState<number[]>([])
   const [loyalty, setLoyalty] = useState<LoyaltyInfo | null>(null)
   const [vipStatus, setVipStatus] = useState<VipStatus | null>(null)
-  const [activeTab, setActiveTab] = useState<"resumo" | "pedidos" | "cashback" | "pontos" | "avaliacoes">("resumo")
+  const [activeTab, setActiveTab] = useState<"resumo" | "pedidos" | "cashback" | "pontos" | "avaliacoes" | "gamificacao">("resumo")
+  
+  // Gamificacao
+  const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [missions, setMissions] = useState<Mission[]>([])
+  const [badges, setBadges] = useState<Badge[]>([])
+  const [streak, setStreak] = useState<Streak | null>(null)
+  const [ranking, setRanking] = useState<RankingItem[]>([])
+  const [customerRankPosition, setCustomerRankPosition] = useState<number | null>(null)
+  
   const [openMenuId, setOpenMenuId] = useState<number | null>(null)
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewData, setReviewData] = useState<ReviewData | null>(null)
@@ -166,6 +231,49 @@ export default function MinhaContaPage() {
         const vipData = await vipRes.json()
         if (vipData.status) {
           setVipStatus(vipData.status)
+        }
+
+        // Buscar dados de gamificacao
+        if (premiumData.customer?.id) {
+          const customerId = premiumData.customer.id
+          
+          // Conquistas
+          const achievementsRes = await fetch(`/api/gamification/achievements?customerId=${customerId}`)
+          const achievementsData = await achievementsRes.json()
+          if (achievementsData.achievements) {
+            setAchievements(achievementsData.achievements)
+          }
+
+          // Missoes
+          const missionsRes = await fetch(`/api/gamification/missions?customerId=${customerId}`)
+          const missionsData = await missionsRes.json()
+          if (missionsData.missions) {
+            setMissions(missionsData.missions)
+          }
+
+          // Badges
+          const badgesRes = await fetch(`/api/gamification/badges?customerId=${customerId}`)
+          const badgesData = await badgesRes.json()
+          if (badgesData.badges) {
+            setBadges(badgesData.badges)
+          }
+
+          // Streak
+          const streakRes = await fetch(`/api/gamification/streaks?customerId=${customerId}`)
+          const streakData = await streakRes.json()
+          if (streakData.streak) {
+            setStreak(streakData.streak)
+          }
+
+          // Ranking mensal
+          const rankingRes = await fetch(`/api/gamification/ranking?customerId=${customerId}`)
+          const rankingData = await rankingRes.json()
+          if (rankingData.ranking) {
+            setRanking(rankingData.ranking)
+          }
+          if (rankingData.customerPosition) {
+            setCustomerRankPosition(rankingData.customerPosition.position)
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar dados:", error)
@@ -450,6 +558,7 @@ export default function MinhaContaPage() {
             { id: "avaliacoes", label: "Avaliacoes", icon: Star, badge: pendingReviews.length },
             { id: "cashback", label: "Cashback", icon: Gift },
             { id: "pontos", label: "Pontos", icon: Star },
+            { id: "gamificacao", label: "Conquistas", icon: Trophy },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -808,6 +917,188 @@ export default function MinhaContaPage() {
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {/* Gamificacao */}
+        {activeTab === "gamificacao" && (
+          <div className="space-y-6">
+            {/* Streak */}
+            <div className="bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-xl border border-orange-500/20 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center">
+                    <Flame className="w-6 h-6 text-orange-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Sequencia atual</p>
+                    <p className="text-2xl font-bold text-orange-500">{streak?.currentStreak || 0} dias</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Melhor sequencia</p>
+                  <p className="text-lg font-bold text-foreground">{streak?.bestStreak || 0} dias</p>
+                </div>
+              </div>
+              {!streak?.currentStreak && (
+                <p className="text-xs text-muted-foreground mt-3 text-center">
+                  Faca pedidos em dias consecutivos para manter sua sequencia!
+                </p>
+              )}
+            </div>
+
+            {/* Ranking do Mes */}
+            {ranking.length > 0 && (
+              <div className="bg-card rounded-xl border border-border p-4">
+                <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-yellow-500" />
+                  Ranking do Mes
+                </h3>
+                {customerRankPosition && (
+                  <div className="bg-primary/10 rounded-lg p-3 mb-3">
+                    <p className="text-sm text-foreground">
+                      Voce esta na posicao <span className="font-bold text-primary">#{customerRankPosition}</span>
+                    </p>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  {ranking.slice(0, 5).map((item, index) => (
+                    <div key={item.customerId} className="flex items-center gap-3 p-2 rounded-lg bg-background">
+                      <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                        index === 0 ? 'bg-yellow-500 text-white' :
+                        index === 1 ? 'bg-gray-400 text-white' :
+                        index === 2 ? 'bg-orange-600 text-white' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {item.position}
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-foreground">{item.customerName}</p>
+                        <p className="text-xs text-muted-foreground">{item.totalOrders} pedidos</p>
+                      </div>
+                      <p className="text-sm font-bold text-foreground">{formatCurrency(item.totalSpent)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Conquistas */}
+            <div className="bg-card rounded-xl border border-border p-4">
+              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-primary" />
+                Conquistas
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {achievements.filter(a => a.unlocked).length}/{achievements.length}
+                </span>
+              </h3>
+              {achievements.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma conquista disponivel</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {achievements.map((achievement) => (
+                    <div 
+                      key={achievement.id}
+                      className={`p-3 rounded-lg border ${
+                        achievement.unlocked 
+                          ? 'bg-green-500/10 border-green-500/30' 
+                          : 'bg-muted/30 border-border opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        {achievement.unlocked ? (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <Target className="w-4 h-4 text-muted-foreground" />
+                        )}
+                        <span className="text-xs font-medium text-foreground truncate">{achievement.name}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{achievement.description}</p>
+                      {achievement.unlocked && (
+                        <p className="text-xs text-green-500 mt-1">Desbloqueada!</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Missoes */}
+            <div className="bg-card rounded-xl border border-border p-4">
+              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Target className="w-5 h-5 text-blue-500" />
+                Missoes
+              </h3>
+              {missions.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma missao disponivel</p>
+              ) : (
+                <div className="space-y-3">
+                  {missions.map((mission) => (
+                    <div 
+                      key={mission.id}
+                      className={`p-3 rounded-lg border ${
+                        mission.completed 
+                          ? 'bg-green-500/10 border-green-500/30' 
+                          : 'bg-background border-border'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-foreground">{mission.title}</span>
+                        {mission.completed ? (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {mission.reward_type === 'points' ? `${mission.reward_value} pts` : formatCurrency(mission.reward_value)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all ${mission.completed ? 'bg-green-500' : 'bg-blue-500'}`}
+                          style={{ width: `${mission.progressPercent}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {mission.currentProgress}/{mission.target} - {mission.progressPercent}%
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Badges */}
+            <div className="bg-card rounded-xl border border-border p-4">
+              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Award className="w-5 h-5 text-purple-500" />
+                Insignias
+              </h3>
+              {badges.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma insignia disponivel</p>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {badges.map((badge) => (
+                    <div 
+                      key={badge.id}
+                      className={`flex flex-col items-center p-3 rounded-lg ${
+                        badge.earned ? '' : 'opacity-40 grayscale'
+                      }`}
+                    >
+                      <div 
+                        className="w-12 h-12 rounded-full flex items-center justify-center mb-1"
+                        style={{ backgroundColor: badge.earned ? badge.color + '30' : '#88888830' }}
+                      >
+                        <Award className="w-6 h-6" style={{ color: badge.earned ? badge.color : '#888' }} />
+                      </div>
+                      <span className="text-xs font-medium text-foreground text-center">{badge.name}</span>
+                      {badge.earned && (
+                        <span className="text-[10px] text-green-500">Conquistada</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

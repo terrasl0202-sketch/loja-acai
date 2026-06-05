@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Gift, Star, Loader2, Save, Percent, DollarSign, Award, TrendingUp, MessageSquare, Eye, EyeOff, Crown, Users, Medal, Gem, MessageCircle, Edit2 } from "lucide-react"
+import { Gift, Star, Loader2, Save, Percent, DollarSign, Award, TrendingUp, MessageSquare, Eye, EyeOff, Crown, Users, Medal, Gem, MessageCircle, Edit2, Trophy, Target, Flame, Zap } from "lucide-react"
 
 interface CashbackSettings {
   enabled: boolean
@@ -78,6 +78,65 @@ interface VipStats {
   totalCustomers: number
 }
 
+// Gamificacao
+interface GamificationStats {
+  achievementStats: {
+    total: number
+    active: number
+    totalUnlocked: number
+    uniqueCustomers: number
+  }
+  missionStats: {
+    total: number
+    active: number
+    totalCompleted: number
+    uniqueCustomers: number
+  }
+  badgeStats: {
+    total: number
+    active: number
+    totalEarned: number
+    uniqueCustomers: number
+  }
+  streakStats: {
+    customersWithStreak: number
+    maxCurrentStreak: number
+    maxBestStreak: number
+    avgStreak: number
+  }
+  topAchievements: {
+    id: number
+    name: string
+    type: string
+    unlockCount: number
+  }[]
+  achievements: {
+    id: number
+    name: string
+    type: string
+    target: number
+    points_reward: number
+    cashback_reward: number
+    active: boolean
+  }[]
+  missions: {
+    id: number
+    title: string
+    type: string
+    target: number
+    reward_type: string
+    reward_value: number
+    active: boolean
+  }[]
+  badges: {
+    id: number
+    name: string
+    icon: string
+    color: string
+    active: boolean
+  }[]
+}
+
 interface AdminPremiumProps {
   sessionPassword: string
 }
@@ -86,7 +145,7 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
-  const [activeTab, setActiveTab] = useState<"config" | "reviews" | "vip">("config")
+  const [activeTab, setActiveTab] = useState<"config" | "reviews" | "vip" | "gamificacao">("config")
 
   const [cashback, setCashback] = useState<CashbackSettings>({
     enabled: false,
@@ -111,6 +170,10 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
   const [loadingVip, setLoadingVip] = useState(false)
   const [editingLevel, setEditingLevel] = useState<VipLevel | null>(null)
   const [savingLevel, setSavingLevel] = useState(false)
+
+  // Gamificacao
+  const [gamificationStats, setGamificationStats] = useState<GamificationStats | null>(null)
+  const [loadingGamification, setLoadingGamification] = useState(false)
 
   // Carregar configuracoes
   useEffect(() => {
@@ -151,6 +214,9 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
     }
     if (activeTab === "vip") {
       loadVipStats()
+    }
+    if (activeTab === "gamificacao") {
+      loadGamificationStats()
     }
   }, [activeTab, sessionPassword])
 
@@ -200,6 +266,22 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
       console.error("Erro ao carregar VIP:", error)
     } finally {
       setLoadingVip(false)
+    }
+  }
+
+  // Gamificacao - Carregar estatisticas
+  const loadGamificationStats = async () => {
+    setLoadingGamification(true)
+    try {
+      const res = await fetch(`/api/gamification/stats?password=${sessionPassword}`)
+      const data = await res.json()
+      if (data.achievementStats) {
+        setGamificationStats(data)
+      }
+    } catch (error) {
+      console.error("Erro ao carregar gamificacao:", error)
+    } finally {
+      setLoadingGamification(false)
     }
   }
 
@@ -362,6 +444,17 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
         >
           <Crown className="w-4 h-4 inline mr-2" />
           Clientes VIP
+        </button>
+        <button
+          onClick={() => setActiveTab("gamificacao")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            activeTab === "gamificacao"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+          }`}
+        >
+          <Trophy className="w-4 h-4 inline mr-2" />
+          Gamificacao
         </button>
       </div>
 
@@ -844,6 +937,165 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Gamificacao Tab */}
+      {activeTab === "gamificacao" && (
+        <div className="space-y-6">
+          {loadingGamification ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : gamificationStats ? (
+            <>
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-yellow-500/10 to-orange-500/10 rounded-xl border border-yellow-500/20 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Trophy className="w-5 h-5 text-yellow-500" />
+                    <span className="text-sm font-medium text-foreground">Conquistas</span>
+                  </div>
+                  <p className="text-2xl font-bold text-foreground">{gamificationStats.achievementStats.totalUnlocked}</p>
+                  <p className="text-xs text-muted-foreground">desbloqueadas por {gamificationStats.achievementStats.uniqueCustomers} clientes</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-xl border border-blue-500/20 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Target className="w-5 h-5 text-blue-500" />
+                    <span className="text-sm font-medium text-foreground">Missoes</span>
+                  </div>
+                  <p className="text-2xl font-bold text-foreground">{gamificationStats.missionStats.totalCompleted}</p>
+                  <p className="text-xs text-muted-foreground">completadas por {gamificationStats.missionStats.uniqueCustomers} clientes</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-xl border border-purple-500/20 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Award className="w-5 h-5 text-purple-500" />
+                    <span className="text-sm font-medium text-foreground">Badges</span>
+                  </div>
+                  <p className="text-2xl font-bold text-foreground">{gamificationStats.badgeStats.totalEarned}</p>
+                  <p className="text-xs text-muted-foreground">concedidas a {gamificationStats.badgeStats.uniqueCustomers} clientes</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-xl border border-orange-500/20 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Flame className="w-5 h-5 text-orange-500" />
+                    <span className="text-sm font-medium text-foreground">Streaks</span>
+                  </div>
+                  <p className="text-2xl font-bold text-foreground">{gamificationStats.streakStats.customersWithStreak}</p>
+                  <p className="text-xs text-muted-foreground">clientes com sequencia ativa (max: {gamificationStats.streakStats.maxBestStreak} dias)</p>
+                </div>
+              </div>
+
+              {/* Top Conquistas */}
+              {gamificationStats.topAchievements && gamificationStats.topAchievements.length > 0 && (
+                <div className="bg-card rounded-xl border border-border p-4">
+                  <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    Conquistas Mais Populares
+                  </h3>
+                  <div className="space-y-2">
+                    {gamificationStats.topAchievements.map((achievement, index) => (
+                      <div key={achievement.id} className="flex items-center justify-between p-3 rounded-lg bg-background">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                            index === 0 ? 'bg-yellow-500 text-white' :
+                            index === 1 ? 'bg-gray-400 text-white' :
+                            index === 2 ? 'bg-orange-600 text-white' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {index + 1}
+                          </span>
+                          <span className="text-sm font-medium text-foreground">{achievement.name}</span>
+                        </div>
+                        <span className="text-sm text-muted-foreground">{achievement.unlockCount} desbloqueios</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Lista de Conquistas */}
+              <div className="bg-card rounded-xl border border-border p-4">
+                <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-yellow-500" />
+                  Conquistas Cadastradas ({gamificationStats.achievements.length})
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {gamificationStats.achievements.map((achievement) => (
+                    <div key={achievement.id} className={`p-3 rounded-lg border ${achievement.active ? 'bg-background border-border' : 'bg-muted/50 border-muted opacity-60'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-foreground">{achievement.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${achievement.active ? 'bg-green-500/20 text-green-500' : 'bg-muted text-muted-foreground'}`}>
+                          {achievement.active ? 'Ativa' : 'Inativa'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Tipo: {achievement.type} | Meta: {achievement.target}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Recompensa: {achievement.points_reward > 0 ? `${achievement.points_reward} pts` : ''} 
+                        {achievement.points_reward > 0 && achievement.cashback_reward > 0 ? ' + ' : ''}
+                        {achievement.cashback_reward > 0 ? `R$ ${achievement.cashback_reward}` : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Lista de Missoes */}
+              <div className="bg-card rounded-xl border border-border p-4">
+                <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <Target className="w-5 h-5 text-blue-500" />
+                  Missoes Cadastradas ({gamificationStats.missions.length})
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {gamificationStats.missions.map((mission) => (
+                    <div key={mission.id} className={`p-3 rounded-lg border ${mission.active ? 'bg-background border-border' : 'bg-muted/50 border-muted opacity-60'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-foreground">{mission.title}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${mission.active ? 'bg-green-500/20 text-green-500' : 'bg-muted text-muted-foreground'}`}>
+                          {mission.active ? 'Ativa' : 'Inativa'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Tipo: {mission.type} | Meta: {mission.target}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Recompensa: {mission.reward_type === 'points' ? `${mission.reward_value} pts` : `R$ ${mission.reward_value}`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Lista de Badges */}
+              <div className="bg-card rounded-xl border border-border p-4">
+                <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-purple-500" />
+                  Insignias Cadastradas ({gamificationStats.badges.length})
+                </h3>
+                <div className="flex flex-wrap gap-4">
+                  {gamificationStats.badges.map((badge) => (
+                    <div key={badge.id} className={`flex flex-col items-center p-3 rounded-lg ${badge.active ? '' : 'opacity-40'}`}>
+                      <div 
+                        className="w-12 h-12 rounded-full flex items-center justify-center mb-1"
+                        style={{ backgroundColor: badge.color + '30' }}
+                      >
+                        <Award className="w-6 h-6" style={{ color: badge.color }} />
+                      </div>
+                      <span className="text-xs font-medium text-foreground text-center">{badge.name}</span>
+                      <span className={`text-[10px] ${badge.active ? 'text-green-500' : 'text-muted-foreground'}`}>
+                        {badge.active ? 'Ativa' : 'Inativa'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">Nenhum dado de gamificacao encontrado</p>
             </div>
           )}
         </div>
