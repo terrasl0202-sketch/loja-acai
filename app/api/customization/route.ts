@@ -46,6 +46,7 @@ export async function GET() {
         border_radius,
         cards_shadow,
         banner_height,
+        active_template_id,
         show_bestseller_badge,
         show_promo_badge,
         show_new_badge,
@@ -110,6 +111,7 @@ export async function GET() {
         borderRadius: data?.border_radius ?? 16,
         cardsShadow: data?.cards_shadow ?? true,
         bannerHeight: data?.banner_height || "medium",
+        activeTemplateId: data?.active_template_id || undefined,
       },
       elements: {
         showBestsellerBadge: data?.show_bestseller_badge ?? true,
@@ -205,6 +207,7 @@ export async function PUT(req: NextRequest) {
       if (customization.theme.borderRadius !== undefined) updateData.border_radius = customization.theme.borderRadius
       if (customization.theme.cardsShadow !== undefined) updateData.cards_shadow = customization.theme.cardsShadow
       if (customization.theme.bannerHeight !== undefined) updateData.banner_height = customization.theme.bannerHeight
+      if (customization.theme.activeTemplateId !== undefined) updateData.active_template_id = customization.theme.activeTemplateId
     }
 
     // Elements

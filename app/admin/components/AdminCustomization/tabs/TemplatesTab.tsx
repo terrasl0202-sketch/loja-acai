@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { STORE_TEMPLATES, StoreTemplate, applyTemplate } from "@/lib/templates"
 import { StoreCustomization } from "@/lib/config-types"
+import { toast } from "sonner"
 
 interface TemplatesTabProps {
   customization: StoreCustomization
@@ -35,9 +36,17 @@ export function TemplatesTab({ customization, onApplyTemplate }: TemplatesTabPro
   const [selectedTemplate, setSelectedTemplate] = useState<StoreTemplate | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const [applying, setApplying] = useState(false)
-  const [applied, setApplied] = useState<string | null>(null)
+
+  // Tema ativo vem do customization (persistido no banco)
+  const activeTemplateId = customization.theme?.activeTemplateId
 
   const handleSelectTemplate = (template: StoreTemplate) => {
+    // Se clicar no tema ja ativo, mostra toast e nao faz nada
+    if (activeTemplateId === template.id) {
+      toast.info("Este tema ja esta aplicado.")
+      return
+    }
+    
     setSelectedTemplate(template)
     setShowConfirm(true)
   }
@@ -47,20 +56,19 @@ export function TemplatesTab({ customization, onApplyTemplate }: TemplatesTabPro
     
     setApplying(true)
     
-    // Aplicar template
+    // Aplicar template e incluir o activeTemplateId no theme
     const newCustomization = applyTemplate(customization, selectedTemplate)
+    newCustomization.theme.activeTemplateId = selectedTemplate.id
     
     // Simular pequeno delay para feedback visual
     await new Promise(resolve => setTimeout(resolve, 500))
     
     onApplyTemplate(newCustomization)
-    setApplied(selectedTemplate.id)
     setApplying(false)
     setShowConfirm(false)
     setSelectedTemplate(null)
     
-    // Limpar feedback apos 3 segundos
-    setTimeout(() => setApplied(null), 3000)
+    toast.success(`Template "${selectedTemplate.name}" aplicado! Clique em Salvar para confirmar.`)
   }
 
   const handleCancelApply = () => {
@@ -83,11 +91,13 @@ export function TemplatesTab({ customization, onApplyTemplate }: TemplatesTabPro
         </div>
       </div>
 
-      {/* Feedback de sucesso */}
-      {applied && (
+      {/* Indicador de tema ativo */}
+      {activeTemplateId && (
         <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400">
           <Check className="w-4 h-4" />
-          <span className="text-sm">Template aplicado com sucesso! Salve as alteracoes para confirmar.</span>
+          <span className="text-sm">
+            Tema ativo: <strong>{STORE_TEMPLATES.find(t => t.id === activeTemplateId)?.name || activeTemplateId}</strong>
+          </span>
         </div>
       )}
 
@@ -95,14 +105,14 @@ export function TemplatesTab({ customization, onApplyTemplate }: TemplatesTabPro
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {STORE_TEMPLATES.map((template) => {
           const IconComponent = ICON_MAP[template.icon] || Palette
-          const isApplied = applied === template.id
+          const isActive = activeTemplateId === template.id
           
           return (
             <div
               key={template.id}
-              className={`relative overflow-hidden rounded-xl border transition-all cursor-pointer group ${
-                isApplied 
-                  ? "border-green-500 bg-green-500/5" 
+              className={`relative overflow-hidden rounded-xl border-2 transition-all cursor-pointer group ${
+                isActive 
+                  ? "border-green-500 bg-green-500/5 ring-2 ring-green-500/20" 
                   : "border-border bg-card hover:border-primary/50 hover:bg-card/80"
               }`}
               onClick={() => !applying && handleSelectTemplate(template)}
@@ -127,18 +137,23 @@ export function TemplatesTab({ customization, onApplyTemplate }: TemplatesTabPro
                   </div>
                 </div>
                 
-                {/* Badge de aplicado */}
-                {isApplied && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-green-500 rounded-full text-white text-xs font-medium">
+                {/* Badge de tema atual (permanente) */}
+                {isActive && (
+                  <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-green-500 rounded-full text-white text-xs font-medium shadow-lg">
                     <Check className="w-3 h-3" />
-                    Aplicado
+                    Tema Atual
                   </div>
                 )}
               </div>
 
               {/* Info */}
               <div className="p-4">
-                <h4 className="font-semibold text-foreground mb-1">{template.name}</h4>
+                <h4 className="font-semibold text-foreground mb-1 flex items-center gap-2">
+                  {template.name}
+                  {isActive && (
+                    <span className="text-xs text-green-500">(Ativo)</span>
+                  )}
+                </h4>
                 <p className="text-xs text-muted-foreground line-clamp-2">{template.description}</p>
                 
                 {/* Preview de cores em circulos */}
@@ -161,10 +176,14 @@ export function TemplatesTab({ customization, onApplyTemplate }: TemplatesTabPro
                 </div>
               </div>
 
-              {/* Hover overlay */}
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium text-sm">
-                  Aplicar Template
+              {/* Hover overlay - diferente para tema ativo */}
+              <div className={`absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity ${isActive ? 'bg-green-900/50' : ''}`}>
+                <span className={`px-4 py-2 rounded-lg font-medium text-sm ${
+                  isActive 
+                    ? 'bg-green-500 text-white'
+                    : 'bg-primary text-primary-foreground'
+                }`}>
+                  {isActive ? 'Tema Atual' : 'Aplicar Template'}
                 </span>
               </div>
             </div>

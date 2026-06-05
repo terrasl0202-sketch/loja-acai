@@ -129,6 +129,7 @@ export interface CustomizationTheme {
   borderRadius: number
   cardsShadow: boolean
   bannerHeight: BannerHeight
+  activeTemplateId?: string
 }
 
 export interface CustomizationElements {
@@ -209,6 +210,7 @@ export const defaultCustomization: StoreCustomization = {
     borderRadius: 16,
     cardsShadow: true,
     bannerHeight: "medium",
+    activeTemplateId: undefined,
   },
   elements: {
     showBestsellerBadge: true,
