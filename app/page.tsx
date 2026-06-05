@@ -2091,12 +2091,13 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         whatsappMessage={customization.social.whatsappMessage}
       />
 
-      {/* Fixed Bottom Button */}
+      {/* Fixed Bottom Button - oculto quando checkout/pix/modal aberto */}
       <FloatingCartButton
         isStoreOpen={isStoreOpen}
         totalItems={getTotalItems()}
         total={getTotal()}
         onOpenCheckout={openCheckout}
+        hidden={showCheckout || showCart || paymentStatus === "awaiting" || paymentStatus === "manual" || paymentStatus === "confirmed"}
       />
 
       {/* Cart Drawer */}
@@ -2386,7 +2387,15 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                           <div className="w-6 h-6 bg-green-500/20 rounded-lg flex items-center justify-center">
                             <Tag className="w-3.5 h-3.5" />
                           </div>
-                          <span className="text-sm font-bold">Cupom {appliedCoupon.code} aplicado</span>
+                          <div>
+                            <span className="text-sm font-bold">Cupom {appliedCoupon.code} aplicado</span>
+                            {appliedCoupon.type === 'free_shipping' && (
+                              <span className="ml-2 text-[10px] bg-green-500/20 px-2 py-0.5 rounded-full">FRETE GRATIS</span>
+                            )}
+                            {appliedCoupon.type === 'shipping_discount' && (
+                              <span className="ml-2 text-[10px] bg-green-500/20 px-2 py-0.5 rounded-full">DESCONTO FRETE</span>
+                            )}
+                          </div>
                         </div>
                         <button
                           onClick={() => setAppliedCoupon(null)}
@@ -3049,16 +3058,8 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                               )}
                             </div>
 
-                            {/* Dados do recebedor Premium */}
+                            {/* Dados do pagamento Pix Asaas */}
                             <div className="space-y-3">
-                              <div className="bg-gradient-to-r from-input/80 to-input/50 rounded-xl px-4 py-3.5 border border-border/30">
-                                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                                  <User className="w-3 h-3" />
-                                  Nome do Recebedor
-                                </p>
-                                <p className="font-bold text-foreground mt-1">{PIX_RECEIVER_NAME}</p>
-                              </div>
-
                               <div className="bg-gradient-to-r from-primary/15 to-primary/5 rounded-xl px-4 py-4 border border-primary/25">
                                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                                   <CreditCard className="w-3 h-3" />

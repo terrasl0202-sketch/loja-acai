@@ -10,13 +10,15 @@ interface FloatingCartButtonProps {
   totalItems: number
   total: number
   onOpenCheckout: () => void
+  hidden?: boolean // Ocultar quando checkout/pix/modal aberto
 }
 
 export function FloatingCartButton({
   isStoreOpen,
   totalItems,
   total,
-  onOpenCheckout
+  onOpenCheckout,
+  hidden = false
 }: FloatingCartButtonProps) {
   const hasItems = totalItems > 0
   const [mounted, setMounted] = useState(false)
@@ -24,6 +26,11 @@ export function FloatingCartButton({
   useEffect(() => {
     setMounted(true)
   }, [])
+  
+  // Nao renderizar se deve estar oculto
+  if (hidden) {
+    return null
+  }
   
   const buttonContent = (
     <div 
