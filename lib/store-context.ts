@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/server"
 import { NextRequest } from "next/server"
 
 // Tipo da loja
@@ -33,7 +33,9 @@ async function getMainStore(): Promise<Store | null> {
     return mainStoreCache
   }
 
-  const supabase = createClient()
+  const supabase = await createClient()
+  if (!supabase) return null
+  
   const { data, error } = await supabase
     .from("stores")
     .select("*")
@@ -62,10 +64,10 @@ async function getMainStore(): Promise<Store | null> {
  * 4. fallback para loja main
  */
 export async function getCurrentStore(request?: NextRequest | Request | null): Promise<Store> {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   // Se tiver request, tentar identificar por host/URL
-  if (request) {
+  if (request && supabase) {
     const url = new URL(request.url)
     const host = request.headers.get("host") || ""
     const pathname = url.pathname
@@ -168,7 +170,9 @@ export async function getCurrentStoreId(request?: NextRequest | Request | null):
  * Busca uma loja por slug
  */
 export async function getStoreBySlug(slug: string): Promise<Store | null> {
-  const supabase = createClient()
+  const supabase = await createClient()
+  if (!supabase) return null
+  
   const { data, error } = await supabase
     .from("stores")
     .select("*")
@@ -186,7 +190,9 @@ export async function getStoreBySlug(slug: string): Promise<Store | null> {
  * Busca uma loja por ID
  */
 export async function getStoreById(id: number): Promise<Store | null> {
-  const supabase = createClient()
+  const supabase = await createClient()
+  if (!supabase) return null
+  
   const { data, error } = await supabase
     .from("stores")
     .select("*")
@@ -204,7 +210,8 @@ export async function getStoreById(id: number): Promise<Store | null> {
  * Lista todas as lojas ativas
  */
 export async function listActiveStores(): Promise<Store[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
+  if (!supabase) return []
   const { data, error } = await supabase
     .from("stores")
     .select("*")
