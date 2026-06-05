@@ -1,8 +1,9 @@
 "use client"
 
-import { Zap, Store, Package, Image as ImageIcon, Clock, Truck, CreditCard, MessageCircle, Tag, Users2, BarChart3, Palette, LayoutGrid, LayoutDashboard } from "lucide-react"
+import { Zap, Store, Package, Image as ImageIcon, Clock, Truck, CreditCard, MessageCircle, Tag, Users2, Palette, LayoutGrid, LayoutDashboard } from "lucide-react"
 
-type TabType = "dashboard" | "store" | "products" | "categories" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "customization" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
+// Dashboard é a unica fonte de metricas - reports foi removido
+type TabType = "dashboard" | "store" | "products" | "categories" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "customization" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived"
 
 interface AdminQuickSettingsProps {
   activeTab: TabType
@@ -22,7 +23,6 @@ const settingsItems = [
   { id: "coupons" as TabType, icon: Tag, label: "Cupons" },
   { id: "entregadores" as TabType, icon: Users2, label: "Entregadores" },
   { id: "customization" as TabType, icon: Palette, label: "Personalizacao" },
-  { id: "reports" as TabType, icon: BarChart3, label: "Relatorios" },
 ]
 
 export function AdminQuickSettings({ activeTab, onTabChange }: AdminQuickSettingsProps) {

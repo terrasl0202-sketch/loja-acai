@@ -9,6 +9,7 @@ export type {
 } from "@/lib/config-types"
 
 // Tipos especificos do Admin
+// NOTA: "reports" foi removido - Dashboard é a unica fonte de metricas
 export type TabType = 
   | "dashboard"
   | "store" 
@@ -29,8 +30,7 @@ export type TabType =
   | "orders-completed" 
   | "orders-cancelled" 
   | "orders-abandoned" 
-  | "orders-archived" 
-  | "reports"
+  | "orders-archived"
 
 export type DateFilterType = "today" | "yesterday" | "week" | "month" | "all"
 

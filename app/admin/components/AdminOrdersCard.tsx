@@ -4,7 +4,7 @@ import { useState } from "react"
 import { ShoppingBag, Search, Trash2, Calendar, ChevronRight, ChevronDown, ClockIcon, CheckCircle2, ChefHat, Truck, PackageCheck, Ban, AlertCircle, FolderArchive, Link2, Send, MessageCircle, X, Loader2, Users, Phone } from "lucide-react"
 import type { Order, Entregador } from "@/lib/config-types"
 
-type TabType = "dashboard" | "store" | "products" | "categories" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "customization" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived" | "reports"
+type TabType = "dashboard" | "store" | "products" | "categories" | "banner" | "hours" | "payment" | "whatsapp" | "delivery" | "coupons" | "entregadores" | "customization" | "orders-pending" | "orders-paid" | "orders-preparing" | "orders-delivering" | "orders-completed" | "orders-cancelled" | "orders-abandoned" | "orders-archived"
 
 interface AdminOrdersCardProps {
   activeTab: TabType

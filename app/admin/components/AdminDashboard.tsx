@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useState } from "react"
 import { 
   DollarSign, 
   ShoppingBag, 
@@ -12,181 +12,149 @@ import {
   Calendar,
   Target,
   Award,
-  Package
+  XCircle,
+  Clock,
+  Archive,
+  Loader2,
+  AlertTriangle,
+  X
 } from "lucide-react"
 import type { Order } from "@/lib/config-types"
-import { getRevenueOrders, getOrderTotal } from "../utils"
+import { useDashboardMetrics, type DashboardMetrics } from "../hooks/useDashboardMetrics"
+
+type ChartPeriod = 'today' | 'week' | 'month' | 'year'
 
 interface AdminDashboardProps {
   orders: Order[]
   formatCurrency: (value: number) => string
+  onCleanupDuplicates: () => Promise<void>
+  onShowArchiveConfirm: () => void
 }
 
-export function AdminDashboard({ orders, formatCurrency }: AdminDashboardProps) {
-  // Calcula metricas
-  const metrics = useMemo(() => {
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
-    const weekStart = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
-    const lastWeekStart = new Date(weekStart.getTime() - 7 * 24 * 60 * 60 * 1000)
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+// Modal de confirmacao
+function ConfirmModal({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  title, 
+  description, 
+  confirmText,
+  loading 
+}: { 
+  isOpen: boolean
+  onClose: () => void
+  onConfirm: () => void
+  title: string
+  description: string
+  confirmText: string
+  loading: boolean
+}) {
+  if (!isOpen) return null
 
-    // Filtra pedidos que entram no faturamento usando a regra oficial
-    // Conta: confirmed (aguardando preparo), preparing, delivering, completed
-    // Nao conta: pending, cancelled, failed, archived cancelados
-    const confirmedOrders = getRevenueOrders(orders)
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-card rounded-2xl border border-border p-6 max-w-md w-full shadow-xl">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-yellow-500/20 rounded-xl">
+            <AlertTriangle className="w-6 h-6 text-yellow-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-foreground mb-2">{title}</h3>
+            <p className="text-muted-foreground text-sm">{description}</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-colors disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Processando...
+              </>
+            ) : (
+              confirmText
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-    // Pedidos por periodo
-    const ordersToday = confirmedOrders.filter(o => new Date(o.createdAt) >= today)
-    const ordersYesterday = confirmedOrders.filter(o => {
-      const d = new Date(o.createdAt)
-      return d >= yesterday && d < today
-    })
-    const ordersThisWeek = confirmedOrders.filter(o => new Date(o.createdAt) >= weekStart)
-    const ordersLastWeek = confirmedOrders.filter(o => {
-      const d = new Date(o.createdAt)
-      return d >= lastWeekStart && d < weekStart
-    })
-    const ordersThisMonth = confirmedOrders.filter(o => new Date(o.createdAt) >= monthStart)
-    const ordersLastMonth = confirmedOrders.filter(o => {
-      const d = new Date(o.createdAt)
-      return d >= lastMonthStart && d <= lastMonthEnd
-    })
+export function AdminDashboard({ orders, formatCurrency, onCleanupDuplicates, onShowArchiveConfirm }: AdminDashboardProps) {
+  const metrics = useDashboardMetrics(orders)
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('week')
+  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false)
+  const [duplicateLoading, setDuplicateLoading] = useState(false)
 
-    // Faturamento - usando getOrderTotal para garantir valores corretos
-    const revenueToday = ordersToday.reduce((sum, o) => sum + getOrderTotal(o), 0)
-    const revenueYesterday = ordersYesterday.reduce((sum, o) => sum + getOrderTotal(o), 0)
-    const revenueThisWeek = ordersThisWeek.reduce((sum, o) => sum + getOrderTotal(o), 0)
-    const revenueLastWeek = ordersLastWeek.reduce((sum, o) => sum + getOrderTotal(o), 0)
-    const revenueThisMonth = ordersThisMonth.reduce((sum, o) => sum + getOrderTotal(o), 0)
-    const revenueLastMonth = ordersLastMonth.reduce((sum, o) => sum + getOrderTotal(o), 0)
-
-    // Ticket medio
-    const ticketMedio = confirmedOrders.length > 0 
-      ? confirmedOrders.reduce((sum, o) => sum + getOrderTotal(o), 0) / confirmedOrders.length 
-      : 0
-
-    // Clientes unicos (por telefone)
-    const uniqueCustomers = new Set(confirmedOrders.map(o => o.customerPhone)).size
-    
-    // Clientes recorrentes (mais de 1 pedido)
-    const customerCounts: Record<string, number> = {}
-    confirmedOrders.forEach(o => {
-      customerCounts[o.customerPhone] = (customerCounts[o.customerPhone] || 0) + 1
-    })
-    const recurringCustomers = Object.values(customerCounts).filter(c => c > 1).length
-
-    // Produto mais vendido
-    const productCounts: Record<string, { name: string, qty: number, revenue: number }> = {}
-    confirmedOrders.forEach(o => {
-      // items pode ser string (JSON) ou itemsDetailed pode ser array
-      const itemsArray = o.itemsDetailed || (typeof o.items === 'string' ? JSON.parse(o.items || '[]') : [])
-      itemsArray.forEach((item: { name: string; quantity: number; price: number }) => {
-        if (!productCounts[item.name]) {
-          productCounts[item.name] = { name: item.name, qty: 0, revenue: 0 }
-        }
-        productCounts[item.name].qty += item.quantity
-        productCounts[item.name].revenue += item.price * item.quantity
-      })
-    })
-    const topProduct = Object.values(productCounts).sort((a, b) => b.qty - a.qty)[0] || null
-
-    // Bairro que mais compra
-    const neighborhoodCounts: Record<string, { name: string, orders: number, revenue: number }> = {}
-    confirmedOrders.forEach(o => {
-      const bairro = o.neighborhood || 'Retirada'
-      if (!neighborhoodCounts[bairro]) {
-        neighborhoodCounts[bairro] = { name: bairro, orders: 0, revenue: 0 }
-      }
-      neighborhoodCounts[bairro].orders++
-      neighborhoodCounts[bairro].revenue += o.total
-    })
-    const topNeighborhood = Object.values(neighborhoodCounts).sort((a, b) => b.orders - a.orders)[0] || null
-
-    // Forma de pagamento mais utilizada
-    const paymentCounts: Record<string, number> = {}
-    confirmedOrders.forEach(o => {
-      const method = o.paymentMethod || 'Nao informado'
-      paymentCounts[method] = (paymentCounts[method] || 0) + 1
-    })
-    const topPayment = Object.entries(paymentCounts).sort((a, b) => b[1] - a[1])[0] || null
-
-    // Dados para grafico dos ultimos 7 dias
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(today.getTime() - (6 - i) * 24 * 60 * 60 * 1000)
-      const dayOrders = confirmedOrders.filter(o => {
-        const d = new Date(o.createdAt)
-        return d.toDateString() === date.toDateString()
-      })
-      return {
-        date: date.toLocaleDateString('pt-BR', { weekday: 'short' }),
-        orders: dayOrders.length,
-        revenue: dayOrders.reduce((sum, o) => sum + o.total, 0)
-      }
-    })
-
-    return {
-      ordersToday: ordersToday.length,
-      ordersYesterday: ordersYesterday.length,
-      ordersThisWeek: ordersThisWeek.length,
-      ordersLastWeek: ordersLastWeek.length,
-      ordersThisMonth: ordersThisMonth.length,
-      ordersLastMonth: ordersLastMonth.length,
-      revenueToday,
-      revenueYesterday,
-      revenueThisWeek,
-      revenueLastWeek,
-      revenueThisMonth,
-      revenueLastMonth,
-      ticketMedio,
-      uniqueCustomers,
-      recurringCustomers,
-      topProduct,
-      topNeighborhood,
-      topPayment,
-      last7Days
+  const handleCleanupDuplicates = async () => {
+    setDuplicateLoading(true)
+    try {
+      await onCleanupDuplicates()
+    } finally {
+      setDuplicateLoading(false)
+      setShowDuplicateConfirm(false)
     }
-  }, [orders])
-
-  // Calcula variacao percentual
-  const getVariation = (current: number, previous: number) => {
-    if (previous === 0) return current > 0 ? 100 : 0
-    return Math.round(((current - previous) / previous) * 100)
   }
 
-  const todayVsYesterday = getVariation(metrics.revenueToday, metrics.revenueYesterday)
-  const weekVsLastWeek = getVariation(metrics.revenueThisWeek, metrics.revenueLastWeek)
-  const monthVsLastMonth = getVariation(metrics.revenueThisMonth, metrics.revenueLastMonth)
-
-  // Maior valor dos ultimos 7 dias para escala do grafico
-  const maxRevenue = Math.max(...metrics.last7Days.map(d => d.revenue), 1)
+  // Dados do grafico baseado no periodo
+  const chartData = chartPeriod === 'week' ? metrics.last7Days : metrics.last30Days.slice(-7)
+  const maxRevenue = Math.max(...chartData.map(d => d.revenue), 1)
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-foreground">Dashboard</h2>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Calendar className="w-4 h-4" />
-          {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+      {/* Header com acoes */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-foreground">Dashboard</h2>
+          <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+            <Calendar className="w-4 h-4" />
+            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowDuplicateConfirm(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-yellow-500/20 text-yellow-400 font-medium rounded-xl transition-all hover:bg-yellow-500/30 text-sm"
+          >
+            Limpar Duplicatas
+          </button>
+          <button
+            onClick={onShowArchiveConfirm}
+            className="flex items-center gap-2 px-3 py-2 bg-red-500/20 text-red-400 font-medium rounded-xl transition-all hover:bg-red-500/30 text-sm"
+          >
+            <Archive className="w-4 h-4" />
+            Limpar Dados
+          </button>
         </div>
       </div>
 
-      {/* Cards de Faturamento */}
+      {/* Cards de Faturamento - Linha Principal */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Hoje */}
+        {/* Faturamento Hoje */}
         <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
           <div className="flex items-center justify-between mb-3">
             <div className="p-2 bg-emerald-500/20 rounded-xl">
               <DollarSign className="w-5 h-5 text-emerald-400" />
             </div>
-            {todayVsYesterday !== 0 && (
-              <div className={`flex items-center gap-1 text-xs font-medium ${todayVsYesterday > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {todayVsYesterday > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {Math.abs(todayVsYesterday)}%
+            {metrics.todayVsYesterday !== 0 && (
+              <div className={`flex items-center gap-1 text-xs font-medium ${metrics.todayVsYesterday > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {metrics.todayVsYesterday > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {Math.abs(metrics.todayVsYesterday)}%
               </div>
             )}
           </div>
@@ -195,40 +163,34 @@ export function AdminDashboard({ orders, formatCurrency }: AdminDashboardProps) 
           <p className="text-[10px] text-muted-foreground mt-1">{metrics.ordersToday} pedidos</p>
         </div>
 
-        {/* Semana */}
-        <div className="bg-gradient-to-br from-blue-500/20 to-blue-500/5 p-4 rounded-2xl border border-blue-500/20">
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2 bg-blue-500/20 rounded-xl">
-              <TrendingUp className="w-5 h-5 text-blue-400" />
-            </div>
-            {weekVsLastWeek !== 0 && (
-              <div className={`flex items-center gap-1 text-xs font-medium ${weekVsLastWeek > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {weekVsLastWeek > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {Math.abs(weekVsLastWeek)}%
-              </div>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mb-1">Semana</p>
-          <p className="text-2xl font-bold text-blue-400">{formatCurrency(metrics.revenueThisWeek)}</p>
-          <p className="text-[10px] text-muted-foreground mt-1">{metrics.ordersThisWeek} pedidos</p>
-        </div>
-
-        {/* Mes */}
+        {/* Faturamento Mes */}
         <div className="bg-gradient-to-br from-purple-500/20 to-purple-500/5 p-4 rounded-2xl border border-purple-500/20">
           <div className="flex items-center justify-between mb-3">
             <div className="p-2 bg-purple-500/20 rounded-xl">
               <Calendar className="w-5 h-5 text-purple-400" />
             </div>
-            {monthVsLastMonth !== 0 && (
-              <div className={`flex items-center gap-1 text-xs font-medium ${monthVsLastMonth > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {monthVsLastMonth > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {Math.abs(monthVsLastMonth)}%
+            {metrics.monthVsLastMonth !== 0 && (
+              <div className={`flex items-center gap-1 text-xs font-medium ${metrics.monthVsLastMonth > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {metrics.monthVsLastMonth > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {Math.abs(metrics.monthVsLastMonth)}%
               </div>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mb-1">Este Mes</p>
+          <p className="text-xs text-muted-foreground mb-1">Faturamento Mes</p>
           <p className="text-2xl font-bold text-purple-400">{formatCurrency(metrics.revenueThisMonth)}</p>
           <p className="text-[10px] text-muted-foreground mt-1">{metrics.ordersThisMonth} pedidos</p>
+        </div>
+
+        {/* Pedidos Confirmados */}
+        <div className="bg-gradient-to-br from-blue-500/20 to-blue-500/5 p-4 rounded-2xl border border-blue-500/20">
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 bg-blue-500/20 rounded-xl">
+              <ShoppingBag className="w-5 h-5 text-blue-400" />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mb-1">Pedidos Confirmados</p>
+          <p className="text-2xl font-bold text-blue-400">{metrics.confirmedOrdersCount}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">de {metrics.totalOrders} total</p>
         </div>
 
         {/* Ticket Medio */}
@@ -244,14 +206,88 @@ export function AdminDashboard({ orders, formatCurrency }: AdminDashboardProps) 
         </div>
       </div>
 
-      {/* Grafico dos ultimos 7 dias */}
+      {/* Segunda linha de cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Cancelados */}
+        <div className="bg-card p-4 rounded-2xl border border-border">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-red-500/20 rounded-xl">
+              <XCircle className="w-5 h-5 text-red-400" />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mb-1">Cancelados</p>
+          <p className="text-2xl font-bold text-red-400">{metrics.cancelledOrdersCount}</p>
+        </div>
+
+        {/* Clientes Unicos */}
+        <div className="bg-card p-4 rounded-2xl border border-border">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-pink-500/20 rounded-xl">
+              <Users className="w-5 h-5 text-pink-400" />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mb-1">Clientes Unicos</p>
+          <p className="text-2xl font-bold text-foreground">{metrics.uniqueCustomers}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">{metrics.recurringCustomers} recorrentes</p>
+        </div>
+
+        {/* Aguardando Pagamento */}
+        <div className="bg-card p-4 rounded-2xl border border-border">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-yellow-500/20 rounded-xl">
+              <Clock className="w-5 h-5 text-yellow-400" />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mb-1">Aguardando Pagamento</p>
+          <p className="text-2xl font-bold text-yellow-400">{formatCurrency(metrics.pendingRevenue)}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">{metrics.pendingOrdersCount} pedidos</p>
+        </div>
+
+        {/* Faturamento Semana */}
+        <div className="bg-card p-4 rounded-2xl border border-border">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-cyan-500/20 rounded-xl">
+              <TrendingUp className="w-5 h-5 text-cyan-400" />
+            </div>
+            {metrics.weekVsLastWeek !== 0 && (
+              <div className={`flex items-center gap-1 text-xs font-medium ml-auto ${metrics.weekVsLastWeek > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {metrics.weekVsLastWeek > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {Math.abs(metrics.weekVsLastWeek)}%
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mb-1">Faturamento Semana</p>
+          <p className="text-2xl font-bold text-cyan-400">{formatCurrency(metrics.revenueThisWeek)}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">{metrics.ordersThisWeek} pedidos</p>
+        </div>
+      </div>
+
+      {/* Grafico */}
       <div className="bg-card p-6 rounded-2xl border border-border">
-        <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-primary" />
-          Ultimos 7 Dias
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary" />
+            Vendas por Periodo
+          </h3>
+          <div className="flex gap-1 bg-secondary/50 p-1 rounded-xl">
+            {(['today', 'week', 'month'] as const).map(period => (
+              <button
+                key={period}
+                onClick={() => setChartPeriod(period)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                  chartPeriod === period 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {period === 'today' ? 'Hoje' : period === 'week' ? 'Semana' : 'Mes'}
+              </button>
+            ))}
+          </div>
+        </div>
+        
         <div className="flex items-end justify-between gap-2 h-32">
-          {metrics.last7Days.map((day, i) => (
+          {chartData.map((day, i) => (
             <div key={i} className="flex-1 flex flex-col items-center gap-1">
               <div 
                 className="w-full bg-primary/20 rounded-t-lg transition-all hover:bg-primary/30 relative group"
@@ -267,84 +303,200 @@ export function AdminDashboard({ orders, formatCurrency }: AdminDashboardProps) 
         </div>
       </div>
 
-      {/* Cards de Insights */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Pedidos Hoje */}
-        <div className="bg-card p-4 rounded-2xl border border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-500/20 rounded-xl">
-              <ShoppingBag className="w-5 h-5 text-blue-400" />
+      {/* Faturamento por Forma de Pagamento */}
+      <div className="bg-card p-6 rounded-2xl border border-border">
+        <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+          <CreditCard className="w-5 h-5 text-primary" />
+          Faturamento por Forma de Pagamento
+        </h3>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+              <span className="text-foreground">PIX Automatico</span>
+            </div>
+            <div className="text-right">
+              <p className="font-bold text-foreground">{formatCurrency(metrics.revenuePixAutomatic)}</p>
+              <p className="text-xs text-muted-foreground">{metrics.ordersPixAutomatic} pedidos</p>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mb-1">Pedidos Hoje</p>
-          <p className="text-2xl font-bold text-foreground">{metrics.ordersToday}</p>
+          
+          <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+              <span className="text-foreground">PIX Manual</span>
+            </div>
+            <div className="text-right">
+              <p className="font-bold text-foreground">{formatCurrency(metrics.revenuePixManual)}</p>
+              <p className="text-xs text-muted-foreground">{metrics.ordersPixManual} pedidos</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span className="text-foreground">Dinheiro</span>
+            </div>
+            <div className="text-right">
+              <p className="font-bold text-foreground">{formatCurrency(metrics.revenueDinheiro)}</p>
+              <p className="text-xs text-muted-foreground">{metrics.ordersDinheiro} pedidos</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+              <span className="text-foreground">Cartao</span>
+            </div>
+            <div className="text-right">
+              <p className="font-bold text-foreground">{formatCurrency(metrics.revenueCartao)}</p>
+              <p className="text-xs text-muted-foreground">{metrics.ordersCartao} pedidos</p>
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* Clientes */}
+      {/* Insights - Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Produto Mais Vendido */}
         <div className="bg-card p-4 rounded-2xl border border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-pink-500/20 rounded-xl">
-              <Users className="w-5 h-5 text-pink-400" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground mb-1">Clientes Recorrentes</p>
-          <p className="text-2xl font-bold text-foreground">{metrics.recurringCustomers}</p>
-          <p className="text-[10px] text-muted-foreground mt-1">de {metrics.uniqueCustomers} total</p>
-        </div>
-
-        {/* Produto Top */}
-        <div className="bg-card p-4 rounded-2xl border border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-orange-500/20 rounded-xl">
-              <Award className="w-5 h-5 text-orange-400" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground mb-1">Mais Vendido</p>
+          <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+            <Award className="w-4 h-4 text-orange-400" />
+            Produto Mais Vendido
+          </h4>
           {metrics.topProduct ? (
-            <>
-              <p className="text-sm font-bold text-foreground truncate">{metrics.topProduct.name}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">{metrics.topProduct.qty}x vendidos</p>
-            </>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold text-foreground">{metrics.topProduct.name}</p>
+                <p className="text-sm text-muted-foreground">{metrics.topProduct.qty}x vendidos</p>
+              </div>
+              <p className="text-lg font-bold text-primary">{formatCurrency(metrics.topProduct.revenue)}</p>
+            </div>
           ) : (
-            <p className="text-sm text-muted-foreground">-</p>
+            <p className="text-muted-foreground">Nenhum produto vendido ainda</p>
           )}
         </div>
 
-        {/* Bairro Top */}
+        {/* Cliente Destaque */}
         <div className="bg-card p-4 rounded-2xl border border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-cyan-500/20 rounded-xl">
-              <MapPin className="w-5 h-5 text-cyan-400" />
+          <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+            <Users className="w-4 h-4 text-pink-400" />
+            Cliente que Mais Comprou
+          </h4>
+          {metrics.topCustomer ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold text-foreground">{metrics.topCustomer.name}</p>
+                <p className="text-sm text-muted-foreground">{metrics.topCustomer.orders} pedidos</p>
+              </div>
+              <p className="text-lg font-bold text-primary">{formatCurrency(metrics.topCustomer.revenue)}</p>
             </div>
-          </div>
-          <p className="text-xs text-muted-foreground mb-1">Bairro Destaque</p>
-          {metrics.topNeighborhood ? (
-            <>
-              <p className="text-sm font-bold text-foreground truncate">{metrics.topNeighborhood.name}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">{metrics.topNeighborhood.orders} pedidos</p>
-            </>
           ) : (
-            <p className="text-sm text-muted-foreground">-</p>
+            <p className="text-muted-foreground">Nenhum cliente ainda</p>
+          )}
+        </div>
+
+        {/* Forma de Pagamento Preferida */}
+        <div className="bg-card p-4 rounded-2xl border border-border">
+          <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-green-400" />
+            Forma de Pagamento Preferida
+          </h4>
+          {metrics.topPaymentMethod ? (
+            <div className="flex items-center justify-between">
+              <p className="font-bold text-foreground">{metrics.topPaymentMethod.method}</p>
+              <p className="text-lg font-bold text-primary">{metrics.topPaymentMethod.count} pedidos</p>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Nenhum dado ainda</p>
+          )}
+        </div>
+
+        {/* Bairro Destaque */}
+        <div className="bg-card p-4 rounded-2xl border border-border">
+          <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-cyan-400" />
+            Bairro com Mais Pedidos
+          </h4>
+          {metrics.topNeighborhood ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold text-foreground">{metrics.topNeighborhood.name}</p>
+                <p className="text-sm text-muted-foreground">{metrics.topNeighborhood.orders} pedidos</p>
+              </div>
+              <p className="text-lg font-bold text-primary">{formatCurrency(metrics.topNeighborhood.revenue)}</p>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Nenhum dado ainda</p>
           )}
         </div>
       </div>
 
-      {/* Forma de Pagamento */}
-      {metrics.topPayment && (
-        <div className="bg-card p-4 rounded-2xl border border-border flex items-center gap-4">
-          <div className="p-3 bg-green-500/20 rounded-xl">
-            <CreditCard className="w-6 h-6 text-green-400" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Pagamento Preferido</p>
-            <p className="text-lg font-bold text-foreground">{metrics.topPayment[0]}</p>
-          </div>
-          <div className="ml-auto text-right">
-            <p className="text-2xl font-bold text-green-400">{metrics.topPayment[1]}</p>
-            <p className="text-xs text-muted-foreground">pedidos</p>
+      {/* Top Produtos */}
+      {metrics.topProducts.length > 0 && (
+        <div className="bg-card p-6 rounded-2xl border border-border">
+          <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary" />
+            Top 10 Produtos
+          </h3>
+          <div className="space-y-2">
+            {metrics.topProducts.map((product, index) => (
+              <div key={product.name} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="w-6 h-6 bg-primary/20 text-primary text-sm font-bold rounded-full flex items-center justify-center">
+                    {index + 1}
+                  </span>
+                  <span className="text-foreground">{product.name}</span>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-foreground">{product.quantity}x</p>
+                  <p className="text-xs text-muted-foreground">{formatCurrency(product.revenue)}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
+
+      {/* Top Clientes */}
+      {metrics.topCustomers.length > 0 && (
+        <div className="bg-card p-6 rounded-2xl border border-border">
+          <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-primary" />
+            Top 10 Clientes
+          </h3>
+          <div className="space-y-2">
+            {metrics.topCustomers.map((customer, index) => (
+              <div key={customer.phone} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="w-6 h-6 bg-primary/20 text-primary text-sm font-bold rounded-full flex items-center justify-center">
+                    {index + 1}
+                  </span>
+                  <div>
+                    <p className="text-foreground font-medium">{customer.name}</p>
+                    <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-foreground">{customer.orders} pedidos</p>
+                  <p className="text-xs text-muted-foreground">{formatCurrency(customer.revenue)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmacao */}
+      <ConfirmModal
+        isOpen={showDuplicateConfirm}
+        onClose={() => setShowDuplicateConfirm(false)}
+        onConfirm={handleCleanupDuplicates}
+        title="Limpar Duplicatas"
+        description="Esta acao vai remover pedidos duplicados (mesmo cliente, mesmo valor, criados em menos de 5 minutos). Esta acao nao pode ser desfeita."
+        confirmText="Confirmar Limpeza"
+        loading={duplicateLoading}
+      />
     </div>
   )
 }

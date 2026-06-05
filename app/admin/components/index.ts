@@ -12,6 +12,6 @@ export { AdminPaymentSettings } from "./AdminPaymentSettings"
 export { AdminWhatsappSettings } from "./AdminWhatsappSettings"
 export { AdminCouponsSettings } from "./AdminCouponsSettings"
 export { AdminEntregadoresSettings } from "./AdminEntregadoresSettings"
-export { AdminReportsSettings } from "./AdminReportsSettings"
 export { AdminModals } from "./AdminModals"
 export { AdminPixWallet } from "./AdminPixWallet"
+// AdminReportsSettings foi removido - Dashboard é a unica fonte de metricas

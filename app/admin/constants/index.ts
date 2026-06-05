@@ -27,15 +27,20 @@ export const PAYMENT_METHODS = {
 } as const
 
 // Abas do painel admin com configuracoes
+// NOTA: "reports" foi removido - Dashboard é a unica fonte de metricas
 export const ADMIN_TABS: Array<{
   id: TabType
   label: string
   icon: string
-  category: "config" | "orders" | "reports"
+  category: "config" | "orders" | "dashboard"
 }> = [
+  // Dashboard
+  { id: "dashboard", label: "Dashboard", icon: "LayoutDashboard", category: "dashboard" },
+  
   // Configuracoes
   { id: "store", label: "Loja", icon: "Store", category: "config" },
   { id: "products", label: "Produtos", icon: "Package", category: "config" },
+  { id: "categories", label: "Categorias", icon: "LayoutGrid", category: "config" },
   { id: "banner", label: "Banner", icon: "ImageIcon", category: "config" },
   { id: "hours", label: "Horario", icon: "Clock", category: "config" },
   { id: "delivery", label: "Entrega", icon: "Truck", category: "config" },
@@ -54,9 +59,6 @@ export const ADMIN_TABS: Array<{
   { id: "orders-cancelled", label: "Cancelados", icon: "Ban", category: "orders" },
   { id: "orders-abandoned", label: "Abandonados", icon: "AlertCircle", category: "orders" },
   { id: "orders-archived", label: "Arquivados", icon: "FolderArchive", category: "orders" },
-  
-  // Relatorios
-  { id: "reports", label: "Relatorios", icon: "BarChart3", category: "reports" },
 ]
 
 // Tabs de configuracao
