@@ -153,6 +153,13 @@ export async function POST(request: NextRequest) {
         
         if (order) {
           if (order.status === 'pending') {
+            // Buscar dados completos do pedido para gerar recompensas
+            const { data: fullOrder } = await supabase
+              .from('orders')
+              .select('id, customer_id, total')
+              .eq('id', order.id)
+              .single()
+
             const { error: updateError } = await supabase
               .from('orders')
               .update({ 
@@ -168,6 +175,21 @@ export async function POST(request: NextRequest) {
               result = "error"
             } else {
               result = "confirmed"
+              
+              // === GERAR CASHBACK E PONTOS ===
+              if (fullOrder?.customer_id) {
+                try {
+                  const { generateRewardsForOrder } = await import("@/app/api/premium/generate/route")
+                  await generateRewardsForOrder({
+                    orderId: fullOrder.id,
+                    customerId: fullOrder.customer_id,
+                    orderTotal: Number(fullOrder.total),
+                  })
+                  console.log(`[Webhook ${requestId}] Recompensas geradas para pedido:`, fullOrder.id)
+                } catch (rewardError) {
+                  console.error(`[Webhook ${requestId}] Erro recompensas (nao critico):`, rewardError)
+                }
+              }
             }
           } else {
             result = "already_processed"

@@ -125,6 +125,23 @@ export async function POST(request: NextRequest) {
 
     console.log("[orders/confirm] SUCESSO! Pedido confirmado. id:", updated.id, "order_code:", updated.order_code, "novo status:", updated.status)
 
+    // === GERAR CASHBACK E PONTOS ===
+    // Apenas para pedidos recem confirmados (status anterior era pending)
+    if (order.status === 'pending' && updated.customer_id) {
+      try {
+        const { generateRewardsForOrder } = await import("@/app/api/premium/generate/route")
+        await generateRewardsForOrder({
+          orderId: updated.id,
+          customerId: updated.customer_id,
+          orderTotal: Number(updated.total),
+        })
+        console.log("[orders/confirm] Cashback/pontos gerados para pedido:", updated.id)
+      } catch (rewardError) {
+        // Nao falha a confirmacao se houver erro no Premium
+        console.error("[orders/confirm] Erro ao gerar recompensas (nao critico):", rewardError)
+      }
+    }
+
     return NextResponse.json({ 
       success: true, 
       order: {

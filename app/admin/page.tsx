@@ -44,6 +44,7 @@ import {
 import { AdminCustomization } from "./components/AdminCustomization"
 import { AdminDashboard } from "./components/AdminDashboard"
 import { AdminBackup } from "./components/AdminBackup"
+import { AdminPremium } from "./components/AdminPremium"
 
 // Utils e types extraidos
 import type { TabType, FinancialHistoryItem, ReportStats } from "./types"
@@ -1279,6 +1280,7 @@ export default function AdminPage() {
               {activeTab === "entregadores" && <AdminEntregadoresSettings entregadores={config.entregadores || []} onAddEntregador={() => { const newToken = Math.random().toString(36).substring(2, 10) + Date.now().toString(36); const newEntregador: Entregador = { id: `entregador-${Date.now()}`, nome: "", whatsapp: "", status: "ativo", disponibilidade: "disponivel", horarioInicio: "08:00", horarioFim: "22:00", observacao: "", pin: "", token: newToken }; setConfig(prev => ({ ...prev, entregadores: [...(prev.entregadores || []), newEntregador] })) }} onUpdateEntregador={(id, field, value) => setConfig(prev => ({ ...prev, entregadores: (prev.entregadores || []).map(ent => ent.id === id ? { ...ent, [field]: value } : ent) }))} onRemoveEntregador={(id) => setConfig(prev => ({ ...prev, entregadores: (prev.entregadores || []).filter(ent => ent.id !== id) }))} getEntregadorPanelLink={getEntregadorPanelLink} copyToClipboard={copyToClipboardRobust} normalizePhoneForWhatsApp={normalizePhoneForWhatsApp} showToast={showToast} setManualEntregadorLink={setManualEntregadorLink} />}
               {activeTab === "customization" && <AdminCustomization onSave={() => loadConfig()} />}
               {activeTab === "backup" && <AdminBackup sessionPassword={sessionPassword || ""} />}
+              {activeTab === "premium" && <AdminPremium sessionPassword={sessionPassword || ""} />}
 
               {/* Pedidos agora sao gerenciados pelo AdminOrdersCard expansivel */}
             </div>

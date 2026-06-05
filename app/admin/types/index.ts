@@ -24,6 +24,7 @@ export type TabType =
   | "entregadores" 
   | "customization"
   | "backup"
+  | "premium"
   | "orders-pending" 
   | "orders-paid" 
   | "orders-preparing" 

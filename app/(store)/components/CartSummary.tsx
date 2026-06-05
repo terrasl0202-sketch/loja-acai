@@ -2,6 +2,7 @@
 
 import { ShoppingCart } from "lucide-react"
 import { formatCurrency } from "../utils"
+import { RewardsPreview } from "./RewardsPreview"
 
 interface Product {
   id: number
@@ -50,6 +51,9 @@ export function CartSummary({ products, quantities, total }: CartSummaryProps) {
           {formatCurrency(total)}
         </span>
       </div>
+      
+      {/* Preview de recompensas Premium */}
+      <RewardsPreview orderTotal={total} />
     </section>
   )
 }
