@@ -10,6 +10,7 @@ export type {
 
 // Tipos especificos do Admin
 export type TabType = 
+  | "dashboard"
   | "store" 
   | "products" 
   | "categories"

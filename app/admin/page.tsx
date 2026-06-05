@@ -46,6 +46,7 @@ import {
   AdminModals,
 } from "./components"
 import { AdminCustomization } from "./components/AdminCustomization"
+import { AdminDashboard } from "./components/AdminDashboard"
 
 // Utils e types extraidos
 import type { TabType, FinancialHistoryItem, ReportStats } from "./types"
@@ -87,7 +88,7 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [config, setConfig] = useState<SiteConfig>(defaultConfig)
-  const [activeTab, setActiveTab] = useState<TabType>("store")
+  const [activeTab, setActiveTab] = useState<TabType>("dashboard")
   const [sessionPassword, setSessionPassword] = useState("")
   
   // ========== ESTADOS DE PEDIDOS ==========
@@ -1283,6 +1284,7 @@ export default function AdminPage() {
             <Link href="/" className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm font-medium"><ArrowLeft className="w-4 h-4" /> Ver Loja</Link>
 
             <div className="bg-card/80 rounded-2xl p-4 sm:p-6 border border-border/50 shadow-xl">
+              {activeTab === "dashboard" && <AdminDashboard orders={orders} formatCurrency={formatCurrency} />}
               {activeTab === "store" && <AdminStoreSettings settings={storeSettings} isLoading={loading} onSettingsChange={() => {}} onPendingChanges={handlePendingSettingsChange} />}
               {activeTab === "products" && <AdminProductsSettings products={config.products} expandedProduct={expandedProduct} onExpandedProductChange={setExpandedProduct} onAddProduct={addProduct} onUpdateProduct={updateProduct} onRemoveProduct={removeProduct} onMoveProduct={moveProduct} />}
               {activeTab === "categories" && <AdminCategoriesSettings />}
