@@ -87,29 +87,6 @@ export function useDashboardMetrics(orders: Order[]): DashboardMetrics {
     // Pedidos que entram no faturamento (confirmados e nao cancelados)
     const revenueOrders = getRevenueOrders(orders)
     
-    // LOG TEMPORARIO PARA DIAGNOSTICO DE FATURAMENTO
-    if (orders.length > 0) {
-      const inconsistentes = orders.filter(o => 
-        ['confirmed', 'preparing', 'delivering', 'completed'].includes(o.status) &&
-        o.paymentStatus !== 'confirmed'
-      )
-      if (inconsistentes.length > 0) {
-        console.log("[v0] ALERTA: Pedidos com status confirmado mas paymentStatus pendente:", inconsistentes.length)
-        console.log("[v0] Primeiros 3:", inconsistentes.slice(0, 3).map(o => ({
-          id: o.id,
-          status: o.status,
-          paymentStatus: o.paymentStatus,
-          total: o.total
-        })))
-      }
-      console.log("[v0] Dashboard Metrics:", {
-        totalPedidos: orders.length,
-        revenueOrders: revenueOrders.length,
-        faturamentoTotal: revenueOrders.reduce((s, o) => s + getOrderTotal(o), 0).toFixed(2),
-        inconsistentes: inconsistentes.length
-      })
-    }
-    
     // Pedidos confirmados (para exibicao)
     const confirmedOrders = orders.filter(isOrderConfirmed)
     

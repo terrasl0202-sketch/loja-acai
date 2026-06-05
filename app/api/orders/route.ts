@@ -198,8 +198,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noCacheHeaders })
   }
 
-  console.log("[orders GET] Carregando pedidos...")
-
   try {
     const supabase = getSupabase()
     
@@ -209,12 +207,11 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error("[orders GET] Erro Supabase:", error.message, error.details)
+      console.error("[orders GET] Erro Supabase:", error.message)
       return NextResponse.json({ error: `Erro ao carregar pedidos: ${error.message}`, success: false }, { status: 500, headers: noCacheHeaders })
     }
 
     const orders = (data || []).map(dbToFrontend)
-    console.log(`[orders GET] ${orders.length} pedidos carregados do Supabase`)
 
     return NextResponse.json({ success: true, orders, financialHistory: [], source: 'supabase' }, { headers: noCacheHeaders })
 
