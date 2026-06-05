@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -23,6 +24,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const type = searchParams.get("type") || "full"
   
+  // Identificar loja atual
+  const storeId = await getStoreIdFromRequest(request)
+  
   const supabase = getSupabase()
   if (!supabase) {
     return NextResponse.json({ error: "Database not configured" }, { status: 500 })
@@ -33,50 +37,51 @@ export async function GET(request: NextRequest) {
     version: "1.0",
     createdAt: timestamp,
     type,
+    storeId,
   }
   
   try {
-    // Backup por tipo
+    // Backup por tipo - FILTRADO POR LOJA
     if (type === "full" || type === "products") {
-      const { data: products } = await supabase.from("products").select("*").order("id")
+      const { data: products } = await supabase.from("products").select("*").eq("store_id", storeId).order("id")
       backup.products = products || []
     }
     
     if (type === "full" || type === "categories") {
-      const { data: categories } = await supabase.from("product_categories").select("*").order("display_order")
+      const { data: categories } = await supabase.from("product_categories").select("*").eq("store_id", storeId).order("display_order")
       backup.categories = categories || []
     }
     
     if (type === "full" || type === "customers") {
-      const { data: customers } = await supabase.from("customers").select("id, name, phone, created_at").order("id")
+      const { data: customers } = await supabase.from("customers").select("id, name, phone, created_at").eq("store_id", storeId).order("id")
       backup.customers = customers || []
     }
     
     if (type === "full" || type === "orders") {
-      const { data: orders } = await supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(1000)
+      const { data: orders } = await supabase.from("orders").select("*").eq("store_id", storeId).order("created_at", { ascending: false }).limit(1000)
       backup.orders = orders || []
     }
     
     if (type === "full" || type === "coupons") {
-      const { data: coupons } = await supabase.from("coupons").select("*").order("id")
+      const { data: coupons } = await supabase.from("coupons").select("*").eq("store_id", storeId).order("id")
       backup.coupons = coupons || []
     }
     
     if (type === "full" || type === "neighborhoods") {
-      const { data: neighborhoods } = await supabase.from("neighborhoods").select("*").order("display_order")
+      const { data: neighborhoods } = await supabase.from("neighborhoods").select("*").eq("store_id", storeId).order("display_order")
       backup.neighborhoods = neighborhoods || []
     }
     
     if (type === "full" || type === "settings") {
-      const { data: settings } = await supabase.from("store_settings").select("*").single()
+      const { data: settings } = await supabase.from("store_settings").select("*").eq("store_id", storeId).single()
       backup.settings = settings || {}
       
-      const { data: banners } = await supabase.from("hero_banners").select("*").order("display_order")
+      const { data: banners } = await supabase.from("hero_banners").select("*").eq("store_id", storeId).order("display_order")
       backup.banners = banners || []
     }
     
     if (type === "full" || type === "entregadores") {
-      const { data: entregadores } = await supabase.from("delivery_drivers").select("*").order("id")
+      const { data: entregadores } = await supabase.from("delivery_drivers").select("*").eq("store_id", storeId).order("id")
       backup.entregadores = entregadores || []
     }
     

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 // GET - Buscar streak do cliente
 export async function GET(request: NextRequest) {
@@ -11,15 +12,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "customerId required" }, { status: 400 })
     }
 
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+
     const supabase = await createClient()
     if (!supabase) {
       return NextResponse.json({ error: "Database error" }, { status: 500 })
     }
 
+    // Buscar streak DESTA LOJA
     const { data: streak } = await supabase
       .from("customer_streaks")
       .select("*")
       .eq("customer_id", parseInt(customerId))
+      .eq("store_id", storeId)
       .single()
 
     if (!streak) {
@@ -58,23 +64,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "customerId required" }, { status: 400 })
     }
 
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const todayStr = today.toISOString().split("T")[0]
 
-    // Buscar streak atual
+    // Buscar streak atual DESTA LOJA
     const { data: existingStreak } = await supabase
       .from("customer_streaks")
       .select("*")
       .eq("customer_id", customerId)
+      .eq("store_id", storeId)
       .single()
 
     if (!existingStreak) {
-      // Criar primeiro streak
+      // Criar primeiro streak DESTA LOJA
       const { data: newStreak } = await supabase
         .from("customer_streaks")
         .insert({
           customer_id: customerId,
+          store_id: storeId,
           current_streak: 1,
           best_streak: 1,
           last_order_date: todayStr
@@ -125,7 +136,7 @@ export async function POST(request: Request) {
       newBestStreak = newCurrentStreak
     }
 
-    // Atualizar no banco
+    // Atualizar no banco DESTA LOJA
     await supabase
       .from("customer_streaks")
       .update({
@@ -135,6 +146,7 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString()
       })
       .eq("customer_id", customerId)
+      .eq("store_id", storeId)
 
     return NextResponse.json({
       streak: {

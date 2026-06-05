@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 // POST - Verificar todas gamificacoes de um cliente
 // Chamado apos pedido confirmado, avaliacao, etc
@@ -14,6 +15,9 @@ export async function POST(request: Request) {
     if (!customerId) {
       return NextResponse.json({ error: "customerId required" }, { status: 400 })
     }
+
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
 
     const results = {
       achievements: { newUnlocked: [] as { name: string; points: number; cashback: number }[] },
@@ -70,7 +74,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Verificar badges automaticos (baseado em conquistas, VIP, etc)
+    // 4. Verificar badges automaticos (baseado em conquistas, VIP, etc) DESTA LOJA
     try {
       // Badge "Cliente Fiel" - 10+ pedidos
       const validStatuses = ["confirmed", "preparing", "delivering", "completed"]
@@ -78,22 +82,25 @@ export async function POST(request: Request) {
         .from("orders")
         .select("id")
         .eq("customer_id", customerId)
+        .eq("store_id", storeId)
         .in("status", validStatuses)
 
       const totalOrders = orders?.length || 0
 
-      // Verificar badge cliente fiel (10 pedidos)
+      // Verificar badge cliente fiel (10 pedidos) DESTA LOJA
       if (totalOrders >= 10) {
         const { data: existingBadge } = await supabase
           .from("customer_badges")
           .select("id")
           .eq("customer_id", customerId)
+          .eq("store_id", storeId)
           .eq("badge_id", 2) // Badge "Cliente Fiel"
           .single()
 
         if (!existingBadge) {
           const { error } = await supabase.from("customer_badges").insert({
             customer_id: customerId,
+            store_id: storeId,
             badge_id: 2
           })
           if (!error) {
@@ -102,11 +109,12 @@ export async function POST(request: Request) {
         }
       }
 
-      // Verificar badge comprador frequente (streak de 3+)
+      // Verificar badge comprador frequente (streak de 3+) DESTA LOJA
       const { data: streakData } = await supabase
         .from("customer_streaks")
         .select("current_streak")
         .eq("customer_id", customerId)
+        .eq("store_id", storeId)
         .single()
 
       if (streakData && streakData.current_streak >= 3) {
@@ -114,12 +122,14 @@ export async function POST(request: Request) {
           .from("customer_badges")
           .select("id")
           .eq("customer_id", customerId)
+          .eq("store_id", storeId)
           .eq("badge_id", 3) // Badge "Comprador Frequente"
           .single()
 
         if (!existingBadge) {
           const { error } = await supabase.from("customer_badges").insert({
             customer_id: customerId,
+            store_id: storeId,
             badge_id: 3
           })
           if (!error) {
@@ -128,10 +138,11 @@ export async function POST(request: Request) {
         }
       }
 
-      // Verificar badge VIP Diamante
+      // Verificar badge VIP Diamante DESTA LOJA
       const { data: levels } = await supabase
         .from("customer_levels")
         .select("*")
+        .eq("store_id", storeId)
         .eq("active", true)
         .order("sort_order")
 
@@ -139,6 +150,7 @@ export async function POST(request: Request) {
         .from("orders")
         .select("total")
         .eq("customer_id", customerId)
+        .eq("store_id", storeId)
         .in("status", validStatuses)
 
       const totalSpent = customerOrders?.reduce((sum, o) => sum + (Number(o.total) || 0), 0) || 0
@@ -157,18 +169,20 @@ export async function POST(request: Request) {
         }
       }
 
-      // Se for Diamante (indice 3), dar badge
+      // Se for Diamante (indice 3), dar badge DESTA LOJA
       if (currentLevelIndex === 3) {
         const { data: existingBadge } = await supabase
           .from("customer_badges")
           .select("id")
           .eq("customer_id", customerId)
+          .eq("store_id", storeId)
           .eq("badge_id", 4) // Badge "Cliente Diamante"
           .single()
 
         if (!existingBadge) {
           const { error } = await supabase.from("customer_badges").insert({
             customer_id: customerId,
+            store_id: storeId,
             badge_id: 4
           })
           if (!error) {

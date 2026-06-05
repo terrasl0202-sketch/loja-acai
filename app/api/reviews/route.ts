@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ""
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -16,6 +17,9 @@ export async function GET(request: NextRequest) {
   const onlyVisible = url.searchParams.get("visible") === "true"
   const customerId = url.searchParams.get("customerId")
   
+  // Identificar loja atual
+  const storeId = await getStoreIdFromRequest(request)
+  
   const supabase = getSupabase()
   
   try {
@@ -30,6 +34,7 @@ export async function GET(request: NextRequest) {
           created_at
         )
       `)
+      .eq('store_id', storeId) // Filtrar por loja
       .order('created_at', { ascending: false })
     
     // Se nao for admin, mostrar apenas visiveis
@@ -92,13 +97,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Rating deve ser entre 1 e 5" }, { status: 400 })
     }
     
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+    
     const supabase = getSupabase()
     
-    // Verificar se pedido existe e pertence ao cliente
+    // Verificar se pedido existe e pertence ao cliente E A ESTA LOJA
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('id, customer_id, order_status')
       .eq('id', orderId)
+      .eq('store_id', storeId)
       .single()
     
     if (orderError || !order) {
@@ -114,23 +123,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Apenas pedidos finalizados podem ser avaliados" }, { status: 400 })
     }
     
-    // Verificar se ja existe avaliacao (indice unico ja protege, mas vamos dar mensagem amigavel)
+    // Verificar se ja existe avaliacao DESTA LOJA (indice unico ja protege, mas vamos dar mensagem amigavel)
     const { data: existing } = await supabase
       .from('order_reviews')
       .select('id')
       .eq('order_id', orderId)
+      .eq('store_id', storeId)
       .single()
     
     if (existing) {
       return NextResponse.json({ error: "Este pedido ja foi avaliado" }, { status: 400 })
     }
     
-    // Criar avaliacao
+    // Criar avaliacao DESTA LOJA
     const { data, error } = await supabase
       .from('order_reviews')
       .insert({
         order_id: orderId,
         customer_id: customerId,
+        store_id: storeId,
         rating,
         product_rating: productRating || null,
         delivery_rating: deliveryRating || null,

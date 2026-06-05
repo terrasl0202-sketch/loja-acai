@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import * as XLSX from "xlsx"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -22,6 +23,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const type = searchParams.get("type") || "orders"
   
+  // Identificar loja atual
+  const storeId = await getStoreIdFromRequest(request)
+  
   const supabase = getSupabase()
   if (!supabase) {
     return NextResponse.json({ error: "Database not configured" }, { status: 500 })
@@ -32,9 +36,11 @@ export async function GET(request: NextRequest) {
     let filename = ""
     
     if (type === "orders") {
+      // Exportar pedidos DESTA LOJA
       const { data: orders } = await supabase
         .from("orders")
         .select("*")
+        .eq("store_id", storeId)
         .order("created_at", { ascending: false })
         .limit(5000)
       
@@ -53,15 +59,18 @@ export async function GET(request: NextRequest) {
     }
     
     if (type === "customers") {
+      // Exportar clientes DESTA LOJA
       const { data: customers } = await supabase
         .from("customers")
         .select("*")
+        .eq("store_id", storeId)
         .order("created_at", { ascending: false })
       
-      // Buscar totais de pedidos por cliente
+      // Buscar totais de pedidos por cliente DESTA LOJA
       const { data: orders } = await supabase
         .from("orders")
         .select("customer_phone, total")
+        .eq("store_id", storeId)
       
       const customerTotals = new Map<string, { count: number; total: number }>()
       orders?.forEach(o => {

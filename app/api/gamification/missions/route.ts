@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 // GET - Buscar missoes do cliente
 export async function GET(request: NextRequest) {
@@ -7,15 +8,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const customerId = searchParams.get("customerId")
 
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+
     const supabase = await createClient()
     if (!supabase) {
       return NextResponse.json({ error: "Database error" }, { status: 500 })
     }
 
-    // Buscar todas missoes ativas
+    // Buscar missoes ativas DESTA LOJA
     const { data: missions } = await supabase
       .from("missions")
       .select("*")
+      .eq("store_id", storeId)
       .eq("active", true)
       .order("target", { ascending: true })
 
@@ -23,21 +28,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ missions: missions || [] })
     }
 
-    // Buscar progresso do cliente
+    // Buscar progresso do cliente DESTA LOJA
     const { data: progress } = await supabase
       .from("customer_missions")
       .select("*")
       .eq("customer_id", parseInt(customerId))
+      .eq("store_id", storeId)
 
     const progressMap = new Map(progress?.map(p => [p.mission_id, p]) || [])
 
-    // Buscar dados do cliente para calcular progresso
+    // Buscar dados do cliente DESTA LOJA para calcular progresso
     const validStatuses = ["confirmed", "preparing", "delivering", "completed"]
     
     const [ordersResult, reviewsResult, streakResult] = await Promise.all([
-      supabase.from("orders").select("id, total").eq("customer_id", parseInt(customerId)).in("status", validStatuses),
-      supabase.from("reviews").select("id").eq("customer_id", parseInt(customerId)),
-      supabase.from("customer_streaks").select("current_streak").eq("customer_id", parseInt(customerId)).single()
+      supabase.from("orders").select("id, total").eq("customer_id", parseInt(customerId)).eq("store_id", storeId).in("status", validStatuses),
+      supabase.from("order_reviews").select("id").eq("customer_id", parseInt(customerId)).eq("store_id", storeId),
+      supabase.from("customer_streaks").select("current_streak").eq("customer_id", parseInt(customerId)).eq("store_id", storeId).single()
     ])
 
     const totalOrders = ordersResult.data?.length || 0
@@ -102,14 +108,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "customerId required" }, { status: 400 })
     }
 
-    // Buscar dados do cliente
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+
+    // Buscar dados do cliente DESTA LOJA
     const validStatuses = ["confirmed", "preparing", "delivering", "completed"]
     
     const [ordersResult, reviewsResult, streakResult, existingMissions] = await Promise.all([
-      supabase.from("orders").select("id, total").eq("customer_id", customerId).in("status", validStatuses),
-      supabase.from("reviews").select("id").eq("customer_id", customerId),
-      supabase.from("customer_streaks").select("current_streak").eq("customer_id", customerId).single(),
-      supabase.from("customer_missions").select("mission_id, completed, reward_claimed").eq("customer_id", customerId)
+      supabase.from("orders").select("id, total").eq("customer_id", customerId).eq("store_id", storeId).in("status", validStatuses),
+      supabase.from("order_reviews").select("id").eq("customer_id", customerId).eq("store_id", storeId),
+      supabase.from("customer_streaks").select("current_streak").eq("customer_id", customerId).eq("store_id", storeId).single(),
+      supabase.from("customer_missions").select("mission_id, completed, reward_claimed").eq("customer_id", customerId).eq("store_id", storeId)
     ])
 
     const totalOrders = ordersResult.data?.length || 0
@@ -118,10 +127,11 @@ export async function POST(request: Request) {
     const currentStreak = streakResult.data?.current_streak || 0
     const completedIds = new Set(existingMissions.data?.filter(m => m.completed).map(m => m.mission_id) || [])
 
-    // Buscar todas missoes ativas
+    // Buscar missoes ativas DESTA LOJA
     const { data: missions } = await supabase
       .from("missions")
       .select("*")
+      .eq("store_id", storeId)
       .eq("active", true)
 
     const newCompleted: { id: number; title: string; rewardType: string; rewardValue: number }[] = []
@@ -146,10 +156,11 @@ export async function POST(request: Request) {
       }
 
       if (currentProgress >= mission.target) {
-        // Completar missao
+        // Completar missao DESTA LOJA
         const { error } = await supabase.from("customer_missions").upsert({
           customer_id: customerId,
           mission_id: mission.id,
+          store_id: storeId,
           progress: currentProgress,
           completed: true,
           completed_at: new Date().toISOString(),
@@ -164,10 +175,11 @@ export async function POST(request: Request) {
             rewardValue: mission.reward_value
           })
 
-          // Gerar recompensa automaticamente
+          // Gerar recompensa automaticamente DESTA LOJA
           if (mission.reward_type === "points" && mission.reward_value > 0) {
             await supabase.from("customer_points").insert({
               customer_id: customerId,
+              store_id: storeId,
               points: Math.floor(mission.reward_value),
               type: "earned",
               description: `Missao: ${mission.title}`
@@ -175,18 +187,20 @@ export async function POST(request: Request) {
           } else if (mission.reward_type === "cashback" && mission.reward_value > 0) {
             await supabase.from("customer_cashback").insert({
               customer_id: customerId,
+              store_id: storeId,
               amount: mission.reward_value,
               type: "earned",
               description: `Missao: ${mission.title}`
             })
           }
 
-          // Marcar recompensa como reclamada
+          // Marcar recompensa como reclamada DESTA LOJA
           await supabase
             .from("customer_missions")
             .update({ reward_claimed: true })
             .eq("customer_id", customerId)
             .eq("mission_id", mission.id)
+            .eq("store_id", storeId)
         }
       }
     }
