@@ -574,6 +574,7 @@ export function StorePageContent() {
       {/* Category Navigation */}
       <div className="px-4">
         <CategoryNav
+          categories={[]}
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
           enabled={siteConfig.customization?.elements?.showCategories !== false}

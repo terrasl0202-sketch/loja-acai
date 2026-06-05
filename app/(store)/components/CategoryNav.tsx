@@ -76,34 +76,16 @@ interface Category {
 }
 
 interface CategoryNavProps {
+  categories: Category[]
   selectedCategory: number | null
   onSelectCategory: (categoryId: number | null) => void
   enabled?: boolean
 }
 
-export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true }: CategoryNavProps) {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading] = useState(true)
+export function CategoryNav({ categories, selectedCategory, onSelectCategory, enabled = true }: CategoryNavProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showLeftArrow, setShowLeftArrow] = useState(false)
   const [showRightArrow, setShowRightArrow] = useState(false)
-
-  // Carregar categorias
-  useEffect(() => {
-    if (!enabled) {
-      setLoading(false)
-      return
-    }
-    
-    fetch('/api/categories')
-      .then(res => res.json())
-      .then(data => {
-        const activeCategories = data.filter((c: Category) => c.active)
-        setCategories(activeCategories)
-      })
-      .catch(err => console.error('[CategoryNav] Erro:', err))
-      .finally(() => setLoading(false))
-  }, [enabled])
 
   // Verificar setas de scroll
   useEffect(() => {
@@ -139,7 +121,7 @@ export function CategoryNav({ selectedCategory, onSelectCategory, enabled = true
   }
 
   // Nao mostrar se desabilitado ou nao tem categorias
-  if (!enabled || loading || categories.length === 0) {
+  if (!enabled || categories.length === 0) {
     return null
   }
 
