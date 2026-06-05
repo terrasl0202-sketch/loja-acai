@@ -286,21 +286,32 @@ export function AdminDashboard({ orders, formatCurrency, onCleanupDuplicates, on
           </div>
         </div>
         
-        <div className="flex items-end justify-between gap-2 h-32">
-          {chartData.map((day, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div 
-                className="w-full bg-primary/20 rounded-t-lg transition-all hover:bg-primary/30 relative group"
-                style={{ height: `${Math.max((day.revenue / maxRevenue) * 100, 4)}%` }}
-              >
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-card px-2 py-1 rounded text-[10px] font-medium text-foreground border border-border opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                  {formatCurrency(day.revenue)}
-                </div>
-              </div>
-              <span className="text-[10px] text-muted-foreground capitalize">{day.date}</span>
+        {/* Empty state elegante quando nao ha vendas */}
+        {chartData.every(d => d.revenue === 0) ? (
+          <div className="flex flex-col items-center justify-center h-32 text-center">
+            <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
+              <TrendingUp className="w-6 h-6 text-muted-foreground/50" />
             </div>
-          ))}
-        </div>
+            <p className="text-sm text-muted-foreground">Nenhuma venda neste periodo</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">Os dados aparecerao aqui quando houver vendas</p>
+          </div>
+        ) : (
+          <div className="flex items-end justify-between gap-2 h-32">
+            {chartData.map((day, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                <div 
+                  className="w-full bg-primary/20 rounded-t-lg transition-all hover:bg-primary/30 relative group"
+                  style={{ height: `${Math.max((day.revenue / maxRevenue) * 100, 4)}%` }}
+                >
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-card px-2 py-1 rounded text-[10px] font-medium text-foreground border border-border opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                    {formatCurrency(day.revenue)}
+                  </div>
+                </div>
+                <span className="text-[10px] text-muted-foreground capitalize">{day.date}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Faturamento por Forma de Pagamento */}

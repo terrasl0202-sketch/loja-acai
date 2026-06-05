@@ -2044,10 +2044,10 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         />
       )}
 
-      {/* Category Navigation */}
+      {/* Category Navigation - apenas categorias com produtos ativos */}
       <div className="px-4">
         <CategoryNav
-          categories={categories}
+          categories={categories.filter(cat => products.some(p => p.categoryId === cat.id))}
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
           enabled={customization.elements.showCategories !== false}

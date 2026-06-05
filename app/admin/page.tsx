@@ -20,10 +20,7 @@ import {
   MessageCircle,
   AlertCircle,
   Search,
-  FolderArchive,
-  Trash2,
-  RotateCcw,
-  Palette
+  Trash2
 } from "lucide-react"
 import Link from "next/link"
 import { type SiteConfig, type Product, type Coupon, type Order, type NeighborhoodFee, type Entregador, defaultConfig } from "@/lib/config-types"
@@ -255,18 +252,15 @@ export default function AdminPage() {
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true)
-      console.log("[Admin v102] loadConfig - Carregando TODOS os dados do Supabase...")
       
       // Iniciar com config default
       let baseConfig = { ...defaultConfig }
       
-      // 1. Carregar store-settings COMPLETO do Supabase (inclui banner, payment, whatsapp, etc)
-      console.log("[Admin v102] Carregando store-settings...")
+      // 1. Carregar store-settings COMPLETO do Supabase
       const settingsRes = await fetch('/api/store-settings')
       const settingsData = await settingsRes.json()
       if (settingsData.success && settingsData.settings) {
         const s = settingsData.settings
-        console.log("[Admin v102] Store settings carregados:", s.storeName)
         
         // Store settings basicos
         setStoreSettings({
@@ -358,20 +352,16 @@ export default function AdminPage() {
       }
       
       // 2. Carregar produtos do Supabase
-      console.log("[Admin v102] Carregando produtos...")
       const productsRes = await fetch('/api/products')
       const productsData = await productsRes.json()
       if (productsData.success && Array.isArray(productsData.products) && productsData.products.length > 0) {
-        console.log(`[Admin v102] ${productsData.products.length} produtos carregados`)
         baseConfig.products = productsData.products
       }
       
       // 3. Carregar bairros do Supabase
-      console.log("[Admin v102] Carregando bairros...")
       const neighborhoodsRes = await fetch('/api/neighborhoods')
       const neighborhoodsData = await neighborhoodsRes.json()
       if (neighborhoodsData.success && Array.isArray(neighborhoodsData.neighborhoods) && neighborhoodsData.neighborhoods.length > 0) {
-        console.log(`[Admin v102] ${neighborhoodsData.neighborhoods.length} bairros carregados`)
         const neighborhoodFees = neighborhoodsData.neighborhoods.map((n: { name: string; deliveryFee?: number; fee?: number; active: boolean }) => ({
           name: n.name,
           fee: n.deliveryFee ?? n.fee ?? 0,
@@ -381,27 +371,22 @@ export default function AdminPage() {
       }
       
       // 4. Carregar cupons do Supabase
-      console.log("[Admin v102] Carregando cupons...")
       const couponsRes = await fetch('/api/coupons')
       const couponsData = await couponsRes.json()
       if (couponsData.success && Array.isArray(couponsData.coupons)) {
-        console.log(`[Admin v102] ${couponsData.coupons.length} cupons carregados`)
         baseConfig.coupons = couponsData.coupons
       }
       
       // 5. Carregar entregadores do Supabase
-      console.log("[Admin v102] Carregando entregadores...")
       const entregadoresRes = await fetch('/api/entregadores')
       const entregadoresData = await entregadoresRes.json()
       if (entregadoresData.success && Array.isArray(entregadoresData.entregadores)) {
-        console.log(`[Admin v102] ${entregadoresData.entregadores.length} entregadores carregados`)
         baseConfig.entregadores = entregadoresData.entregadores
       }
       
       setConfig(baseConfig)
-      console.log("[Admin v102] TODOS os dados carregados com sucesso do Supabase")
     } catch (error) {
-      console.error("[Admin v102] Erro ao carregar:", error)
+      console.error("Erro ao carregar configuracoes:", error)
     } finally {
       setLoading(false)
     }
@@ -529,12 +514,8 @@ export default function AdminPage() {
     localStorage.removeItem("admin_session")
   }
 
-  // ========== SALVAR CONFIGURACOES v102 ==========
-  // TUDO salvo via APIs server-side no Supabase
-  // Toast verde mostra "Salvo no Supabase" em caso de sucesso
-  // Erro mostra APENAS o erro real atual da API
+  // ========== SALVAR CONFIGURACOES ==========
   const handleSave = async () => {
-    console.log("[Admin v102] handleSave iniciado - Salvando TUDO no Supabase")
     setSaving(true)
     setSaveSuccess(false)
     
@@ -548,15 +529,12 @@ export default function AdminPage() {
     
     try {
       // 1. SALVAR STORE-SETTINGS COMPLETO NO SUPABASE
-      // Inclui: dados basicos, banner, horario, entrega, pagamento, whatsapp
       const settingsToSave = pendingStoreSettingsRef.current
-      console.log("[Admin v102] Salvando store-settings completo:", settingsToSave.storeName)
       try {
         const settingsRes = await fetch("/api/store-settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            // Dados basicos
             store_name: settingsToSave.storeName,
             subtitle: settingsToSave.subtitle,
             slogan: settingsToSave.slogan,
@@ -567,11 +545,8 @@ export default function AdminPage() {
             close_time: settingsToSave.closeTime,
             store_open: settingsToSave.storeOpen,
             manual_control: settingsToSave.manualControl,
-            // Banner
             banner: config.banner,
-            // Horario avancado
             storeHours: config.storeHours,
-            // Entrega (config basica, bairros vao separado)
             delivery: {
               enabled: config.delivery?.enabled,
               defaultFee: config.delivery?.defaultFee,
@@ -579,16 +554,12 @@ export default function AdminPage() {
               estimatedTime: config.delivery?.estimatedTime,
               pickupEnabled: config.delivery?.pickupEnabled,
             },
-            // Pagamento
             payment: config.payment,
-            // PIX Manual
             pixManual: config.pixManual,
-            // WhatsApp config
             whatsappConfig: config.whatsapp,
           }),
         })
         const settingsData = await settingsRes.json()
-        console.log("[Admin v102] store-settings response:", settingsData)
         if (settingsData.success) {
           results.storeSettings.success = true
           setStoreSettings(settingsToSave)
@@ -600,7 +571,6 @@ export default function AdminPage() {
       }
       
       // 2. SALVAR PRODUTOS NO SUPABASE
-      console.log("[Admin v102] Salvando produtos...")
       try {
         const productsRes = await fetch("/api/products", {
           method: "POST",
@@ -608,7 +578,6 @@ export default function AdminPage() {
           body: JSON.stringify({ products: config.products }),
         })
         const productsData = await productsRes.json()
-        console.log("[Admin v102] products response:", productsData)
         if (productsData.success) {
           results.products.success = true
           results.products.count = productsData.count || config.products.length
@@ -620,7 +589,6 @@ export default function AdminPage() {
       }
       
       // 3. SALVAR BAIRROS NO SUPABASE
-      console.log("[Admin v102] Salvando bairros...")
       try {
         const neighborhoodFees = config.delivery?.neighborhoodFees || []
         if (neighborhoodFees.length > 0) {
@@ -637,7 +605,6 @@ export default function AdminPage() {
             body: JSON.stringify({ neighborhoods: neighborhoodsToSave }),
           })
           const neighborhoodsData = await neighborhoodsRes.json()
-          console.log("[Admin v102] neighborhoods response:", neighborhoodsData)
           if (neighborhoodsData.success) {
             results.neighborhoods.success = true
             results.neighborhoods.count = neighborhoodsData.count || neighborhoodFees.length
@@ -653,7 +620,6 @@ export default function AdminPage() {
       }
       
       // 4. SALVAR CUPONS NO SUPABASE
-      console.log("[Admin v102] Salvando cupons...")
       try {
         const coupons = config.coupons || []
         const couponsRes = await fetch("/api/coupons", {
@@ -662,7 +628,6 @@ export default function AdminPage() {
           body: JSON.stringify({ coupons }),
         })
         const couponsData = await couponsRes.json()
-        console.log("[Admin v102] coupons response:", couponsData)
         if (couponsData.success) {
           results.coupons.success = true
           results.coupons.count = couponsData.count || coupons.length
@@ -674,7 +639,6 @@ export default function AdminPage() {
       }
       
       // 5. SALVAR ENTREGADORES NO SUPABASE
-      console.log("[Admin v102] Salvando entregadores...")
       try {
         const entregadores = config.entregadores || []
         const entregadoresRes = await fetch("/api/entregadores", {
@@ -683,7 +647,6 @@ export default function AdminPage() {
           body: JSON.stringify({ entregadores }),
         })
         const entregadoresData = await entregadoresRes.json()
-        console.log("[Admin v102] entregadores response:", entregadoresData)
         if (entregadoresData.success) {
           results.entregadores.success = true
           results.entregadores.count = entregadoresData.count || entregadores.length
@@ -694,9 +657,8 @@ export default function AdminPage() {
         results.entregadores.error = String(e)
       }
       
-      // RESULTADO FINAL v102
+      // RESULTADO FINAL
       const allSuccess = results.storeSettings.success && results.products.success && results.coupons.success && results.entregadores.success
-      console.log("[Admin v102] Resultado:", results)
       
       if (allSuccess) {
         setSaveSuccess(true)

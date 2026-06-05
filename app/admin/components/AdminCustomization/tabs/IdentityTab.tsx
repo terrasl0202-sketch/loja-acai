@@ -29,13 +29,11 @@ export function IdentityTab({ identity, colors, onUpdateIdentity, onUpdateColors
   const [uploadingFavicon, setUploadingFavicon] = useState(false)
   const [uploadingCover, setUploadingCover] = useState(false)
 
-  // Funcao para upload de imagem (placeholder - implementar com Vercel Blob)
+  // Funcao para upload de imagem (usa FileReader para preview local)
   const handleImageUpload = async (
     file: File,
     type: "logo" | "favicon" | "cover"
   ) => {
-    // TODO: Implementar upload real com Vercel Blob
-    // Por enquanto, apenas mostra URL da imagem se for URL valida
     const reader = new FileReader()
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string
