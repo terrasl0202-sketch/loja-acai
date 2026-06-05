@@ -68,6 +68,7 @@ export const getTimeSinceCreation = (createdAt: string): string => {
 
 // Verificar se pedido esta confirmado (pagamento recebido)
 // Considera tanto campos legados (paymentStatus, manuallyConfirmed) quanto o campo principal (status)
+// NOTA: Esta funcao verifica se o pedido foi PAGO, para exibicao nas abas corretas
 export const isOrderConfirmed = (o: Order): boolean => 
   o.status === "confirmed" ||        // Status principal = confirmed
   o.status === "preparing" ||        // Ja em preparacao = confirmado
@@ -77,6 +78,56 @@ export const isOrderConfirmed = (o: Order): boolean =>
   o.manuallyConfirmed ||             // Confirmacao manual
   o.confirmedAutomatically ||        // Pix automatico
   !!o.paidAt                         // Campo legado
+
+/**
+ * REGRA OFICIAL DE FATURAMENTO:
+ * Um pedido entra no faturamento quando:
+ * 1. Pagamento confirmado (paymentStatus = "confirmed" OU manuallyConfirmed OU confirmedAutomatically OU paidAt)
+ * 2. Status indica que o pedido esta em andamento ou finalizado
+ * 
+ * STATUS QUE CONTAM NO FATURAMENTO:
+ * - confirmed (Aguardando Preparo) - JA PAGO
+ * - preparing (Em Preparacao)
+ * - delivering (Saiu para Entrega)
+ * - completed (Finalizado)
+ * 
+ * STATUS QUE NAO CONTAM:
+ * - pending (Aguardando Pagamento) - mesmo se isOrderConfirmed retornar true por outros campos
+ * - cancelled (Cancelado)
+ */
+export const isRevenueOrder = (o: Order): boolean => {
+  // Verifica se o pagamento foi confirmado por qualquer meio
+  const paymentConfirmed = 
+    o.paymentStatus === "confirmed" ||
+    o.manuallyConfirmed ||
+    o.confirmedAutomatically ||
+    !!o.paidAt
+  
+  // Status que indicam que o pedido esta em andamento ou finalizado (JA PAGO)
+  const validStatuses: Order["status"][] = [
+    "confirmed",   // Aguardando Preparo (Pago)
+    "preparing",   // Em Preparacao
+    "delivering",  // Saiu para Entrega
+    "completed"    // Finalizado
+  ]
+  
+  const statusValid = validStatuses.includes(o.status)
+  
+  // Nao contar pedidos cancelados
+  const notCancelled = o.status !== "cancelled"
+  
+  // Nao contar pedidos arquivados que foram cancelados
+  const notCancelledArchive = !(o.archived && o.status === "cancelled")
+  
+  return paymentConfirmed && statusValid && notCancelled && notCancelledArchive
+}
+
+/**
+ * Filtra pedidos que devem entrar no faturamento
+ */
+export const getRevenueOrders = (orders: Order[]): Order[] => {
+  return orders.filter(isRevenueOrder)
+}
 
 // Obter cor do status
 export const getStatusColor = (status: Order["status"]): string => {

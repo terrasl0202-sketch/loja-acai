@@ -15,6 +15,7 @@ import {
   Package
 } from "lucide-react"
 import type { Order } from "@/lib/config-types"
+import { getRevenueOrders } from "../utils"
 
 interface AdminDashboardProps {
   orders: Order[]
@@ -33,10 +34,10 @@ export function AdminDashboard({ orders, formatCurrency }: AdminDashboardProps) 
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
 
-    // Filtra apenas pedidos confirmados
-    const confirmedOrders = orders.filter(o => 
-      o.paymentStatus === 'confirmed'
-    )
+    // Filtra pedidos que entram no faturamento usando a regra oficial
+    // Conta: confirmed (aguardando preparo), preparing, delivering, completed
+    // Nao conta: pending, cancelled, failed, archived cancelados
+    const confirmedOrders = getRevenueOrders(orders)
 
     // Pedidos por periodo
     const ordersToday = confirmedOrders.filter(o => new Date(o.createdAt) >= today)

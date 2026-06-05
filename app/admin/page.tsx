@@ -58,6 +58,8 @@ import {
   calcularTempoEntrega,
   getTimeSinceCreation,
   isOrderConfirmed,
+  isRevenueOrder,
+  getRevenueOrders,
   getStatusColor,
   getStatusLabel,
   getPaymentStatusColor,
@@ -1123,23 +1125,25 @@ export default function AdminPage() {
     totalOrders: activeOrders.length + financialHistory.length,
     totalRevenue: activeOrders.reduce((sum, o) => sum + o.total, 0) + historicalRevenue,
     confirmedOrders: activeOrders.filter(isOrderConfirmed),
-    pixAutomatic: activeOrders.filter(o => (o.isPixAutomatic || o.paymentMethod === "PIX Asaas") && isOrderConfirmed(o)),
-    pixManual: activeOrders.filter(o => (o.paymentMethod === "PIX Manual" || (o.paymentMethod === "PIX" && !o.isPixAutomatic)) && isOrderConfirmed(o)),
-    dinheiro: activeOrders.filter(o => o.paymentMethod === "Dinheiro" && isOrderConfirmed(o)),
-    cartao: activeOrders.filter(o => (o.paymentMethod === "Cartao" || o.paymentMethod === "Cartão") && isOrderConfirmed(o)),
+    pixAutomatic: activeOrders.filter(o => (o.isPixAutomatic || o.paymentMethod === "PIX Asaas") && isRevenueOrder(o)),
+    pixManual: activeOrders.filter(o => (o.paymentMethod === "PIX Manual" || (o.paymentMethod === "PIX" && !o.isPixAutomatic)) && isRevenueOrder(o)),
+    dinheiro: activeOrders.filter(o => o.paymentMethod === "Dinheiro" && isRevenueOrder(o)),
+    cartao: activeOrders.filter(o => (o.paymentMethod === "Cartao" || o.paymentMethod === "Cartão") && isRevenueOrder(o)),
     historicalPixAuto,
     historicalPixManual,
     historicalDinheiro,
     historicalCartao,
     historicalRevenue,
     historicalCount: financialHistory.length,
-    confirmedRevenue: activeOrders.filter(isOrderConfirmed).reduce((sum, o) => sum + o.total, 0) + historicalRevenue,
+    // FATURAMENTO: usa isRevenueOrder (regra oficial)
+    confirmedRevenue: getRevenueOrders(activeOrders).reduce((sum, o) => sum + o.total, 0) + historicalRevenue,
     pendingRevenue: activeOrders.filter(o => !isOrderConfirmed(o) && o.status !== "cancelled").reduce((sum, o) => sum + o.total, 0),
   }
 
   const getTopProducts = () => {
     const productSales: Record<string, { name: string, quantity: number, revenue: number }> = {}
-    activeOrders.filter(isOrderConfirmed).forEach(order => {
+    // Usa isRevenueOrder para contabilizar apenas pedidos que entram no faturamento
+    getRevenueOrders(activeOrders).forEach(order => {
       if (order.itemsDetailed && Array.isArray(order.itemsDetailed)) {
         order.itemsDetailed.forEach((item: { name?: string; productName?: string; quantity?: number; price?: number; subtotal?: number }) => {
           const productName = item.name || item.productName || "Produto sem nome"
@@ -1159,7 +1163,8 @@ export default function AdminPage() {
 
   const getTopCustomers = () => {
     const customerStats: Record<string, { name: string, phone: string, orders: number, revenue: number, lastOrder: string }> = {}
-    activeOrders.filter(o => o.paymentStatus === "confirmed" || o.manuallyConfirmed).forEach(order => {
+    // Usa isRevenueOrder para contabilizar apenas pedidos que entram no faturamento
+    getRevenueOrders(activeOrders).forEach(order => {
       const key = order.customerPhone || order.customerName
       if (!customerStats[key]) customerStats[key] = { name: order.customerName, phone: order.customerPhone, orders: 0, revenue: 0, lastOrder: order.createdAt }
       customerStats[key].orders += 1
