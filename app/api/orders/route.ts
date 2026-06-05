@@ -35,15 +35,63 @@ interface DbOrder {
   payment_method: string | null
   items: unknown
   total: number
+  subtotal?: number
+  discount?: number
+  delivery_fee?: number
   status: string
+  order_status?: string // Campo legado
+  payment_status?: string // Status do pagamento
   created_at: string
   // Campos de entregador
   entregador_id?: string | null
   entregador_nome?: string | null
   entregador_whatsapp?: string | null
+  // Campos de confirmacao
+  manually_confirmed?: boolean
+  confirmed_automatically?: boolean
+  paid_at?: string | null
+  // Campos de PIX
+  asaas_payment_id?: string | null
+  pix_code?: string | null
+  pix_qrcode?: string | null
 }
 
 function dbToFrontend(db: DbOrder): Order {
+  // Normaliza o status - prioriza payment_status, depois order_status, depois status
+  const rawPaymentStatus = db.payment_status || db.order_status || db.status || 'pending'
+  // Mapeia valores do banco para valores do frontend
+  let paymentStatus: Order['paymentStatus'] = 'pending'
+  if (rawPaymentStatus === 'confirmed' || rawPaymentStatus === 'paid' || rawPaymentStatus === 'pago') {
+    paymentStatus = 'confirmed'
+  } else if (rawPaymentStatus === 'failed' || rawPaymentStatus === 'falhou') {
+    paymentStatus = 'failed'
+  }
+  
+  // Normaliza o status do pedido
+  const rawStatus = db.status || db.order_status || 'pending'
+  let status: Order['status'] = 'pending'
+  if (rawStatus === 'confirmed' || rawStatus === 'aguardando_preparo') {
+    status = 'confirmed'
+  } else if (rawStatus === 'preparing' || rawStatus === 'em_preparacao') {
+    status = 'preparing'
+  } else if (rawStatus === 'delivering' || rawStatus === 'saiu_para_entrega') {
+    status = 'delivering'
+  } else if (rawStatus === 'completed' || rawStatus === 'finalizado' || rawStatus === 'entregue') {
+    status = 'completed'
+  } else if (rawStatus === 'cancelled' || rawStatus === 'cancelado') {
+    status = 'cancelled'
+  }
+  
+  // Se o pagamento foi confirmado manualmente ou automaticamente, ajustar paymentStatus
+  if (db.manually_confirmed || db.confirmed_automatically || db.paid_at) {
+    paymentStatus = 'confirmed'
+  }
+  
+  // Se o status e confirmed/preparing/delivering/completed, assumir pagamento confirmado
+  if (['confirmed', 'preparing', 'delivering', 'completed'].includes(status)) {
+    paymentStatus = 'confirmed'
+  }
+
   return {
     id: String(db.id), // Converter BIGINT para string
     orderCode: db.order_code || String(db.id),
@@ -51,14 +99,20 @@ function dbToFrontend(db: DbOrder): Order {
     customerPhone: db.customer_phone || '',
     items: JSON.stringify(db.items || []),
     itemsDetailed: Array.isArray(db.items) ? db.items as Order['itemsDetailed'] : [],
-    total: Number(db.total),
+    total: Number(db.total) || 0,
     paymentMethod: db.payment_method || 'Dinheiro',
     deliveryType: 'delivery',
     address: db.address || undefined,
     neighborhood: db.neighborhood || undefined,
-    status: (db.status || 'pending') as Order['status'],
-    paymentStatus: 'pending',
+    status: status,
+    paymentStatus: paymentStatus,
     createdAt: db.created_at,
+    paidAt: db.paid_at || undefined,
+    manuallyConfirmed: db.manually_confirmed || false,
+    confirmedAutomatically: db.confirmed_automatically || false,
+    asaasPaymentId: db.asaas_payment_id || undefined,
+    asaasPixCode: db.pix_code || undefined,
+    asaasQrCodeUrl: db.pix_qrcode || undefined,
     // Campos de entregador
     entregadorId: db.entregador_id || undefined,
     entregadorNome: db.entregador_nome || undefined,

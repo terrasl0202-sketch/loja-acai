@@ -15,7 +15,7 @@ import {
   Package
 } from "lucide-react"
 import type { Order } from "@/lib/config-types"
-import { getRevenueOrders } from "../utils"
+import { getRevenueOrders, getOrderTotal } from "../utils"
 
 interface AdminDashboardProps {
   orders: Order[]
@@ -56,17 +56,17 @@ export function AdminDashboard({ orders, formatCurrency }: AdminDashboardProps) 
       return d >= lastMonthStart && d <= lastMonthEnd
     })
 
-    // Faturamento
-    const revenueToday = ordersToday.reduce((sum, o) => sum + o.total, 0)
-    const revenueYesterday = ordersYesterday.reduce((sum, o) => sum + o.total, 0)
-    const revenueThisWeek = ordersThisWeek.reduce((sum, o) => sum + o.total, 0)
-    const revenueLastWeek = ordersLastWeek.reduce((sum, o) => sum + o.total, 0)
-    const revenueThisMonth = ordersThisMonth.reduce((sum, o) => sum + o.total, 0)
-    const revenueLastMonth = ordersLastMonth.reduce((sum, o) => sum + o.total, 0)
+    // Faturamento - usando getOrderTotal para garantir valores corretos
+    const revenueToday = ordersToday.reduce((sum, o) => sum + getOrderTotal(o), 0)
+    const revenueYesterday = ordersYesterday.reduce((sum, o) => sum + getOrderTotal(o), 0)
+    const revenueThisWeek = ordersThisWeek.reduce((sum, o) => sum + getOrderTotal(o), 0)
+    const revenueLastWeek = ordersLastWeek.reduce((sum, o) => sum + getOrderTotal(o), 0)
+    const revenueThisMonth = ordersThisMonth.reduce((sum, o) => sum + getOrderTotal(o), 0)
+    const revenueLastMonth = ordersLastMonth.reduce((sum, o) => sum + getOrderTotal(o), 0)
 
     // Ticket medio
     const ticketMedio = confirmedOrders.length > 0 
-      ? confirmedOrders.reduce((sum, o) => sum + o.total, 0) / confirmedOrders.length 
+      ? confirmedOrders.reduce((sum, o) => sum + getOrderTotal(o), 0) / confirmedOrders.length 
       : 0
 
     // Clientes unicos (por telefone)

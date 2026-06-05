@@ -81,45 +81,53 @@ export const isOrderConfirmed = (o: Order): boolean =>
 
 /**
  * REGRA OFICIAL DE FATURAMENTO:
- * Um pedido entra no faturamento quando:
- * 1. Pagamento confirmado (paymentStatus = "confirmed" OU manuallyConfirmed OU confirmedAutomatically OU paidAt)
- * 2. Status indica que o pedido esta em andamento ou finalizado
+ * Um pedido entra no faturamento se isOrderConfirmed() retornar true
+ * E o pedido NAO estiver cancelado.
  * 
- * STATUS QUE CONTAM NO FATURAMENTO:
- * - confirmed (Aguardando Preparo) - JA PAGO
- * - preparing (Em Preparacao)
- * - delivering (Saiu para Entrega)
- * - completed (Finalizado)
- * 
- * STATUS QUE NAO CONTAM:
- * - pending (Aguardando Pagamento) - mesmo se isOrderConfirmed retornar true por outros campos
- * - cancelled (Cancelado)
+ * A mesma logica de "confirmado" deve valer para faturamento.
+ * Se aparece como "Confirmado" no relatorio, DEVE entrar no faturamento.
  */
 export const isRevenueOrder = (o: Order): boolean => {
-  // Verifica se o pagamento foi confirmado por qualquer meio
-  const paymentConfirmed = 
-    o.paymentStatus === "confirmed" ||
-    o.manuallyConfirmed ||
-    o.confirmedAutomatically ||
-    !!o.paidAt
-  
-  // Status que indicam que o pedido esta em andamento ou finalizado (JA PAGO)
-  const validStatuses: Order["status"][] = [
-    "confirmed",   // Aguardando Preparo (Pago)
-    "preparing",   // Em Preparacao
-    "delivering",  // Saiu para Entrega
-    "completed"    // Finalizado
-  ]
-  
-  const statusValid = validStatuses.includes(o.status)
+  // Se o pedido esta confirmado (mesma logica do relatorio)
+  const confirmed = isOrderConfirmed(o)
   
   // Nao contar pedidos cancelados
   const notCancelled = o.status !== "cancelled"
   
-  // Nao contar pedidos arquivados que foram cancelados
-  const notCancelledArchive = !(o.archived && o.status === "cancelled")
+  return confirmed && notCancelled
+}
+
+/**
+ * Obter o total do pedido de forma segura
+ * Tenta varios campos possiveis e garante que nunca retorna NaN
+ */
+export const getOrderTotal = (o: Order): number => {
+  // Tenta o.total primeiro (mais comum)
+  if (typeof o.total === 'number' && !isNaN(o.total)) {
+    return o.total
+  }
   
-  return paymentConfirmed && statusValid && notCancelled && notCancelledArchive
+  // Tenta converter string para numero
+  if (typeof o.total === 'string') {
+    const parsed = parseFloat(o.total)
+    if (!isNaN(parsed)) return parsed
+  }
+  
+  // Tenta campos alternativos (podem existir em dados legados)
+  const alt = o as unknown as Record<string, unknown>
+  
+  if (typeof alt.totalAmount === 'number' && !isNaN(alt.totalAmount)) {
+    return alt.totalAmount
+  }
+  if (typeof alt.total_amount === 'number' && !isNaN(alt.total_amount)) {
+    return alt.total_amount
+  }
+  if (typeof alt.finalTotal === 'number' && !isNaN(alt.finalTotal)) {
+    return alt.finalTotal
+  }
+  
+  // Fallback: 0
+  return 0
 }
 
 /**
@@ -127,6 +135,13 @@ export const isRevenueOrder = (o: Order): boolean => {
  */
 export const getRevenueOrders = (orders: Order[]): Order[] => {
   return orders.filter(isRevenueOrder)
+}
+
+/**
+ * Calcula o faturamento total dos pedidos
+ */
+export const calculateRevenue = (orders: Order[]): number => {
+  return getRevenueOrders(orders).reduce((sum, o) => sum + getOrderTotal(o), 0)
 }
 
 // Obter cor do status

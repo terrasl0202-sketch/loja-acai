@@ -60,6 +60,8 @@ import {
   isOrderConfirmed,
   isRevenueOrder,
   getRevenueOrders,
+  getOrderTotal,
+  calculateRevenue,
   getStatusColor,
   getStatusLabel,
   getPaymentStatusColor,
@@ -1136,7 +1138,7 @@ export default function AdminPage() {
 
   const reportStats: ReportStats = {
     totalOrders: activeOrders.length + financialHistory.length,
-    totalRevenue: activeOrders.reduce((sum, o) => sum + o.total, 0) + historicalRevenue,
+    totalRevenue: activeOrders.reduce((sum, o) => sum + getOrderTotal(o), 0) + historicalRevenue,
     confirmedOrders: activeOrders.filter(isOrderConfirmed),
     pixAutomatic: activeOrders.filter(o => (o.isPixAutomatic || o.paymentMethod === "PIX Asaas") && isRevenueOrder(o)),
     pixManual: activeOrders.filter(o => (o.paymentMethod === "PIX Manual" || (o.paymentMethod === "PIX" && !o.isPixAutomatic)) && isRevenueOrder(o)),
@@ -1148,9 +1150,9 @@ export default function AdminPage() {
     historicalCartao,
     historicalRevenue,
     historicalCount: financialHistory.length,
-    // FATURAMENTO: usa isRevenueOrder (regra oficial)
-    confirmedRevenue: getRevenueOrders(activeOrders).reduce((sum, o) => sum + o.total, 0) + historicalRevenue,
-    pendingRevenue: activeOrders.filter(o => !isOrderConfirmed(o) && o.status !== "cancelled").reduce((sum, o) => sum + o.total, 0),
+    // FATURAMENTO: usa calculateRevenue (soma total dos pedidos confirmados)
+    confirmedRevenue: calculateRevenue(activeOrders) + historicalRevenue,
+    pendingRevenue: activeOrders.filter(o => !isOrderConfirmed(o) && o.status !== "cancelled").reduce((sum, o) => sum + getOrderTotal(o), 0),
   }
 
   const getTopProducts = () => {
