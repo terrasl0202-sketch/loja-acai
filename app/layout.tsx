@@ -54,7 +54,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt-BR" className="bg-background">
+    <html lang="pt-BR">
       <body className={`${poppins.variable} font-sans antialiased`}>
         {children}
         <Toaster position="top-center" richColors closeButton />

@@ -1861,13 +1861,23 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
   }
 
   // Mostrar loading enquanto carrega config do Supabase
-  // Evita mostrar dados antigos do defaultConfig
+  // Usa cores neutras que funcionam bem em qualquer tema para evitar flicker
   if (!configLoaded) {
     return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 text-primary animate-spin" />
-          <p className="text-muted-foreground text-sm">Carregando loja...</p>
+      <main 
+        className="min-h-screen flex items-center justify-center"
+        style={{
+          background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+        }}
+      >
+        <div className="flex flex-col items-center gap-4 animate-pulse">
+          <div 
+            className="w-12 h-12 rounded-full border-4 border-t-transparent animate-spin"
+            style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }}
+          />
+          <p className="text-sm font-medium" style={{ color: '#6b7280' }}>
+            Carregando...
+          </p>
         </div>
       </main>
     )
