@@ -30,6 +30,7 @@ interface AdminModalsProps {
   showArchiveConfirm: boolean
   onCancelArchive: () => void
   onConfirmArchive: () => void
+  archiveLoading?: boolean
 
   // Modal de copia manual
   manualCopyText: string | null
@@ -63,6 +64,7 @@ export function AdminModals({
   showArchiveConfirm,
   onCancelArchive,
   onConfirmArchive,
+  archiveLoading = false,
   manualCopyText,
   onCloseManualCopy,
   manualEntregadorLink,
@@ -227,7 +229,7 @@ export function AdminModals({
               </div>
               <h3 className="text-xl font-bold text-foreground">Limpar Relatorios</h3>
               <p className="text-muted-foreground mt-2">
-                Tem certeza que deseja limpar os relatorios? Os pedidos serao arquivados e nao aparecerao mais nas estatisticas.
+                Tem certeza que deseja limpar os relatorios? Os pedidos completados e cancelados serao removidos.
               </p>
               <p className="text-sm text-red-400 mt-2">
                 Essa acao nao pode ser desfeita.
@@ -236,15 +238,24 @@ export function AdminModals({
             <div className="flex gap-3">
               <button
                 onClick={onCancelArchive}
-                className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-colors"
+                disabled={archiveLoading}
+                className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-xl hover:bg-secondary/80 transition-colors disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 onClick={onConfirmArchive}
-                className="flex-1 py-3 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-colors"
+                disabled={archiveLoading}
+                className="flex-1 py-3 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Limpar
+                {archiveLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Limpando...
+                  </>
+                ) : (
+                  "Limpar"
+                )}
               </button>
             </div>
           </div>

@@ -928,15 +928,26 @@ export default function AdminPage() {
     } finally { setDeleteLoading(false) }
   }
 
+  const [archiveLoading, setArchiveLoading] = useState(false)
+  
   const archiveAllOrders = async () => {
+    setArchiveLoading(true)
     try {
-      const res = await fetch("/api/orders", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, action: "archive_all" }) })
+      const res = await fetch("/api/orders", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, action: "archiveAll" }) })
       const data = await res.json()
       if (data.success) {
-        setOrders(prev => prev.map(o => ({ ...o, archived: true })))
+        showToast(`Relatorios limpos: ${data.deletedCount || 0} pedido(s) arquivado(s)`)
         setShowArchiveConfirm(false)
+        loadOrders() // Recarregar lista
+      } else {
+        showToast(data.error || "Erro ao limpar relatorios")
       }
-    } catch (error) { console.error("Erro ao arquivar pedidos:", error) }
+    } catch (error) { 
+      console.error("Erro ao arquivar pedidos:", error) 
+      showToast("Erro ao limpar relatorios")
+    } finally {
+      setArchiveLoading(false)
+    }
   }
 
   const restaurarPedido = async (orderId: string) => {
@@ -1319,7 +1330,7 @@ export default function AdminPage() {
         </div>
 
         {/* Modais */}
-        <AdminModals confirmEntregador={confirmEntregador} onCancelEntregador={() => setConfirmEntregador(null)} onConfirmEntregador={confirmAssignEntregador} showDeleteConfirm={showDeleteConfirm} onCancelDelete={() => setShowDeleteConfirm(null)} onConfirmDelete={deleteSingleOrder} deleteLoading={deleteLoading} showTabWarning={showTabWarning} onDismissTabWarning={() => setShowTabWarning(false)} onDeselectAllOrders={deselectAllOrders} showDeleteMultiple={showDeleteMultiple} selectedOrdersCount={selectedOrders.size} onCancelDeleteMultiple={() => setShowDeleteMultiple(false)} onConfirmDeleteMultiple={deleteMultipleOrders} showArchiveConfirm={showArchiveConfirm} onCancelArchive={() => setShowArchiveConfirm(false)} onConfirmArchive={archiveAllOrders} manualCopyText={manualCopyText} onCloseManualCopy={() => setManualCopyText(null)} manualEntregadorLink={manualEntregadorLink} onCloseEntregadorLink={() => setManualEntregadorLink(null)} deleteProductId={deleteProductId !== null ? String(deleteProductId) : null} onCancelDeleteProduct={() => setDeleteProductId(null)} onConfirmDeleteProduct={confirmDeleteProduct} />
+        <AdminModals confirmEntregador={confirmEntregador} onCancelEntregador={() => setConfirmEntregador(null)} onConfirmEntregador={confirmAssignEntregador} showDeleteConfirm={showDeleteConfirm} onCancelDelete={() => setShowDeleteConfirm(null)} onConfirmDelete={deleteSingleOrder} deleteLoading={deleteLoading} showTabWarning={showTabWarning} onDismissTabWarning={() => setShowTabWarning(false)} onDeselectAllOrders={deselectAllOrders} showDeleteMultiple={showDeleteMultiple} selectedOrdersCount={selectedOrders.size} onCancelDeleteMultiple={() => setShowDeleteMultiple(false)} onConfirmDeleteMultiple={deleteMultipleOrders} showArchiveConfirm={showArchiveConfirm} onCancelArchive={() => setShowArchiveConfirm(false)} onConfirmArchive={archiveAllOrders} archiveLoading={archiveLoading} manualCopyText={manualCopyText} onCloseManualCopy={() => setManualCopyText(null)} manualEntregadorLink={manualEntregadorLink} onCloseEntregadorLink={() => setManualEntregadorLink(null)} deleteProductId={deleteProductId !== null ? String(deleteProductId) : null} onCancelDeleteProduct={() => setDeleteProductId(null)} onConfirmDeleteProduct={confirmDeleteProduct} />
       </div>
     </div>
   )
