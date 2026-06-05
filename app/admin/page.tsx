@@ -950,13 +950,15 @@ export default function AdminPage() {
     } catch (error) { console.error("Erro ao restaurar pedido:", error) }
   }
 
-  const cleanupDuplicates = async () => {
+  const cleanupDuplicates = async (): Promise<void> => {
     try {
       const res = await fetch("/api/orders", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: sessionPassword, action: "cleanup_duplicates" }) })
       const data = await res.json()
       if (data.success) {
-        showToast(`Limpeza concluida: ${data.removedCount} duplicata(s) removida(s)`)
+        showToast(`Limpeza concluida: ${data.removedCount || 0} duplicata(s) removida(s)`)
         loadOrders()
+      } else {
+        showToast(data.error || "Erro ao limpar duplicatas")
       }
     } catch (error) {
       console.error("Erro ao limpar duplicatas:", error)

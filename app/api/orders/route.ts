@@ -380,6 +380,71 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: true, message: "Pedidos completados excluidos", deletedCount: count || 0, source: 'supabase' })
     }
 
+    // Limpar pedidos duplicados (mesmo cliente + total + horario proximo)
+    if (action === "cleanup_duplicates") {
+      const supabase = getSupabase()
+      
+      // Buscar todos os pedidos
+      const { data: allOrders, error: fetchError } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: true })
+      
+      if (fetchError) {
+        console.error("[orders DELETE] Erro ao buscar pedidos:", fetchError.message)
+        return NextResponse.json({ error: `Erro ao buscar: ${fetchError.message}`, success: false }, { status: 500 })
+      }
+
+      if (!allOrders || allOrders.length === 0) {
+        return NextResponse.json({ success: true, message: "Nenhum pedido encontrado", removedCount: 0 })
+      }
+
+      // Identificar duplicatas
+      // Criterio: mesmo customer_phone + mesmo total + criados em intervalo de 5 minutos
+      const duplicateIds: number[] = []
+      const seen = new Map<string, { id: number; createdAt: Date }>()
+
+      for (const order of allOrders) {
+        const key = `${order.customer_phone || 'sem-tel'}-${order.total}`
+        const orderDate = new Date(order.created_at)
+        
+        if (seen.has(key)) {
+          const existing = seen.get(key)!
+          const timeDiff = Math.abs(orderDate.getTime() - existing.createdAt.getTime())
+          
+          // Se criados dentro de 5 minutos (300000ms), e um duplicado
+          if (timeDiff < 300000) {
+            duplicateIds.push(order.id)
+            console.log(`[cleanup] Duplicata encontrada: #${order.id} (original: #${existing.id})`)
+          } else {
+            // Atualizar o visto com o pedido mais recente
+            seen.set(key, { id: order.id, createdAt: orderDate })
+          }
+        } else {
+          seen.set(key, { id: order.id, createdAt: orderDate })
+        }
+      }
+
+      if (duplicateIds.length === 0) {
+        console.log("[cleanup] Nenhuma duplicata encontrada")
+        return NextResponse.json({ success: true, message: "Nenhuma duplicata encontrada", removedCount: 0 })
+      }
+
+      // Remover duplicatas
+      const { error: deleteError } = await supabase
+        .from('orders')
+        .delete()
+        .in('id', duplicateIds)
+
+      if (deleteError) {
+        console.error("[orders DELETE] Erro ao remover duplicatas:", deleteError.message)
+        return NextResponse.json({ error: `Erro ao remover: ${deleteError.message}`, success: false }, { status: 500 })
+      }
+
+      console.log(`[orders DELETE] ${duplicateIds.length} duplicata(s) removida(s)`)
+      return NextResponse.json({ success: true, message: `${duplicateIds.length} duplicata(s) removida(s)`, removedCount: duplicateIds.length, source: 'supabase' })
+    }
+
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })
 
   } catch (error) {
