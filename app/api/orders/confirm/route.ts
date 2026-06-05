@@ -94,10 +94,26 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Atualizar status para confirmed
+    // Atualizar status E payment_status para confirmed
+    // Tambem marca como confirmado automaticamente se vier do Asaas
+    const updateData: Record<string, unknown> = { 
+      status: 'confirmed',
+      payment_status: 'confirmed',
+      paid_at: new Date().toISOString(),
+    }
+    
+    // Se veio com paymentId do Asaas, marcar como confirmacao automatica
+    if (effectivePaymentId) {
+      updateData.confirmed_automatically = true
+      updateData.asaas_payment_id = effectivePaymentId
+    } else {
+      // Confirmacao manual
+      updateData.manually_confirmed = true
+    }
+    
     const { data: updated, error: updateError } = await supabase
       .from('orders')
-      .update({ status: 'confirmed' })
+      .update(updateData)
       .eq('id', order.id)
       .select()
       .single()

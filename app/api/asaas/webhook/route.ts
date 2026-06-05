@@ -85,9 +85,15 @@ export async function POST(request: NextRequest) {
           console.log("[Webhook Asaas] Pedido encontrado! ID:", order.id, "order_code:", order.order_code, "status atual:", order.status)
           
           if (order.status === 'pending') {
+            // Atualizar status, payment_status E marcar como confirmacao automatica
             const { error: updateError } = await supabase
               .from('orders')
-              .update({ status: 'confirmed' })
+              .update({ 
+                status: 'confirmed',
+                payment_status: 'confirmed',
+                confirmed_automatically: true,
+                paid_at: now,
+              })
               .eq('id', order.id)
 
             if (updateError) {

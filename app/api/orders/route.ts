@@ -153,6 +153,7 @@ const ALLOWED_COLUMNS = [
   'items',
   'total',
   'status',
+  'payment_status', // Status do pagamento (pending, confirmed, failed)
   'created_at',
   'asaas_payment_id', // ID do pagamento Asaas para confirmacao automatica
 ] as const
@@ -169,6 +170,7 @@ function frontendToDb(order: Order & { asaasPaymentId?: string }): Record<string
     items: order.itemsDetailed || [],
     total: order.total || 0,
     status: order.status || 'pending',
+    payment_status: order.paymentStatus || 'pending', // Status do pagamento
     created_at: new Date().toISOString(),
     asaas_payment_id: order.asaasPaymentId || null, // ID do pagamento Asaas
   }
@@ -237,11 +239,16 @@ export async function POST(request: NextRequest) {
 
     console.log("[orders POST] Criando pedido com order_code:", publicOrderId)
 
-    // Determinar status inicial baseado no metodo de pagamento
-    // Cartao, Dinheiro, Pix Manual = ja confirmado (Aguardando Preparo)
-    // Pix Asaas = aguardando pagamento
-    const isPixAsaas = order.paymentMethod === "PIX Asaas" || order.isPixAutomatic
-    const initialStatus = isPixAsaas ? "pending" : "confirmed"
+    // REGRA OFICIAL DE STATUS INICIAL:
+    // TODOS os pedidos comecam como PENDING (Aguardando Pagamento)
+    // - Pix Asaas: aguarda confirmacao automatica via webhook/check-payment
+    // - Pix Manual: aguarda confirmacao manual do lojista
+    // - Dinheiro: aguarda confirmacao manual do lojista
+    // - Cartao: aguarda confirmacao manual do lojista
+    // 
+    // NENHUM pedido vai direto para "confirmed" na criacao!
+    const initialStatus = "pending"
+    const initialPaymentStatus = "pending"
 
     // Criar objeto do pedido (id sera gerado pelo Supabase)
     const newOrder: Order & { asaasPaymentId?: string } = {
@@ -260,7 +267,7 @@ export async function POST(request: NextRequest) {
       reference: order.reference,
       observation: order.observation,
       status: initialStatus,
-      paymentStatus: isPixAsaas ? "pending" : "confirmed",
+      paymentStatus: initialPaymentStatus,
       createdAt: new Date().toISOString(),
       asaasPaymentId: order.asaasPaymentId || null, // ID do pagamento Asaas
     }
