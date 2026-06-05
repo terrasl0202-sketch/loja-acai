@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
+import crypto from 'crypto'
 
 // Supabase client
 function getSupabase() {
@@ -9,20 +10,104 @@ function getSupabase() {
   return createClient(url, key)
 }
 
-// Cache local para status de pagamentos (backup)
-const paymentStatusMap = new Map<string, { status: string; confirmedAt?: string }>()
+// Cache para idempotencia - evita processar mesmo evento duas vezes
+const processedEvents = new Map<string, { processedAt: string; result: string }>()
+
+// Limpa cache a cada 1 hora para evitar memory leak
+const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hora
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, value] of processedEvents.entries()) {
+    if (now - new Date(value.processedAt).getTime() > CACHE_TTL_MS) {
+      processedEvents.delete(key)
+    }
+  }
+}, CACHE_TTL_MS)
+
+// Verifica assinatura do webhook Asaas
+function verifyAsaasWebhook(request: NextRequest, body: string): boolean {
+  const webhookToken = process.env.ASAAS_WEBHOOK_TOKEN
+  
+  // Se nao configurado, aceitar (modo desenvolvimento)
+  if (!webhookToken) {
+    return true
+  }
+  
+  // Asaas envia o token no header 'asaas-access-token'
+  const receivedToken = request.headers.get('asaas-access-token')
+  
+  if (receivedToken && receivedToken === webhookToken) {
+    return true
+  }
+  
+  // Alternativa: validar por HMAC se configurado
+  const signature = request.headers.get('x-asaas-signature')
+  if (signature && webhookToken) {
+    const expectedSignature = crypto
+      .createHmac('sha256', webhookToken)
+      .update(body)
+      .digest('hex')
+    return signature === expectedSignature
+  }
+  
+  return false
+}
+
+// Gera ID unico para o evento (para idempotencia)
+function getEventId(payment: { id?: string }, event: string): string {
+  return `${payment?.id || 'unknown'}_${event}_${Date.now()}`
+}
 
 export async function POST(request: NextRequest) {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  
   try {
-    const body = await request.json()
+    // Ler body como texto para validacao
+    const bodyText = await request.text()
     
-    // Asaas envia o evento de pagamento
+    // Validar origem do webhook
+    if (!verifyAsaasWebhook(request, bodyText)) {
+      console.error(`[Webhook ${requestId}] Assinatura invalida - possivel fraude`)
+      return NextResponse.json(
+        { error: "Unauthorized", message: "Invalid webhook signature" },
+        { status: 401 }
+      )
+    }
+    
+    // Parse do body
+    let body: { event?: string; payment?: { id?: string; status?: string; externalReference?: string; description?: string } }
+    try {
+      body = JSON.parse(bodyText)
+    } catch {
+      console.error(`[Webhook ${requestId}] JSON invalido`)
+      return NextResponse.json(
+        { error: "Bad Request", message: "Invalid JSON" },
+        { status: 400 }
+      )
+    }
+    
     const { event, payment } = body
 
-    console.log("[Webhook Asaas] Evento recebido:", event, "paymentId:", payment?.id)
+    // Validar payload
+    if (!event || typeof event !== 'string') {
+      return NextResponse.json({ received: true, message: "No event type" })
+    }
 
     if (!payment || !payment.id) {
       return NextResponse.json({ received: true, message: "No payment data" })
+    }
+
+    // Verificar idempotencia - mesmo pagamento + mesmo evento
+    const idempotencyKey = `${payment.id}_${event}`
+    const cached = processedEvents.get(idempotencyKey)
+    if (cached) {
+      console.log(`[Webhook ${requestId}] Evento ja processado (idempotencia): ${idempotencyKey}`)
+      return NextResponse.json({ 
+        received: true, 
+        message: "Already processed",
+        processedAt: cached.processedAt,
+        result: cached.result
+      })
     }
 
     const isPaid = 
@@ -32,60 +117,42 @@ export async function POST(request: NextRequest) {
       payment.status === "CONFIRMED"
 
     const now = new Date().toISOString()
+    let result = "ignored"
 
-    // Atualizar cache local
-    paymentStatusMap.set(payment.id, {
-      status: isPaid ? "CONFIRMED" : payment.status,
-      confirmedAt: isPaid ? now : undefined,
-    })
-
-    // Se pagamento confirmado, tentar atualizar no Supabase
+    // Se pagamento confirmado, atualizar no Supabase
     if (isPaid) {
-      console.log("[Webhook Asaas] Pagamento confirmado! paymentId:", payment.id, "externalRef:", payment.externalReference)
-      
       const supabase = getSupabase()
       
       if (supabase) {
         let order = null
         
-        // ESTRATEGIA 1: Buscar por asaas_payment_id (mais confiavel)
-        console.log("[Webhook Asaas] Buscando por asaas_payment_id:", payment.id)
-        const { data: orderByPaymentId, error: paymentIdError } = await supabase
+        // ESTRATEGIA 1: Buscar por asaas_payment_id
+        const { data: orderByPaymentId } = await supabase
           .from('orders')
           .select('id, order_code, status, asaas_payment_id')
           .eq('asaas_payment_id', payment.id)
           .single()
         
-        if (!paymentIdError && orderByPaymentId) {
+        if (orderByPaymentId) {
           order = orderByPaymentId
-          console.log("[Webhook Asaas] ENCONTRADO por asaas_payment_id!")
         } else {
-          console.log("[Webhook Asaas] Nao encontrado por asaas_payment_id. Erro:", paymentIdError?.message)
-          
           // ESTRATEGIA 2: Buscar por externalReference (order_code)
           const externalRef = payment.externalReference || payment.description
           if (externalRef) {
-            console.log("[Webhook Asaas] Buscando por order_code:", externalRef)
-            const { data: orderByCode, error: codeError } = await supabase
+            const { data: orderByCode } = await supabase
               .from('orders')
               .select('id, order_code, status, asaas_payment_id')
               .eq('order_code', externalRef)
               .single()
             
-            if (!codeError && orderByCode) {
+            if (orderByCode) {
               order = orderByCode
-              console.log("[Webhook Asaas] ENCONTRADO por order_code!")
-            } else {
-              console.log("[Webhook Asaas] Nao encontrado por order_code. Erro:", codeError?.message)
             }
           }
         }
         
         if (order) {
-          console.log("[Webhook Asaas] Pedido encontrado! ID:", order.id, "order_code:", order.order_code, "status atual:", order.status)
-          
           if (order.status === 'pending') {
-            // Atualizar status, payment_status E marcar como confirmacao automatica
             const { error: updateError } = await supabase
               .from('orders')
               .update({ 
@@ -97,32 +164,39 @@ export async function POST(request: NextRequest) {
               .eq('id', order.id)
 
             if (updateError) {
-              console.error("[Webhook Asaas] Erro ao atualizar:", updateError.message)
+              console.error(`[Webhook ${requestId}] Erro ao atualizar:`, updateError.message)
+              result = "error"
             } else {
-              console.log("[Webhook Asaas] SUCESSO! Pedido confirmado via webhook. ID:", order.id, "order_code:", order.order_code)
+              result = "confirmed"
             }
           } else {
-            console.log("[Webhook Asaas] Pedido ja estava:", order.status, "- ignorando")
+            result = "already_processed"
           }
         } else {
-          console.log("[Webhook Asaas] Pedido NAO encontrado para paymentId:", payment.id)
+          result = "order_not_found"
         }
       } else {
-        console.error("[Webhook Asaas] Supabase nao configurado")
+        result = "no_database"
       }
     }
 
-    return NextResponse.json({ received: true, isPaid })
+    // Registrar no cache de idempotencia
+    processedEvents.set(idempotencyKey, {
+      processedAt: now,
+      result
+    })
+
+    return NextResponse.json({ received: true, isPaid, result })
   } catch (error) {
-    console.error("[Webhook Asaas] Erro:", error)
+    console.error(`[Webhook ${requestId}] Erro:`, error)
     return NextResponse.json(
-      { error: "Erro ao processar webhook" },
+      { error: "Internal Server Error" },
       { status: 500 }
     )
   }
 }
 
-// Endpoint para verificar status de pagamento
+// Endpoint para verificar status de pagamento (protegido)
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const paymentId = searchParams.get("paymentId")
@@ -134,13 +208,28 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // Verificar cache local
-  const cachedStatus = paymentStatusMap.get(paymentId)
+  // Verificar no Supabase
+  const supabase = getSupabase()
+  if (supabase) {
+    const { data: order } = await supabase
+      .from('orders')
+      .select('id, status, payment_status, paid_at')
+      .eq('asaas_payment_id', paymentId)
+      .single()
+    
+    if (order) {
+      return NextResponse.json({
+        paymentId,
+        status: order.payment_status || order.status,
+        isPaid: order.payment_status === 'confirmed' || order.status === 'confirmed',
+        confirmedAt: order.paid_at,
+      })
+    }
+  }
 
   return NextResponse.json({
     paymentId,
-    status: cachedStatus?.status || "PENDING",
-    isPaid: cachedStatus?.status === "CONFIRMED" || cachedStatus?.status === "RECEIVED",
-    confirmedAt: cachedStatus?.confirmedAt,
+    status: "PENDING",
+    isPaid: false,
   })
 }

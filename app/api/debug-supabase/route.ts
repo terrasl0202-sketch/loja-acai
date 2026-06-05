@@ -1,16 +1,36 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
 /**
- * DEBUG ENDPOINT - TEMPORÁRIO
- * Verifica conexão real com Supabase em produção
- * Acesse: /api/debug-supabase
+ * DEBUG ENDPOINT - PROTEGIDO
+ * Verifica conexao real com Supabase em producao
+ * Requer senha admin no header 'x-admin-password'
+ * Acesse: /api/debug-supabase (com header de autenticacao)
  */
-export async function GET() {
-  const timestamp = new Date().toISOString()
-  const buildLabel = "debug-v96"
+export async function GET(request: NextRequest) {
+  // Verificar autenticacao admin
+  const adminPassword = request.headers.get('x-admin-password')
+  const expectedPassword = process.env.ADMIN_PASSWORD
   
-  // 1. Verificar variáveis de ambiente (sem expor valores)
+  // Se nao houver senha configurada ou senha incorreta, bloquear
+  if (!expectedPassword) {
+    return NextResponse.json(
+      { error: "Debug endpoint disabled in production" },
+      { status: 403 }
+    )
+  }
+  
+  if (adminPassword !== expectedPassword) {
+    return NextResponse.json(
+      { error: "Unauthorized - Invalid admin credentials" },
+      { status: 401 }
+    )
+  }
+  
+  const timestamp = new Date().toISOString()
+  const buildLabel = "debug-v97-protected"
+  
+  // 1. Verificar variaveis de ambiente (sem expor valores)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -21,7 +41,7 @@ export async function GET() {
     SUPABASE_SERVICE_ROLE_KEY_exists: !!serviceRoleKey,
     SUPABASE_SERVICE_ROLE_KEY_length: serviceRoleKey ? serviceRoleKey.length : 0,
     NEXT_PUBLIC_SUPABASE_ANON_KEY_exists: !!anonKey,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY_length: anonKey ? anonKey.length : 0,
+    ASAAS_WEBHOOK_TOKEN_exists: !!process.env.ASAAS_WEBHOOK_TOKEN,
   }
   
   // 2. Verificar ambiente Vercel
@@ -46,13 +66,11 @@ export async function GET() {
   }
   
   try {
-    // Criar cliente com service role para bypass RLS
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false }
     })
     
-    // Testar cada tabela individualmente
-    const tables = ["store_settings", "products", "neighborhoods", "orders"]
+    const tables = ["store_settings", "products", "neighborhoods", "orders", "customers", "coupons"]
     
     for (const table of tables) {
       try {
@@ -79,7 +97,6 @@ export async function GET() {
       }
     }
     
-    // Verificar se todas as tabelas funcionaram
     const allSuccess = Object.values(tableTests).every(t => t.success)
     
     return NextResponse.json({
