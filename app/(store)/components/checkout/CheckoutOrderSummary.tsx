@@ -1,6 +1,6 @@
 "use client"
 
-import { ShoppingCart, Tag, Truck } from "lucide-react"
+import { ShoppingCart, Tag, Truck, Gift, Star } from "lucide-react"
 import { formatCurrency } from "../../utils"
 
 interface Product {
@@ -30,6 +30,9 @@ interface CheckoutOrderSummaryProps {
   onCouponCodeChange: (code: string) => void
   onApplyCoupon: () => void
   onRemoveCoupon: () => void
+  // Novos campos para cashback e pontos
+  cashbackUsed?: number
+  pointsRewardUsed?: number
 }
 
 export function CheckoutOrderSummary({
@@ -46,8 +49,13 @@ export function CheckoutOrderSummary({
   hasCoupons,
   onCouponCodeChange,
   onApplyCoupon,
-  onRemoveCoupon
+  onRemoveCoupon,
+  cashbackUsed = 0,
+  pointsRewardUsed = 0
 }: CheckoutOrderSummaryProps) {
+  // Calcular total final com cashback e pontos
+  const totalWithBenefits = Math.max(0, total - cashbackUsed - pointsRewardUsed)
+
   return (
     <section className="premium-card rounded-2xl p-5 animate-scale-in">
       <div className="flex items-center justify-between mb-4">
@@ -104,14 +112,47 @@ export function CheckoutOrderSummary({
             <span className="text-foreground tabular-nums">{formatCurrency(deliveryFee)}</span>
           </div>
         )}
+        
+        {/* Cashback Usado */}
+        {cashbackUsed > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-green-500 flex items-center gap-1.5">
+              <Gift className="w-3.5 h-3.5" />
+              Cashback
+            </span>
+            <span className="text-green-500 font-semibold">-{formatCurrency(cashbackUsed)}</span>
+          </div>
+        )}
+        
+        {/* Recompensa de Pontos Usada */}
+        {pointsRewardUsed > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-purple-500 flex items-center gap-1.5">
+              <Star className="w-3.5 h-3.5" />
+              Recompensa Fidelidade
+            </span>
+            <span className="text-purple-500 font-semibold">-{formatCurrency(pointsRewardUsed)}</span>
+          </div>
+        )}
           
         {/* Total Premium */}
         <div className="flex justify-between items-center pt-3 border-t border-primary/20 mt-3">
           <span className="text-foreground font-bold text-lg">Total</span>
           <div className="text-right">
-            <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary to-accent drop-shadow-[0_0_15px_rgba(168,85,247,0.4)]">
-              {formatCurrency(total)}
-            </span>
+            {(cashbackUsed > 0 || pointsRewardUsed > 0) && totalWithBenefits !== total ? (
+              <div>
+                <span className="text-sm text-muted-foreground line-through mr-2">
+                  {formatCurrency(total)}
+                </span>
+                <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-500 via-green-500 to-accent drop-shadow-[0_0_15px_rgba(34,197,94,0.4)]">
+                  {formatCurrency(totalWithBenefits)}
+                </span>
+              </div>
+            ) : (
+              <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary to-accent drop-shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+                {formatCurrency(total)}
+              </span>
+            )}
           </div>
         </div>
       </div>

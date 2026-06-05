@@ -15,7 +15,7 @@ import { useCustomer } from "../providers/CustomerProvider"
 import { useCartContext } from "../providers/CartProvider"
 
 // Components
-import { HeroBanner, StoreClosedBanner, PromoBanner, ProductList, CategoryNav, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, FeaturedSections, DynamicTheme } from "./index"
+import { HeroBanner, StoreClosedBanner, PromoBanner, ProductList, CategoryNav, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, FeaturedSections, DynamicTheme, PublicReviews } from "./index"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./modals"
 
 export function StorePageContent() {
@@ -615,6 +615,9 @@ export function StorePageContent() {
         quantities={quantities} 
         total={getTotal()} 
       />
+
+      {/* Avaliacoes Publicas */}
+      <PublicReviews />
 
       {/* Spacer for fixed button */}
       <div className="h-24" />

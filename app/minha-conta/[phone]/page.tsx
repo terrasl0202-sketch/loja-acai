@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { 
   User, 
@@ -10,11 +10,16 @@ import {
   ArrowLeft, 
   Loader2, 
   DollarSign,
-  TrendingUp,
   Clock,
   Package,
-  ChevronRight,
-  Wallet
+  Wallet,
+  MoreVertical,
+  Copy,
+  MessageCircle,
+  RefreshCw,
+  Send,
+  X,
+  AlertCircle
 } from "lucide-react"
 
 interface CustomerData {
@@ -46,6 +51,12 @@ interface OrderItem {
   total: string
   createdAt: string
   paymentMethod: string
+  items?: string
+}
+
+interface ReviewData {
+  orderId: number
+  orderNumber: string
 }
 
 interface LoyaltyInfo {
@@ -66,13 +77,25 @@ export default function MinhaContaPage() {
   const [cashbackHistory, setCashbackHistory] = useState<CashbackHistoryItem[]>([])
   const [pointsHistory, setPointsHistory] = useState<PointsHistoryItem[]>([])
   const [orders, setOrders] = useState<OrderItem[]>([])
+  const [reviewedOrders, setReviewedOrders] = useState<number[]>([])
   const [loyalty, setLoyalty] = useState<LoyaltyInfo | null>(null)
-  const [activeTab, setActiveTab] = useState<"resumo" | "pedidos" | "cashback" | "pontos">("resumo")
+  const [activeTab, setActiveTab] = useState<"resumo" | "pedidos" | "cashback" | "pontos" | "avaliacoes">("resumo")
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [reviewData, setReviewData] = useState<ReviewData | null>(null)
+  const [reviewForm, setReviewForm] = useState({
+    rating: 5,
+    productRating: 5,
+    deliveryRating: 5,
+    serviceRating: 5,
+    comment: ""
+  })
+  const [submittingReview, setSubmittingReview] = useState(false)
+  const [repeatError, setRepeatError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Buscar dados premium
         const premiumRes = await fetch(`/api/premium/balance?phone=${encodeURIComponent(phone)}`)
         const premiumData = await premiumRes.json()
 
@@ -85,19 +108,28 @@ export default function MinhaContaPage() {
           setLoyalty(premiumData.loyalty)
         }
 
-        // Buscar pedidos do cliente
         const ordersRes = await fetch(`/api/customers/orders?phone=${encodeURIComponent(phone)}`)
         const ordersData = await ordersRes.json()
 
         if (ordersData.success && ordersData.orders) {
-          setOrders(ordersData.orders.map((o: { id: number; order_number: string; order_status: string; total: number; created_at: string; payment_method: string }) => ({
+          setOrders(ordersData.orders.map((o: { id: number; order_number: string; order_status: string; total: number; created_at: string; payment_method: string; items?: string }) => ({
             id: o.id,
             orderNumber: o.order_number,
             status: o.order_status,
             total: o.total,
             createdAt: o.created_at,
             paymentMethod: o.payment_method,
+            items: o.items
           })))
+        }
+
+        // Buscar avaliacoes do cliente para saber quais pedidos ja foram avaliados
+        if (premiumData.customer?.id) {
+          const reviewsRes = await fetch(`/api/reviews?customerId=${premiumData.customer.id}`)
+          const reviewsData = await reviewsRes.json()
+          if (reviewsData.success && reviewsData.reviews) {
+            setReviewedOrders(reviewsData.reviews.map((r: { order_id: number }) => r.order_id))
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar dados:", error)
@@ -148,6 +180,79 @@ export default function MinhaContaPage() {
     return colors[status] || "text-muted-foreground"
   }
 
+  const copyOrderCode = useCallback((orderNumber: string) => {
+    navigator.clipboard.writeText(orderNumber)
+    setOpenMenuId(null)
+  }, [])
+
+  const sendWhatsApp = useCallback((order: OrderItem) => {
+    const message = `Ola! Gostaria de informacoes sobre meu pedido #${order.orderNumber}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank")
+    setOpenMenuId(null)
+  }, [])
+
+  const openReviewModal = useCallback((order: OrderItem) => {
+    setReviewData({ orderId: order.id, orderNumber: order.orderNumber })
+    setReviewForm({ rating: 5, productRating: 5, deliveryRating: 5, serviceRating: 5, comment: "" })
+    setShowReviewModal(true)
+    setOpenMenuId(null)
+  }, [])
+
+  const submitReview = useCallback(async () => {
+    if (!reviewData || !customer) return
+    setSubmittingReview(true)
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: reviewData.orderId,
+          customerId: customer.id,
+          rating: reviewForm.rating,
+          productRating: reviewForm.productRating,
+          deliveryRating: reviewForm.deliveryRating,
+          serviceRating: reviewForm.serviceRating,
+          comment: reviewForm.comment || null
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setReviewedOrders(prev => [...prev, reviewData.orderId])
+        setShowReviewModal(false)
+      } else {
+        alert(data.error || "Erro ao enviar avaliacao")
+      }
+    } catch {
+      alert("Erro de conexao")
+    } finally {
+      setSubmittingReview(false)
+    }
+  }, [reviewData, customer, reviewForm])
+
+  const repeatOrder = useCallback(async (order: OrderItem) => {
+    setRepeatError(null)
+    try {
+      // Redirecionar para a loja com os itens do pedido no localStorage
+      localStorage.setItem("repeatOrder", JSON.stringify({
+        orderId: order.id,
+        orderNumber: order.orderNumber
+      }))
+      router.push("/?repeat=true")
+    } catch {
+      setRepeatError("Erro ao repetir pedido")
+    }
+    setOpenMenuId(null)
+  }, [router])
+
+  // Fechar menu ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = () => setOpenMenuId(null)
+    if (openMenuId) {
+      document.addEventListener("click", handleClickOutside)
+      return () => document.removeEventListener("click", handleClickOutside)
+    }
+  }, [openMenuId])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -174,9 +279,26 @@ export default function MinhaContaPage() {
     )
   }
 
-  const totalGasto = orders
-    .filter(o => o.status !== "cancelled")
-    .reduce((sum, o) => sum + parseFloat(o.total), 0)
+  const totalGasto = orders.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + parseFloat(o.total), 0)
+  const completedOrders = orders.filter(o => o.status === "completed")
+  const pendingReviews = completedOrders.filter(o => !reviewedOrders.includes(o.id))
+
+  const StarRating = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => onChange(star)}
+          className={`w-8 h-8 rounded-lg transition-all ${
+            star <= value ? "bg-yellow-500 text-white" : "bg-muted text-muted-foreground"
+          }`}
+        >
+          <Star className="w-4 h-4 mx-auto" fill={star <= value ? "currentColor" : "none"} />
+        </button>
+      ))}
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -190,7 +312,6 @@ export default function MinhaContaPage() {
             <ArrowLeft className="w-4 h-4" />
             <span className="text-sm">Voltar para a loja</span>
           </button>
-
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
               <User className="w-8 h-8 text-primary" />
@@ -215,7 +336,6 @@ export default function MinhaContaPage() {
             </div>
             <p className="text-lg font-bold text-green-500">{formatCurrency(cashbackBalance)}</p>
           </div>
-
           <div className="bg-card rounded-xl border border-border p-4">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
@@ -225,7 +345,6 @@ export default function MinhaContaPage() {
             </div>
             <p className="text-lg font-bold text-purple-500">{pointsBalance}</p>
           </div>
-
           <div className="bg-card rounded-xl border border-border p-4">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
@@ -235,7 +354,6 @@ export default function MinhaContaPage() {
             </div>
             <p className="text-lg font-bold text-foreground">{orders.length}</p>
           </div>
-
           <div className="bg-card rounded-xl border border-border p-4">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -248,15 +366,29 @@ export default function MinhaContaPage() {
         </div>
       </div>
 
+      {/* Pending Reviews Alert */}
+      {pendingReviews.length > 0 && (
+        <div className="max-w-lg mx-auto px-4 mt-4">
+          <button
+            onClick={() => setActiveTab("avaliacoes")}
+            className="w-full bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center gap-3"
+          >
+            <Star className="w-5 h-5 text-amber-500" />
+            <span className="text-sm text-foreground flex-1 text-left">
+              Voce tem {pendingReviews.length} pedido(s) para avaliar
+            </span>
+            <span className="text-xs text-amber-500 font-medium">Avaliar</span>
+          </button>
+        </div>
+      )}
+
       {/* Progress to Reward */}
       {loyalty && pointsBalance > 0 && (
         <div className="max-w-lg mx-auto px-4 mt-4">
           <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-xl border border-purple-500/20 p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-foreground">Progresso para recompensa</span>
-              <span className="text-xs text-muted-foreground">
-                {pointsBalance}/{loyalty.pointsForReward} pontos
-              </span>
+              <span className="text-xs text-muted-foreground">{pointsBalance}/{loyalty.pointsForReward} pontos</span>
             </div>
             <div className="h-2 bg-background rounded-full overflow-hidden">
               <div
@@ -279,13 +411,14 @@ export default function MinhaContaPage() {
           {[
             { id: "resumo", label: "Resumo", icon: User },
             { id: "pedidos", label: "Pedidos", icon: ShoppingBag },
+            { id: "avaliacoes", label: "Avaliacoes", icon: Star, badge: pendingReviews.length },
             { id: "cashback", label: "Cashback", icon: Gift },
             { id: "pontos", label: "Pontos", icon: Star },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+              className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                 activeTab === tab.id
                   ? "bg-primary text-primary-foreground"
                   : "bg-card border border-border text-muted-foreground hover:text-foreground"
@@ -293,6 +426,11 @@ export default function MinhaContaPage() {
             >
               <tab.icon className="w-4 h-4" />
               {tab.label}
+              {tab.badge ? (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {tab.badge}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -309,31 +447,18 @@ export default function MinhaContaPage() {
                 Ultimos Pedidos
               </h3>
               {orders.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum pedido ainda
-                </p>
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhum pedido ainda</p>
               ) : (
                 <div className="space-y-2">
                   {orders.slice(0, 3).map((order) => (
-                    <div
-                      key={order.id}
-                      className="flex items-center justify-between p-3 bg-background rounded-lg"
-                    >
+                    <div key={order.id} className="flex items-center justify-between p-3 bg-background rounded-lg">
                       <div>
-                        <p className="text-sm font-medium text-foreground">
-                          Pedido #{order.orderNumber}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(order.createdAt)}
-                        </p>
+                        <p className="text-sm font-medium text-foreground">Pedido #{order.orderNumber}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium text-foreground">
-                          {formatCurrency(order.total)}
-                        </p>
-                        <p className={`text-xs ${getStatusColor(order.status)}`}>
-                          {getStatusLabel(order.status)}
-                        </p>
+                        <p className="text-sm font-medium text-foreground">{formatCurrency(order.total)}</p>
+                        <p className={`text-xs ${getStatusColor(order.status)}`}>{getStatusLabel(order.status)}</p>
                       </div>
                     </div>
                   ))}
@@ -346,6 +471,12 @@ export default function MinhaContaPage() {
         {/* Pedidos */}
         {activeTab === "pedidos" && (
           <div className="space-y-3">
+            {repeatError && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-center gap-2 text-red-500 text-sm">
+                <AlertCircle className="w-4 h-4" />
+                {repeatError}
+              </div>
+            )}
             {orders.length === 0 ? (
               <div className="bg-card rounded-xl border border-border p-8 text-center">
                 <Package className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
@@ -353,17 +484,59 @@ export default function MinhaContaPage() {
               </div>
             ) : (
               orders.map((order) => (
-                <div
-                  key={order.id}
-                  className="bg-card rounded-xl border border-border p-4"
-                >
+                <div key={order.id} className="bg-card rounded-xl border border-border p-4 relative">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-foreground">
-                      Pedido #{order.orderNumber}
-                    </span>
-                    <span className={`text-sm font-medium ${getStatusColor(order.status)}`}>
-                      {getStatusLabel(order.status)}
-                    </span>
+                    <span className="font-medium text-foreground">Pedido #{order.orderNumber}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium ${getStatusColor(order.status)}`}>
+                        {getStatusLabel(order.status)}
+                      </span>
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenMenuId(openMenuId === order.id ? null : order.id)
+                          }}
+                          className="p-1.5 hover:bg-muted rounded-lg transition-colors"
+                        >
+                          <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                        {openMenuId === order.id && (
+                          <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-lg py-1 min-w-[160px] z-50">
+                            <button
+                              onClick={() => copyOrderCode(order.orderNumber)}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                            >
+                              <Copy className="w-4 h-4" />
+                              Copiar codigo
+                            </button>
+                            <button
+                              onClick={() => repeatOrder(order)}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                              Repetir pedido
+                            </button>
+                            {order.status === "completed" && !reviewedOrders.includes(order.id) && (
+                              <button
+                                onClick={() => openReviewModal(order)}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 text-amber-500"
+                              >
+                                <Star className="w-4 h-4" />
+                                Avaliar pedido
+                              </button>
+                            )}
+                            <button
+                              onClick={() => sendWhatsApp(order)}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              Enviar WhatsApp
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{formatDate(order.createdAt)}</span>
@@ -375,6 +548,46 @@ export default function MinhaContaPage() {
           </div>
         )}
 
+        {/* Avaliacoes */}
+        {activeTab === "avaliacoes" && (
+          <div className="space-y-3">
+            {pendingReviews.length > 0 && (
+              <>
+                <h3 className="font-semibold text-foreground">Pedidos para avaliar</h3>
+                {pendingReviews.map((order) => (
+                  <div key={order.id} className="bg-amber-500/5 rounded-xl border border-amber-500/20 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-foreground">Pedido #{order.orderNumber}</span>
+                      <span className="text-sm text-muted-foreground">{formatDate(order.createdAt)}</span>
+                    </div>
+                    <button
+                      onClick={() => openReviewModal(order)}
+                      className="w-full mt-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <Star className="w-4 h-4" />
+                      Avaliar este pedido
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+            {reviewedOrders.length > 0 && (
+              <>
+                <h3 className="font-semibold text-foreground mt-4">Pedidos avaliados</h3>
+                <p className="text-sm text-muted-foreground">
+                  Voce ja avaliou {reviewedOrders.length} pedido(s). Obrigado!
+                </p>
+              </>
+            )}
+            {pendingReviews.length === 0 && reviewedOrders.length === 0 && (
+              <div className="bg-card rounded-xl border border-border p-8 text-center">
+                <Star className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Nenhum pedido para avaliar</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Cashback */}
         {activeTab === "cashback" && (
           <div className="space-y-3">
@@ -382,7 +595,6 @@ export default function MinhaContaPage() {
               <p className="text-sm text-muted-foreground mb-1">Saldo disponivel</p>
               <p className="text-2xl font-bold text-green-500">{formatCurrency(cashbackBalance)}</p>
             </div>
-
             <h3 className="font-semibold text-foreground mt-4 mb-2">Historico</h3>
             {cashbackHistory.length === 0 ? (
               <div className="bg-card rounded-xl border border-border p-8 text-center">
@@ -391,19 +603,12 @@ export default function MinhaContaPage() {
               </div>
             ) : (
               cashbackHistory.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-card rounded-xl border border-border p-4 flex items-center justify-between"
-                >
+                <div key={item.id} className="bg-card rounded-xl border border-border p-4 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-foreground">{item.description}</p>
                     <p className="text-xs text-muted-foreground">{formatDate(item.created_at)}</p>
                   </div>
-                  <span
-                    className={`font-bold ${
-                      item.type === "earned" ? "text-green-500" : "text-red-500"
-                    }`}
-                  >
+                  <span className={`font-bold ${item.type === "earned" ? "text-green-500" : "text-red-500"}`}>
                     {item.type === "earned" ? "+" : "-"}{formatCurrency(item.amount)}
                   </span>
                 </div>
@@ -419,7 +624,6 @@ export default function MinhaContaPage() {
               <p className="text-sm text-muted-foreground mb-1">Pontos acumulados</p>
               <p className="text-2xl font-bold text-purple-500">{pointsBalance} pts</p>
             </div>
-
             <h3 className="font-semibold text-foreground mt-4 mb-2">Historico</h3>
             {pointsHistory.length === 0 ? (
               <div className="bg-card rounded-xl border border-border p-8 text-center">
@@ -428,19 +632,12 @@ export default function MinhaContaPage() {
               </div>
             ) : (
               pointsHistory.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-card rounded-xl border border-border p-4 flex items-center justify-between"
-                >
+                <div key={item.id} className="bg-card rounded-xl border border-border p-4 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-foreground">{item.description}</p>
                     <p className="text-xs text-muted-foreground">{formatDate(item.created_at)}</p>
                   </div>
-                  <span
-                    className={`font-bold ${
-                      item.type === "earned" ? "text-purple-500" : "text-red-500"
-                    }`}
-                  >
+                  <span className={`font-bold ${item.type === "earned" ? "text-purple-500" : "text-red-500"}`}>
                     {item.type === "earned" ? "+" : "-"}{item.points} pts
                   </span>
                 </div>
@@ -449,6 +646,61 @@ export default function MinhaContaPage() {
           </div>
         )}
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && reviewData && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <h2 className="font-bold text-foreground">Avaliar Pedido #{reviewData.orderNumber}</h2>
+              <button onClick={() => setShowReviewModal(false)} className="p-2 hover:bg-muted rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">Nota Geral</label>
+                <StarRating value={reviewForm.rating} onChange={(v) => setReviewForm(f => ({ ...f, rating: v }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">Produto</label>
+                <StarRating value={reviewForm.productRating} onChange={(v) => setReviewForm(f => ({ ...f, productRating: v }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">Entrega</label>
+                <StarRating value={reviewForm.deliveryRating} onChange={(v) => setReviewForm(f => ({ ...f, deliveryRating: v }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">Atendimento</label>
+                <StarRating value={reviewForm.serviceRating} onChange={(v) => setReviewForm(f => ({ ...f, serviceRating: v }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">Comentario (opcional)</label>
+                <textarea
+                  value={reviewForm.comment}
+                  onChange={(e) => setReviewForm(f => ({ ...f, comment: e.target.value }))}
+                  placeholder="Conte como foi sua experiencia..."
+                  className="w-full p-3 bg-input border border-border rounded-lg text-foreground text-sm resize-none h-24"
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-border">
+              <button
+                onClick={submitReview}
+                disabled={submittingReview}
+                className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {submittingReview ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+                Enviar Avaliacao
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
