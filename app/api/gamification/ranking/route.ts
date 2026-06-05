@@ -158,11 +158,11 @@ export async function POST(request: Request) {
       })
     }
 
-    // Dar badge de cliente do mes
-    await supabase.from("customer_badges").insert({
+    // Dar badge de cliente do mes (upsert para evitar duplicata)
+    await supabase.from("customer_badges").upsert({
       customer_id: customerId,
       badge_id: 5 // Badge "Cliente do Mes"
-    }).onConflict("customer_id,badge_id")
+    }, { onConflict: "customer_id,badge_id" })
 
     // Registrar no ranking
     await supabase.from("monthly_ranking").upsert({
