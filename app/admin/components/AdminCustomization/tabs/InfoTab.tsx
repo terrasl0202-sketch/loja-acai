@@ -1,6 +1,6 @@
 "use client"
 
-import { Facebook, Instagram, FileText, Truck, Share2, Info } from "lucide-react"
+import { Facebook, Instagram, FileText, Truck, Share2, Info, MessageCircle } from "lucide-react"
 import { CustomizationSocial } from "@/lib/config-types"
 
 // TikTok icon component
@@ -89,6 +89,28 @@ export function InfoTab({ social, onUpdate }: InfoTabProps) {
             />
           </div>
         </div>
+      </div>
+
+      {/* Mensagem Inicial WhatsApp */}
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-green-500" />
+            Mensagem Inicial WhatsApp
+          </h3>
+          <p className="text-sm text-muted-foreground">Mensagem pre-preenchida ao clicar no botao WhatsApp</p>
+        </div>
+
+        <input
+          type="text"
+          value={social.whatsappMessage || ''}
+          onChange={(e) => onUpdate({ whatsappMessage: e.target.value })}
+          placeholder="Ola! Vim pelo site e gostaria de mais informacoes."
+          className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+        />
+        <p className="text-xs text-muted-foreground">
+          Se vazio, usa: &quot;Ola! Vim pelo site e gostaria de mais informacoes.&quot;
+        </p>
       </div>
 
       {/* Politica de Entrega */}

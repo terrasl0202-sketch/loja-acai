@@ -74,7 +74,8 @@ export async function GET() {
         hero_badge_2_enabled,
         hero_badge_3_text,
         hero_badge_3_icon,
-        hero_badge_3_enabled
+        hero_badge_3_enabled,
+        whatsapp_message
       `)
       .order('id', { ascending: true })
       .limit(1)
@@ -133,6 +134,7 @@ export async function GET() {
         address: data?.address || "",
         deliveryPolicy: data?.delivery_policy || "",
         footerText: data?.footer_text || "",
+        whatsappMessage: data?.whatsapp_message || "",
       },
       gateways: {
         mercadopagoEnabled: data?.gateway_mercadopago_enabled ?? false,
@@ -231,6 +233,7 @@ export async function PUT(req: NextRequest) {
       if (customization.social.tiktok !== undefined) updateData.tiktok = customization.social.tiktok
       if (customization.social.deliveryPolicy !== undefined) updateData.delivery_policy = customization.social.deliveryPolicy
       if (customization.social.footerText !== undefined) updateData.footer_text = customization.social.footerText
+      if (customization.social.whatsappMessage !== undefined) updateData.whatsapp_message = customization.social.whatsappMessage
     }
 
     // Gateways

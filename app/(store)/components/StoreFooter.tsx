@@ -25,6 +25,7 @@ interface StoreFooterProps {
   closeTime?: string
   footerText?: string
   deliveryPolicy?: string
+  whatsappMessage?: string
 }
 
 export function StoreFooter({ 
@@ -39,9 +40,14 @@ export function StoreFooter({
   openTime,
   closeTime,
   footerText,
-  deliveryPolicy
+  deliveryPolicy,
+  whatsappMessage
 }: StoreFooterProps) {
   const currentYear = new Date().getFullYear()
+
+  // Mensagem padrao do WhatsApp
+  const defaultWhatsappMessage = "Ola! Vim pelo site e gostaria de mais informacoes."
+  const finalWhatsappMessage = whatsappMessage || defaultWhatsappMessage
 
   // Formata numero de WhatsApp para exibicao
   const whatsappFormatted = whatsapp 
@@ -91,7 +97,7 @@ export function StoreFooter({
               <div className="grid grid-cols-2 gap-2 mb-8">
                 {whatsapp && (
                   <a
-                    href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(`Ola ${storeName || ''}!`)}`}
+                    href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(finalWhatsappMessage)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-3 px-4 py-3 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 text-green-500 rounded-2xl transition-all group"

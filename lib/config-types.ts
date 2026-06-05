@@ -153,6 +153,7 @@ export interface CustomizationSocial {
   address: string
   deliveryPolicy: string
   footerText: string
+  whatsappMessage?: string
 }
 
 export interface CustomizationGateways {
@@ -232,6 +233,7 @@ export const defaultCustomization: StoreCustomization = {
     address: "",
     deliveryPolicy: "",
     footerText: "",
+    whatsappMessage: "",
   },
   gateways: {
     mercadopagoEnabled: false,

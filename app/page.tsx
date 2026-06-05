@@ -10,7 +10,7 @@ import type { PaymentStatus, DeliveryType, OrderSnapshot, PixData, CustomerOrder
 import { CUSTOMER_SESSION_KEY, ORDER_STORAGE_KEY, DEFAULT_FORM_DATA, TOAST_DURATION, FALLBACK_NEIGHBORHOOD_FEES } from "./(store)/constants"
 import { formatCurrency, generateOrderId, normalizeProductName, generatePixCode, normalizePixKey } from "./(store)/utils"
 import { useCart } from "./(store)/hooks/useCart"
-import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer, CategoryNav } from "./(store)/components"
+import { HeroBanner, StoreClosedBanner, ProductList, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, CartDrawer, CategoryNav, PromoBanner } from "./(store)/components"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./(store)/components/modals"
 
 // Converte hex para OKLCH para compatibilidade com Tailwind CSS 4
@@ -1956,6 +1956,12 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         }}
       />
       
+      {/* Faixa Promocional */}
+      <PromoBanner 
+        message={customization.elements.promoMessage}
+        enabled={customization.elements.showPromoBanner}
+      />
+      
       {/* Hero - Cinematografico Premium */}
       <HeroBanner 
         storeName={customization.identity.storeName || STORE_NAME}
@@ -2017,6 +2023,7 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
         closeTime={siteConfig.storeHours?.closeTime}
         footerText={customization.social.footerText}
         deliveryPolicy={customization.social.deliveryPolicy}
+        whatsappMessage={customization.social.whatsappMessage}
       />
 
       {/* Fixed Bottom Button */}
