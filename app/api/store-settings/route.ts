@@ -172,10 +172,21 @@ export async function POST(request: Request) {
   
   const body = await request.json()
   
+  // Buscar o ID existente do registro
+  const { data: existingRecord } = await supabase
+    .from('store_settings')
+    .select('id')
+    .limit(1)
+    .single()
+  
   // Montar objeto com TODOS os campos
   const dataToSave: Record<string, unknown> = {
-    id: 'main',
     updated_at: new Date().toISOString(),
+  }
+  
+  // Se existe um registro, usar o ID dele para update
+  if (existingRecord?.id) {
+    dataToSave.id = existingRecord.id
   }
   
   // Dados basicos da loja
