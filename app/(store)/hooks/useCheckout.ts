@@ -63,6 +63,12 @@ export interface UseCheckoutReturn {
   openCheckout: (totalItems: number, subtotal: number, minimumOrder: number, isStoreOpen: boolean) => void
   playConfirmSound: () => void
   audioRef: React.RefObject<HTMLAudioElement | null>
+  // Premium - Cashback e Pontos
+  cashbackUsed: number
+  setCashbackUsed: (value: number) => void
+  pointsRewardUsed: number
+  setPointsRewardUsed: (value: number) => void
+  getPremiumDiscount: () => number
 }
 
 interface CreatePixParams {
@@ -78,6 +84,8 @@ interface CreatePixParams {
   pixKeyFull: string
   appliedCoupon: Coupon | null
   customer?: { id?: string; phone?: string } | null
+  cashbackUsed?: number
+  pointsRewardUsed?: number
 }
 
 export function useCheckout(
@@ -104,6 +112,10 @@ export function useCheckout(
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
   const [couponCode, setCouponCode] = useState("")
   const [couponError, setCouponError] = useState("")
+  
+  // Premium - Cashback e Pontos
+  const [cashbackUsed, setCashbackUsed] = useState(0)
+  const [pointsRewardUsed, setPointsRewardUsed] = useState(0)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -429,6 +441,9 @@ export function useCheckout(
                   observation: formData.observacao,
                   isPixAutomatic: true,
                   asaasPaymentId: data.paymentId,
+                  // Premium - Cashback e Pontos usados
+                  cashbackUsed: cashbackUsed || 0,
+                  pointsRewardUsed: pointsRewardUsed || 0,
                 },
               }),
             })
@@ -584,6 +599,11 @@ export function useCheckout(
     [showToast]
   )
 
+  // Premium - Calcular desconto total de cashback + pontos
+  const getPremiumDiscount = useCallback(() => {
+    return cashbackUsed + pointsRewardUsed
+  }, [cashbackUsed, pointsRewardUsed])
+
   return {
     showCheckout,
     setShowCheckout,
@@ -634,5 +654,11 @@ export function useCheckout(
     openCheckout,
     playConfirmSound,
     audioRef,
+    // Premium - Cashback e Pontos
+    cashbackUsed,
+    setCashbackUsed,
+    pointsRewardUsed,
+    setPointsRewardUsed,
+    getPremiumDiscount,
   }
 }

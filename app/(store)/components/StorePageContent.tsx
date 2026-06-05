@@ -17,6 +17,7 @@ import { useCartContext } from "../providers/CartProvider"
 // Components
 import { HeroBanner, StoreClosedBanner, PromoBanner, ProductList, CategoryNav, CartSummary, FloatingCartButton, StoreFooter, StoreHeader, FeaturedSections, DynamicTheme, PublicReviews } from "./index"
 import { ConfirmPixActiveModal, NewOrderOptionsModal, CustomerLoginModal, MyAccountModal, MyOrdersModal, RepeatOrderModal, Toast, AddToCartToast } from "./modals"
+import { PremiumDiscounts } from "./checkout/PremiumDiscounts"
 
 export function StorePageContent() {
   // ============================================================
@@ -84,6 +85,10 @@ export function StorePageContent() {
   const [useSavedData, setUseSavedData] = useState<boolean | null>(null)
   const [copied, setCopied] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
+  
+  // Premium - Cashback e Pontos
+  const [cashbackUsed, setCashbackUsed] = useState(0)
+  const [pointsRewardUsed, setPointsRewardUsed] = useState(0)
   
   // Asaas PIX states - CRITICOS, mantidos locais
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("idle")
@@ -173,7 +178,9 @@ export function StorePageContent() {
     const discount = appliedCoupon ? (appliedCoupon.type === "percentage" 
       ? subtotal * (appliedCoupon.value / 100) 
       : appliedCoupon.value) : 0
-    return Math.max(0, subtotal + fee - discount)
+    // Premium - Descontos de cashback e pontos
+    const premiumDiscount = cashbackUsed + pointsRewardUsed
+    return Math.max(0, subtotal + fee - discount - premiumDiscount)
   }
 
   // Funcao helper para obter taxa de entrega baseada no bairro
@@ -201,7 +208,9 @@ export function StorePageContent() {
     const discount = appliedCoupon ? (appliedCoupon.type === "percentage" 
       ? subtotal * (appliedCoupon.value / 100) 
       : appliedCoupon.value) : 0
-    return Math.max(0, subtotal + fee - discount)
+    // Premium - Descontos de cashback e pontos
+    const premiumDiscount = cashbackUsed + pointsRewardUsed
+    return Math.max(0, subtotal + fee - discount - premiumDiscount)
   }
 
   // ============================================================
@@ -615,6 +624,19 @@ export function StorePageContent() {
         quantities={quantities} 
         total={getTotal()} 
       />
+
+      {/* Premium Discounts - Usar cashback e pontos */}
+      {getTotalItems() > 0 && (
+        <div className="mt-4 px-4">
+          <PremiumDiscounts
+            orderTotal={getSubtotal(products)}
+            customerId={customer?.id ? Number(customer.id) : null}
+            customerPhone={customer?.phone || formData.telefone}
+            onCashbackChange={setCashbackUsed}
+            onPointsRewardChange={setPointsRewardUsed}
+          />
+        </div>
+      )}
 
       {/* Avaliacoes Publicas */}
       <PublicReviews />

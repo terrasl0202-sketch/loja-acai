@@ -48,10 +48,12 @@ interface OrderItem {
   id: number
   orderNumber: string
   status: string
-  total: string
+  total: number
   createdAt: string
   paymentMethod: string
   items?: string
+  cashbackUsed?: number
+  pointsRewardUsed?: number
 }
 
 interface ReviewData {
@@ -542,6 +544,29 @@ export default function MinhaContaPage() {
                     <span className="text-muted-foreground">{formatDate(order.createdAt)}</span>
                     <span className="font-medium text-foreground">{formatCurrency(order.total)}</span>
                   </div>
+                  {/* Descontos Premium usados */}
+                  {(order.cashbackUsed > 0 || order.pointsRewardUsed > 0) && (
+                    <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
+                      {order.cashbackUsed > 0 && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-green-500 flex items-center gap-1">
+                            <Gift className="w-3 h-3" />
+                            Cashback usado
+                          </span>
+                          <span className="text-green-500 font-medium">-{formatCurrency(order.cashbackUsed)}</span>
+                        </div>
+                      )}
+                      {order.pointsRewardUsed > 0 && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-purple-500 flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            Pontos usados
+                          </span>
+                          <span className="text-purple-500 font-medium">-{formatCurrency(order.pointsRewardUsed)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             )}

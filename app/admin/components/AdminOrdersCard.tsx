@@ -261,6 +261,13 @@ export function AdminOrdersCard({
                             <p className="text-[10px] text-gray-500">Total</p>
                             <p className="text-lg font-bold text-emerald-400">R$ {order.total?.toFixed(2)}</p>
                             <p className="text-[10px] text-gray-500">{order.paymentMethod}</p>
+                            {/* Descontos Premium */}
+                            {(order.cashbackUsed && order.cashbackUsed > 0) && (
+                              <p className="text-[10px] text-green-400">Cashback: -R$ {order.cashbackUsed.toFixed(2)}</p>
+                            )}
+                            {(order.pointsRewardUsed && order.pointsRewardUsed > 0) && (
+                              <p className="text-[10px] text-purple-400">Pontos: -R$ {order.pointsRewardUsed.toFixed(2)}</p>
+                            )}
                           </div>
                         </div>
 

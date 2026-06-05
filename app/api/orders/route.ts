@@ -54,6 +54,9 @@ interface DbOrder {
   asaas_payment_id?: string | null
   pix_code?: string | null
   pix_qrcode?: string | null
+  // Premium - Cashback e Pontos usados
+  cashback_used?: number | null
+  points_reward_used?: number | null
 }
 
 function dbToFrontend(db: DbOrder): Order {
@@ -117,6 +120,9 @@ function dbToFrontend(db: DbOrder): Order {
     entregadorId: db.entregador_id || undefined,
     entregadorNome: db.entregador_nome || undefined,
     entregadorWhatsapp: db.entregador_whatsapp || undefined,
+    // Premium - Cashback e Pontos usados
+    cashbackUsed: Number(db.cashback_used) || 0,
+    pointsRewardUsed: Number(db.points_reward_used) || 0,
   }
 }
 
@@ -156,9 +162,11 @@ const ALLOWED_COLUMNS = [
   'payment_status', // Status do pagamento (pending, confirmed, failed)
   'created_at',
   'asaas_payment_id', // ID do pagamento Asaas para confirmacao automatica
+  'cashback_used', // Premium - Cashback usado
+  'points_reward_used', // Premium - Pontos/recompensa usados
 ] as const
 
-function frontendToDb(order: Order & { asaasPaymentId?: string }): Record<string, unknown> {
+function frontendToDb(order: Order & { asaasPaymentId?: string; cashbackUsed?: number; pointsRewardUsed?: number }): Record<string, unknown> {
   // NAO enviar 'id' - é BIGINT auto-gerado pelo Supabase
   const dbOrder: Record<string, unknown> = {
     order_code: order.orderCode || order.id || `ORD-${Date.now()}`,
@@ -173,6 +181,8 @@ function frontendToDb(order: Order & { asaasPaymentId?: string }): Record<string
     payment_status: order.paymentStatus || 'pending', // Status do pagamento
     created_at: new Date().toISOString(),
     asaas_payment_id: order.asaasPaymentId || null, // ID do pagamento Asaas
+    cashback_used: order.cashbackUsed || 0, // Premium - Cashback usado
+    points_reward_used: order.pointsRewardUsed || 0, // Premium - Pontos usados
   }
   
   // Filtrar apenas colunas permitidas

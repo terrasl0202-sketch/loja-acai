@@ -125,6 +125,53 @@ export async function POST(request: NextRequest) {
 
     console.log("[orders/confirm] SUCESSO! Pedido confirmado. id:", updated.id, "order_code:", updated.order_code, "novo status:", updated.status)
 
+    // === DEDUZIR CASHBACK E PONTOS USADOS ===
+    // Se o pedido usou cashback ou pontos, deduzir do saldo do cliente
+    if (order.status === 'pending' && updated.customer_id) {
+      const cashbackUsed = Number(updated.cashback_used) || 0
+      const pointsRewardUsed = Number(updated.points_reward_used) || 0
+      
+      if (cashbackUsed > 0) {
+        try {
+          // Registrar uso do cashback
+          await supabase.from('customer_cashback').insert({
+            customer_id: updated.customer_id,
+            order_id: updated.id,
+            type: 'used',
+            amount: -cashbackUsed,
+            description: `Usado no pedido #${updated.order_code || updated.id}`
+          })
+          console.log("[orders/confirm] Cashback deduzido:", cashbackUsed)
+        } catch (e) {
+          console.error("[orders/confirm] Erro ao deduzir cashback:", e)
+        }
+      }
+      
+      if (pointsRewardUsed > 0) {
+        try {
+          // Buscar configuracoes de fidelidade para saber quantos pontos descontar
+          const { data: loyaltySettings } = await supabase
+            .from('loyalty_settings')
+            .select('points_for_reward')
+            .single()
+          
+          const pointsToDeduct = loyaltySettings?.points_for_reward || 500
+          
+          // Registrar uso dos pontos
+          await supabase.from('customer_points').insert({
+            customer_id: updated.customer_id,
+            order_id: updated.id,
+            type: 'used',
+            points: -pointsToDeduct,
+            description: `Trocado por R$${pointsRewardUsed.toFixed(2)} no pedido #${updated.order_code || updated.id}`
+          })
+          console.log("[orders/confirm] Pontos deduzidos:", pointsToDeduct)
+        } catch (e) {
+          console.error("[orders/confirm] Erro ao deduzir pontos:", e)
+        }
+      }
+    }
+
     // === GERAR CASHBACK E PONTOS ===
     // Apenas para pedidos recem confirmados (status anterior era pending)
     if (order.status === 'pending' && updated.customer_id) {

@@ -321,6 +321,9 @@ export interface Order {
   historicoEntrega?: { data: string; evento: string; observacao?: string }[]
   // Identificacao do cliente
   customerId?: string
+  // Premium - Cashback e Pontos usados
+  cashbackUsed?: number
+  pointsRewardUsed?: number
 }
 
 // Sistema de Conta do Cliente

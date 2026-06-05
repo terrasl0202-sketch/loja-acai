@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
             // Buscar dados completos do pedido para gerar recompensas
             const { data: fullOrder } = await supabase
               .from('orders')
-              .select('id, customer_id, total')
+              .select('id, customer_id, total, order_code, cashback_used, points_reward_used')
               .eq('id', order.id)
               .single()
 
@@ -175,6 +175,49 @@ export async function POST(request: NextRequest) {
               result = "error"
             } else {
               result = "confirmed"
+              
+              // === DEDUZIR CASHBACK E PONTOS USADOS ===
+              if (fullOrder?.customer_id) {
+                const cashbackUsed = Number(fullOrder.cashback_used) || 0
+                const pointsRewardUsed = Number(fullOrder.points_reward_used) || 0
+                
+                if (cashbackUsed > 0) {
+                  try {
+                    await supabase.from('customer_cashback').insert({
+                      customer_id: fullOrder.customer_id,
+                      order_id: fullOrder.id,
+                      type: 'used',
+                      amount: -cashbackUsed,
+                      description: `Usado no pedido #${fullOrder.order_code || fullOrder.id}`
+                    })
+                    console.log(`[Webhook ${requestId}] Cashback deduzido:`, cashbackUsed)
+                  } catch (e) {
+                    console.error(`[Webhook ${requestId}] Erro deduzir cashback:`, e)
+                  }
+                }
+                
+                if (pointsRewardUsed > 0) {
+                  try {
+                    const { data: loyaltySettings } = await supabase
+                      .from('loyalty_settings')
+                      .select('points_for_reward')
+                      .single()
+                    
+                    const pointsToDeduct = loyaltySettings?.points_for_reward || 500
+                    
+                    await supabase.from('customer_points').insert({
+                      customer_id: fullOrder.customer_id,
+                      order_id: fullOrder.id,
+                      type: 'used',
+                      points: -pointsToDeduct,
+                      description: `Trocado por R$${pointsRewardUsed.toFixed(2)} no pedido #${fullOrder.order_code || fullOrder.id}`
+                    })
+                    console.log(`[Webhook ${requestId}] Pontos deduzidos:`, pointsToDeduct)
+                  } catch (e) {
+                    console.error(`[Webhook ${requestId}] Erro deduzir pontos:`, e)
+                  }
+                }
+              }
               
               // === GERAR CASHBACK E PONTOS ===
               if (fullOrder?.customer_id) {
