@@ -19,7 +19,12 @@ import {
   RefreshCw,
   Send,
   X,
-  AlertCircle
+  AlertCircle,
+  Crown,
+  Award,
+  Medal,
+  Gem,
+  TrendingUp
 } from "lucide-react"
 
 interface CustomerData {
@@ -67,6 +72,27 @@ interface LoyaltyInfo {
   progressToReward: number
 }
 
+interface VipLevel {
+  id: number
+  name: string
+  min_spent: number
+  max_spent: number | null
+  cashback_bonus_percentage: number
+  points_bonus_percentage: number
+  benefits: string[]
+  color: string
+  icon: string
+}
+
+interface VipStatus {
+  level: VipLevel
+  totalSpent: number
+  nextLevel: VipLevel | null
+  amountToNextLevel: number
+  progressPercent: number
+  totalOrders: number
+}
+
 export default function MinhaContaPage() {
   const params = useParams()
   const router = useRouter()
@@ -81,6 +107,7 @@ export default function MinhaContaPage() {
   const [orders, setOrders] = useState<OrderItem[]>([])
   const [reviewedOrders, setReviewedOrders] = useState<number[]>([])
   const [loyalty, setLoyalty] = useState<LoyaltyInfo | null>(null)
+  const [vipStatus, setVipStatus] = useState<VipStatus | null>(null)
   const [activeTab, setActiveTab] = useState<"resumo" | "pedidos" | "cashback" | "pontos" | "avaliacoes">("resumo")
   const [openMenuId, setOpenMenuId] = useState<number | null>(null)
   const [showReviewModal, setShowReviewModal] = useState(false)
@@ -132,6 +159,13 @@ export default function MinhaContaPage() {
           if (reviewsData.success && reviewsData.reviews) {
             setReviewedOrders(reviewsData.reviews.map((r: { order_id: number }) => r.order_id))
           }
+        }
+
+        // Buscar status VIP do cliente
+        const vipRes = await fetch(`/api/vip/customer?phone=${encodeURIComponent(phone)}`)
+        const vipData = await vipRes.json()
+        if (vipData.status) {
+          setVipStatus(vipData.status)
         }
       } catch (error) {
         console.error("Erro ao carregar dados:", error)
@@ -443,6 +477,112 @@ export default function MinhaContaPage() {
         {/* Resumo */}
         {activeTab === "resumo" && (
           <div className="space-y-4">
+            {/* Card VIP Premium */}
+            {vipStatus && (
+              <div 
+                className="relative overflow-hidden rounded-xl border-2 p-5"
+                style={{ 
+                  borderColor: vipStatus.level.color,
+                  background: `linear-gradient(135deg, ${vipStatus.level.color}15 0%, ${vipStatus.level.color}05 100%)`
+                }}
+              >
+                {/* Header do nivel */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-12 h-12 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: vipStatus.level.color + '30' }}
+                    >
+                      {vipStatus.level.icon === 'medal' && <Medal className="w-6 h-6" style={{ color: vipStatus.level.color }} />}
+                      {vipStatus.level.icon === 'award' && <Award className="w-6 h-6" style={{ color: vipStatus.level.color }} />}
+                      {vipStatus.level.icon === 'crown' && <Crown className="w-6 h-6" style={{ color: vipStatus.level.color }} />}
+                      {vipStatus.level.icon === 'gem' && <Gem className="w-6 h-6" style={{ color: vipStatus.level.color }} />}
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Voce e cliente</p>
+                      <h3 className="text-xl font-bold" style={{ color: vipStatus.level.color }}>
+                        {vipStatus.level.name}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Total gasto</p>
+                    <p className="text-lg font-bold text-foreground">{formatCurrency(vipStatus.totalSpent)}</p>
+                  </div>
+                </div>
+
+                {/* Progresso para proximo nivel */}
+                {vipStatus.nextLevel && (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" />
+                        Proximo nivel: {vipStatus.nextLevel.name}
+                      </span>
+                      <span className="font-medium text-foreground">
+                        Faltam {formatCurrency(vipStatus.amountToNextLevel)}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-background rounded-full overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ 
+                          width: `${vipStatus.progressPercent}%`,
+                          backgroundColor: vipStatus.level.color
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 text-right">
+                      {vipStatus.progressPercent}% completo
+                    </p>
+                  </div>
+                )}
+
+                {/* Beneficios do nivel */}
+                {vipStatus.level.benefits && vipStatus.level.benefits.length > 0 && (
+                  <div className="bg-background/50 rounded-lg p-3">
+                    <p className="text-xs font-medium text-foreground mb-2">Seus beneficios:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {vipStatus.level.cashback_bonus_percentage > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-green-500/10 text-green-500 px-2 py-1 rounded-full">
+                          <Gift className="w-3 h-3" />
+                          +{vipStatus.level.cashback_bonus_percentage}% cashback
+                        </span>
+                      )}
+                      {vipStatus.level.points_bonus_percentage > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-purple-500/10 text-purple-500 px-2 py-1 rounded-full">
+                          <Star className="w-3 h-3" />
+                          +{vipStatus.level.points_bonus_percentage}% pontos
+                        </span>
+                      )}
+                    </div>
+                    {vipStatus.level.benefits.filter(b => !b.includes('%')).length > 0 && (
+                      <ul className="mt-2 space-y-1">
+                        {vipStatus.level.benefits.filter(b => !b.includes('%')).map((benefit, i) => (
+                          <li key={i} className="text-xs text-muted-foreground flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-primary" />
+                            {benefit}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {/* Nivel maximo */}
+                {!vipStatus.nextLevel && (
+                  <div className="bg-background/50 rounded-lg p-3 text-center">
+                    <p className="text-sm font-medium" style={{ color: vipStatus.level.color }}>
+                      Parabens! Voce atingiu o nivel maximo!
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Continue comprando para aproveitar todos os beneficios
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="bg-card rounded-xl border border-border p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-primary" />

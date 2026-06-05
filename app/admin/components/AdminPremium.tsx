@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Gift, Star, Loader2, Save, Percent, DollarSign, Award, TrendingUp, MessageSquare, Eye, EyeOff } from "lucide-react"
+import { Gift, Star, Loader2, Save, Percent, DollarSign, Award, TrendingUp, MessageSquare, Eye, EyeOff, Crown, Users, Medal, Gem, MessageCircle, Edit2 } from "lucide-react"
 
 interface CashbackSettings {
   enabled: boolean
@@ -41,6 +41,43 @@ interface ReviewStats {
   averageService: string | number
 }
 
+interface VipLevel {
+  id: number
+  name: string
+  min_spent: number
+  max_spent: number | null
+  cashback_bonus_percentage: number
+  points_bonus_percentage: number
+  benefits: string[]
+  color: string
+  icon: string
+  active: boolean
+  sort_order: number
+}
+
+interface VipStats {
+  byLevel: { level: string; count: number; color: string }[]
+  topCustomers: {
+    id: number
+    name: string
+    phone: string
+    totalSpent: number
+    totalOrders: number
+    levelName: string
+    levelColor: string
+  }[]
+  nearUpgrade: {
+    id: number
+    name: string
+    phone: string
+    totalSpent: number
+    levelName: string
+    nextLevelName: string | null
+    amountToNext: number
+  }[]
+  totalCustomers: number
+}
+
 interface AdminPremiumProps {
   sessionPassword: string
 }
@@ -49,7 +86,7 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
-  const [activeTab, setActiveTab] = useState<"config" | "reviews">("config")
+  const [activeTab, setActiveTab] = useState<"config" | "reviews" | "vip">("config")
 
   const [cashback, setCashback] = useState<CashbackSettings>({
     enabled: false,
@@ -67,6 +104,13 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
   const [reviews, setReviews] = useState<Review[]>([])
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null)
   const [loadingReviews, setLoadingReviews] = useState(false)
+
+  // VIP
+  const [vipLevels, setVipLevels] = useState<VipLevel[]>([])
+  const [vipStats, setVipStats] = useState<VipStats | null>(null)
+  const [loadingVip, setLoadingVip] = useState(false)
+  const [editingLevel, setEditingLevel] = useState<VipLevel | null>(null)
+  const [savingLevel, setSavingLevel] = useState(false)
 
   // Carregar configuracoes
   useEffect(() => {
@@ -105,6 +149,9 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
     if (activeTab === "reviews") {
       loadReviews()
     }
+    if (activeTab === "vip") {
+      loadVipStats()
+    }
   }, [activeTab, sessionPassword])
 
   const loadReviews = async () => {
@@ -137,6 +184,51 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
     } catch (error) {
       console.error("Erro ao atualizar avaliacao:", error)
     }
+  }
+
+  // VIP - Carregar estatisticas e niveis
+  const loadVipStats = async () => {
+    setLoadingVip(true)
+    try {
+      const res = await fetch(`/api/vip/stats?password=${sessionPassword}`)
+      const data = await res.json()
+      if (data.stats) {
+        setVipStats(data.stats)
+        setVipLevels(data.levels || [])
+      }
+    } catch (error) {
+      console.error("Erro ao carregar VIP:", error)
+    } finally {
+      setLoadingVip(false)
+    }
+  }
+
+  // VIP - Salvar nivel
+  const handleSaveLevel = async () => {
+    if (!editingLevel) return
+    setSavingLevel(true)
+    try {
+      const res = await fetch("/api/vip/levels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sessionPassword, level: editingLevel })
+      })
+      const data = await res.json()
+      if (data.level) {
+        setVipLevels(vipLevels.map(l => l.id === data.level.id ? data.level : l))
+        setEditingLevel(null)
+      }
+    } catch (error) {
+      console.error("Erro ao salvar nivel:", error)
+    } finally {
+      setSavingLevel(false)
+    }
+  }
+
+  // VIP - Abrir WhatsApp
+  const openWhatsApp = (phone: string, name: string) => {
+    const msg = encodeURIComponent(`Ola ${name}, voce e um cliente especial da nossa loja! Temos uma condicao VIP para voce.`)
+    window.open(`https://wa.me/55${phone.replace(/\D/g, "")}?text=${msg}`, "_blank")
   }
 
   // Salvar configuracoes
@@ -259,6 +351,17 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
               {reviewStats.total}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setActiveTab("vip")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            activeTab === "vip"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+          }`}
+        >
+          <Crown className="w-4 h-4 inline mr-2" />
+          Clientes VIP
         </button>
       </div>
 
@@ -504,6 +607,243 @@ export function AdminPremium({ sessionPassword }: AdminPremiumProps) {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* VIP Tab */}
+      {activeTab === "vip" && (
+        <div className="space-y-6">
+          {loadingVip ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              {/* Stats por nivel */}
+              {vipStats && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {vipStats.byLevel.map((stat) => (
+                    <div 
+                      key={stat.level}
+                      className="bg-card rounded-xl border-2 p-4 text-center"
+                      style={{ borderColor: stat.color }}
+                    >
+                      <div 
+                        className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center"
+                        style={{ backgroundColor: stat.color + '20' }}
+                      >
+                        {stat.level === 'Bronze' && <Medal className="w-5 h-5" style={{ color: stat.color }} />}
+                        {stat.level === 'Prata' && <Award className="w-5 h-5" style={{ color: stat.color }} />}
+                        {stat.level === 'Ouro' && <Crown className="w-5 h-5" style={{ color: stat.color }} />}
+                        {stat.level === 'Diamante' && <Gem className="w-5 h-5" style={{ color: stat.color }} />}
+                      </div>
+                      <p className="text-2xl font-bold text-foreground">{stat.count}</p>
+                      <p className="text-sm text-muted-foreground">{stat.level}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Configurar niveis */}
+              <div className="bg-card rounded-xl border border-border p-6">
+                <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <Crown className="w-5 h-5 text-yellow-500" />
+                  Configurar Niveis VIP
+                </h3>
+                <div className="space-y-3">
+                  {vipLevels.map((level) => (
+                    <div 
+                      key={level.id}
+                      className="flex items-center justify-between p-3 bg-background rounded-lg border"
+                      style={{ borderColor: level.color + '50' }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-8 h-8 rounded-full flex items-center justify-center"
+                          style={{ backgroundColor: level.color + '20' }}
+                        >
+                          {level.icon === 'medal' && <Medal className="w-4 h-4" style={{ color: level.color }} />}
+                          {level.icon === 'award' && <Award className="w-4 h-4" style={{ color: level.color }} />}
+                          {level.icon === 'crown' && <Crown className="w-4 h-4" style={{ color: level.color }} />}
+                          {level.icon === 'gem' && <Gem className="w-4 h-4" style={{ color: level.color }} />}
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground">{level.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            R${level.min_spent} - {level.max_spent ? `R$${level.max_spent}` : 'ilimitado'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right text-xs">
+                          <p className="text-green-500">+{level.cashback_bonus_percentage}% cashback</p>
+                          <p className="text-purple-500">+{level.points_bonus_percentage}% pontos</p>
+                        </div>
+                        <button
+                          onClick={() => setEditingLevel(level)}
+                          className="p-2 hover:bg-muted rounded-lg transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Top clientes */}
+              {vipStats && vipStats.topCustomers.length > 0 && (
+                <div className="bg-card rounded-xl border border-border p-6">
+                  <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    Top Clientes
+                  </h3>
+                  <div className="space-y-2">
+                    {vipStats.topCustomers.slice(0, 5).map((customer, i) => (
+                      <div 
+                        key={customer.id}
+                        className="flex items-center justify-between p-3 bg-background rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">
+                            {i + 1}
+                          </span>
+                          <div>
+                            <p className="font-medium text-foreground">{customer.name}</p>
+                            <p className="text-xs text-muted-foreground">{customer.totalOrders} pedidos</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <p className="font-medium text-foreground">
+                              R${customer.totalSpent.toFixed(2)}
+                            </p>
+                            <p className="text-xs" style={{ color: customer.levelColor }}>
+                              {customer.levelName}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => openWhatsApp(customer.phone, customer.name)}
+                            className="p-2 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20 transition-colors"
+                            title="Enviar WhatsApp"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Proximos a subir nivel */}
+              {vipStats && vipStats.nearUpgrade.length > 0 && (
+                <div className="bg-card rounded-xl border border-border p-6">
+                  <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-orange-500" />
+                    Proximos a Subir de Nivel
+                  </h3>
+                  <div className="space-y-2">
+                    {vipStats.nearUpgrade.map((customer) => (
+                      <div 
+                        key={customer.id}
+                        className="flex items-center justify-between p-3 bg-background rounded-lg"
+                      >
+                        <div>
+                          <p className="font-medium text-foreground">{customer.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {customer.levelName} - Faltam R${customer.amountToNext.toFixed(2)} para {customer.nextLevelName}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => openWhatsApp(customer.phone, customer.name)}
+                          className="p-2 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20 transition-colors"
+                          title="Enviar WhatsApp"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {vipStats && vipStats.totalCustomers === 0 && (
+                <div className="bg-card rounded-xl border border-border p-8 text-center">
+                  <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Nenhum cliente VIP ainda</p>
+                  <p className="text-xs text-muted-foreground mt-1">Os clientes serao classificados automaticamente conforme fizerem pedidos</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Modal editar nivel */}
+          {editingLevel && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-card rounded-2xl border border-border p-6 w-full max-w-md">
+                <h3 className="font-semibold text-foreground mb-4">Editar Nivel {editingLevel.name}</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm text-muted-foreground block mb-1">Valor minimo (R$)</label>
+                    <input
+                      type="number"
+                      value={editingLevel.min_spent}
+                      onChange={(e) => setEditingLevel({ ...editingLevel, min_spent: Number(e.target.value) })}
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-muted-foreground block mb-1">Valor maximo (R$) - deixe vazio para ilimitado</label>
+                    <input
+                      type="number"
+                      value={editingLevel.max_spent || ""}
+                      onChange={(e) => setEditingLevel({ ...editingLevel, max_spent: e.target.value ? Number(e.target.value) : null })}
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm text-muted-foreground block mb-1">Bonus cashback (%)</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={editingLevel.cashback_bonus_percentage}
+                        onChange={(e) => setEditingLevel({ ...editingLevel, cashback_bonus_percentage: Number(e.target.value) })}
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground block mb-1">Bonus pontos (%)</label>
+                      <input
+                        type="number"
+                        step="1"
+                        value={editingLevel.points_bonus_percentage}
+                        onChange={(e) => setEditingLevel({ ...editingLevel, points_bonus_percentage: Number(e.target.value) })}
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={() => setEditingLevel(null)}
+                      className="flex-1 px-4 py-2 border border-border rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveLevel}
+                      disabled={savingLevel}
+                      className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {savingLevel ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Salvar"}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
