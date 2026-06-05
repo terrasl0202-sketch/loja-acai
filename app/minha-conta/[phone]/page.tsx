@@ -281,7 +281,7 @@ export default function MinhaContaPage() {
     )
   }
 
-  const totalGasto = orders.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + parseFloat(o.total), 0)
+  const totalGasto = orders.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + (typeof o.total === 'number' ? o.total : parseFloat(String(o.total))), 0)
   const completedOrders = orders.filter(o => o.status === "completed")
   const pendingReviews = completedOrders.filter(o => !reviewedOrders.includes(o.id))
 
@@ -545,24 +545,24 @@ export default function MinhaContaPage() {
                     <span className="font-medium text-foreground">{formatCurrency(order.total)}</span>
                   </div>
                   {/* Descontos Premium usados */}
-                  {(order.cashbackUsed > 0 || order.pointsRewardUsed > 0) && (
+                  {((order.cashbackUsed ?? 0) > 0 || (order.pointsRewardUsed ?? 0) > 0) && (
                     <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
-                      {order.cashbackUsed > 0 && (
+                      {(order.cashbackUsed ?? 0) > 0 && (
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-green-500 flex items-center gap-1">
                             <Gift className="w-3 h-3" />
                             Cashback usado
                           </span>
-                          <span className="text-green-500 font-medium">-{formatCurrency(order.cashbackUsed)}</span>
+                          <span className="text-green-500 font-medium">-{formatCurrency(order.cashbackUsed ?? 0)}</span>
                         </div>
                       )}
-                      {order.pointsRewardUsed > 0 && (
+                      {(order.pointsRewardUsed ?? 0) > 0 && (
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-purple-500 flex items-center gap-1">
                             <Star className="w-3 h-3" />
                             Pontos usados
                           </span>
-                          <span className="text-purple-500 font-medium">-{formatCurrency(order.pointsRewardUsed)}</span>
+                          <span className="text-purple-500 font-medium">-{formatCurrency(order.pointsRewardUsed ?? 0)}</span>
                         </div>
                       )}
                     </div>
