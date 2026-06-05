@@ -1,30 +1,29 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
-// Cria Supabase client dinamicamente - retorna null se nao configurado
+/**
+ * /api/neighborhoods v2 - MULTIEMPRESA
+ * Bairros isolados por loja.
+ */
+
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("[neighborhoods v96] Envs faltando:", { hasUrl: !!supabaseUrl, hasKey: !!supabaseServiceKey })
-    return null
-  }
-  
+  if (!supabaseUrl || !supabaseServiceKey) return null
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
-// Tipo do bairro no banco
 interface DbNeighborhood {
   id: string
   name: string
   delivery_fee: number
   active: boolean
   sort_order: number
+  store_id: number | null
   created_at: string
 }
 
-// Tipo do bairro no frontend
 interface FrontendNeighborhood {
   id: string | number
   name: string
@@ -34,7 +33,6 @@ interface FrontendNeighborhood {
   order?: number
 }
 
-// Mappers
 function mapDbToFrontend(db: DbNeighborhood): FrontendNeighborhood {
   return {
     id: db.id,
@@ -46,120 +44,82 @@ function mapDbToFrontend(db: DbNeighborhood): FrontendNeighborhood {
   }
 }
 
-function mapFrontendToDb(front: FrontendNeighborhood, index: number) {
+function mapFrontendToDb(front: FrontendNeighborhood, index: number, storeId: number) {
   return {
     name: front.name,
     delivery_fee: front.deliveryFee ?? front.fee ?? 0,
     active: front.active !== false,
-    sort_order: front.order ?? index
+    sort_order: front.order ?? index,
+    store_id: storeId // SEMPRE salvar store_id
   }
 }
 
-// SEM bairros fallback - apenas Supabase
-const FALLBACK_NEIGHBORHOODS: FrontendNeighborhood[] = []
-
-/**
- * GET - Lista todos os bairros
- */
-export async function GET() {
-  console.log("[neighborhoods v96 GET] Carregando bairros...")
+// GET - Listar bairros da loja atual
+export async function GET(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  console.log(`[neighborhoods v2 GET] storeId: ${storeId}`)
   
   try {
     const supabase = getSupabase()
-    
     if (!supabase) {
-      return NextResponse.json({ 
-        success: true, 
-        neighborhoods: FALLBACK_NEIGHBORHOODS,
-        source: 'fallback',
-        error: 'Supabase nao configurado'
-      })
+      return NextResponse.json({ success: true, neighborhoods: [], source: 'fallback' })
     }
     
     const { data, error } = await supabase
       .from('neighborhoods')
       .select('*')
+      .eq('store_id', storeId) // Filtrar por loja
       .order('sort_order', { ascending: true })
     
     if (error) {
-      console.error("[neighborhoods v96 GET] Erro:", error.message)
-      return NextResponse.json({ 
-        success: true, 
-        neighborhoods: FALLBACK_NEIGHBORHOODS,
-        source: 'fallback',
-        error: error.message
-      })
+      console.error("[neighborhoods v2 GET] Erro:", error.message)
+      return NextResponse.json({ success: true, neighborhoods: [], source: 'fallback', error: error.message })
     }
     
     const neighborhoods = (data || []).map(mapDbToFrontend)
-    console.log(`[neighborhoods v96 GET] ${neighborhoods.length} bairros carregados`)
-    
-    return NextResponse.json({ 
-      success: true, 
-      neighborhoods,
-      source: 'supabase'
-    })
+    return NextResponse.json({ success: true, neighborhoods, source: 'supabase', storeId })
     
   } catch (error) {
-    console.error("[neighborhoods v96 GET] Erro:", error)
-    return NextResponse.json({ 
-      success: true, 
-      neighborhoods: FALLBACK_NEIGHBORHOODS,
-      source: 'fallback',
-      error: String(error)
-    })
+    console.error("[neighborhoods v2 GET] Erro:", error)
+    return NextResponse.json({ success: true, neighborhoods: [], source: 'fallback', error: String(error) })
   }
 }
 
-/**
- * POST - Salva todos os bairros (substitui)
- */
-export async function POST(request: Request) {
-  console.log("[neighborhoods v96 POST] Salvando bairros...")
+// POST - Salvar bairros da loja atual
+export async function POST(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  console.log(`[neighborhoods v2 POST] storeId: ${storeId}`)
   
   try {
     const supabase = getSupabase()
-    
     if (!supabase) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Supabase nao configurado",
-        source: 'config_error'
-      }, { status: 500 })
+      return NextResponse.json({ success: false, error: "Supabase nao configurado" }, { status: 500 })
     }
     
     const body = await request.json()
     const neighborhoods: FrontendNeighborhood[] = body.neighborhoods || body
     
     if (!Array.isArray(neighborhoods)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "neighborhoods deve ser um array" 
-      }, { status: 400 })
+      return NextResponse.json({ success: false, error: "neighborhoods deve ser um array" }, { status: 400 })
     }
     
-    console.log(`[neighborhoods v96 POST] ${neighborhoods.length} bairros`)
-    
-    // Deletar TODOS os bairros existentes (sem filtro de id)
+    // Deletar bairros APENAS desta loja
     const { error: deleteError } = await supabase
       .from('neighborhoods')
       .delete()
-      .gte('id', 0) // Deleta todos os registros com id >= 0
+      .eq('store_id', storeId)
     
     if (deleteError) {
-      console.error("[neighborhoods v96 POST] Erro delete:", deleteError.message)
+      console.error("[neighborhoods v2 POST] Erro delete:", deleteError.message)
     }
     
-    // Remover bairros duplicados por nome antes de inserir
+    // Remover duplicados
     const uniqueNeighborhoods = neighborhoods.filter((n, index, self) => 
       index === self.findIndex(t => t.name.toLowerCase().trim() === n.name.toLowerCase().trim())
     )
     
-    console.log(`[neighborhoods v96 POST] ${uniqueNeighborhoods.length} bairros unicos (removidos ${neighborhoods.length - uniqueNeighborhoods.length} duplicados)`)
-    
-    // Inserir novos bairros
     if (uniqueNeighborhoods.length > 0) {
-      const toInsert = uniqueNeighborhoods.map((n, i) => mapFrontendToDb(n, i))
+      const toInsert = uniqueNeighborhoods.map((n, i) => mapFrontendToDb(n, i, storeId))
       
       const { data, error: insertError } = await supabase
         .from('neighborhoods')
@@ -167,65 +127,42 @@ export async function POST(request: Request) {
         .select()
       
       if (insertError) {
-        console.error("[neighborhoods v96 POST] Erro insert:", insertError.message)
-        return NextResponse.json({ 
-          success: false, 
-          error: insertError.message 
-        }, { status: 500 })
+        console.error("[neighborhoods v2 POST] Erro insert:", insertError.message)
+        return NextResponse.json({ success: false, error: insertError.message }, { status: 500 })
       }
-      
-      console.log(`[neighborhoods v96 POST] ${data?.length || 0} salvos`)
       
       return NextResponse.json({ 
         success: true, 
         count: data?.length || 0,
         neighborhoods: (data || []).map(mapDbToFrontend),
         source: 'supabase',
-        duplicatesRemoved: neighborhoods.length - uniqueNeighborhoods.length
+        storeId
       })
     }
     
-    return NextResponse.json({ 
-      success: true, 
-      count: 0,
-      neighborhoods: [],
-      source: 'supabase'
-    })
+    return NextResponse.json({ success: true, count: 0, neighborhoods: [], source: 'supabase', storeId })
     
   } catch (error) {
     console.error("[neighborhoods POST] Erro:", error)
-    return NextResponse.json({ 
-      success: false, 
-      error: String(error) 
-    }, { status: 500 })
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 })
   }
 }
 
-/**
- * PUT - Atualiza um bairro especifico
- */
-export async function PUT(request: Request) {
-  console.log("[neighborhoods v96 PUT] Atualizando bairro...")
+// PUT - Atualizar bairro (verifica se pertence a loja)
+export async function PUT(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
   
   try {
     const supabase = getSupabase()
-    
     if (!supabase) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Supabase nao configurado",
-        source: 'config_error'
-      }, { status: 500 })
+      return NextResponse.json({ success: false, error: "Supabase nao configurado" }, { status: 500 })
     }
     
     const body = await request.json()
     const neighborhood: FrontendNeighborhood = body.neighborhood || body
     
     if (!neighborhood.id) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "ID do bairro obrigatorio" 
-      }, { status: 400 })
+      return NextResponse.json({ success: false, error: "ID do bairro obrigatorio" }, { status: 400 })
     }
     
     const updateData = {
@@ -239,86 +176,55 @@ export async function PUT(request: Request) {
       .from('neighborhoods')
       .update(updateData)
       .eq('id', neighborhood.id)
+      .eq('store_id', storeId) // Seguranca
       .select()
       .single()
     
     if (error) {
       console.error("[neighborhoods PUT] Erro:", error)
-      return NextResponse.json({ 
-        success: false, 
-        error: error.message 
-      }, { status: 500 })
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
     
-    console.log(`[neighborhoods PUT] Bairro atualizado: ${data.name}`)
-    
-    return NextResponse.json({ 
-      success: true, 
-      neighborhood: mapDbToFrontend(data),
-      source: 'supabase'
-    })
+    return NextResponse.json({ success: true, neighborhood: mapDbToFrontend(data), source: 'supabase', storeId })
     
   } catch (error) {
     console.error("[neighborhoods PUT] Erro:", error)
-    return NextResponse.json({ 
-      success: false, 
-      error: String(error) 
-    }, { status: 500 })
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 })
   }
 }
 
-/**
- * DELETE - Remove um bairro
- */
-export async function DELETE(request: Request) {
-  console.log("[neighborhoods v96 DELETE] Removendo bairro...")
+// DELETE - Remover bairro (verifica se pertence a loja)
+export async function DELETE(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
   
   try {
     const supabase = getSupabase()
-    
     if (!supabase) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Supabase nao configurado",
-        source: 'config_error'
-      }, { status: 500 })
+      return NextResponse.json({ success: false, error: "Supabase nao configurado" }, { status: 500 })
     }
     
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     
     if (!id) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "ID obrigatorio" 
-      }, { status: 400 })
+      return NextResponse.json({ success: false, error: "ID obrigatorio" }, { status: 400 })
     }
     
     const { error } = await supabase
       .from('neighborhoods')
       .delete()
       .eq('id', id)
+      .eq('store_id', storeId) // Seguranca
     
     if (error) {
       console.error("[neighborhoods DELETE] Erro:", error)
-      return NextResponse.json({ 
-        success: false, 
-        error: error.message 
-      }, { status: 500 })
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
     
-    console.log(`[neighborhoods DELETE] Bairro removido: ${id}`)
-    
-    return NextResponse.json({ 
-      success: true, 
-      source: 'supabase'
-    })
+    return NextResponse.json({ success: true, source: 'supabase', storeId })
     
   } catch (error) {
     console.error("[neighborhoods DELETE] Erro:", error)
-    return NextResponse.json({ 
-      success: false, 
-      error: String(error) 
-    }, { status: 500 })
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 })
   }
 }

@@ -1,13 +1,18 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
-// Cria Supabase client dinamicamente - retorna null se nao configurado
+/**
+ * /api/products v97 - MULTIEMPRESA
+ * Agora filtra por store_id para suporte multiempresa.
+ */
+
+// Cria Supabase client dinamicamente
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("[products v96] Envs faltando:", { hasUrl: !!supabaseUrl, hasKey: !!supabaseServiceKey })
     return null
   }
   
@@ -29,19 +34,18 @@ interface DbProduct {
   stock: number
   sort_order: number
   display_order: number
+  store_id: number | null
   created_at: string
   updated_at: string
-  // Novos campos de badge
   badge_enabled: boolean
   badge_text: string
   badge_type: string
   badge_color: string
-  // Novos campos de serving
   serving_text: string
   show_serving_text: boolean
 }
 
-// Tipo do produto no frontend (compatibilidade com codigo existente)
+// Tipo do produto no frontend
 interface FrontendProduct {
   id: number
   name: string
@@ -55,12 +59,10 @@ interface FrontendProduct {
   bestSeller?: boolean
   stock?: number
   displayOrder?: number
-  // Novos campos de badge
   badgeEnabled?: boolean
   badgeText?: string
   badgeType?: string
   badgeColor?: string
-  // Novos campos de serving
   servingText?: string
   showServingText?: boolean
 }
@@ -80,7 +82,6 @@ function mapDbToFrontend(db: DbProduct): FrontendProduct {
     bestSeller: db.best_seller,
     stock: db.stock,
     displayOrder: db.display_order ?? db.sort_order ?? 0,
-    // Novos campos
     badgeEnabled: db.badge_enabled ?? false,
     badgeText: db.badge_text || '',
     badgeType: db.badge_type || 'mais_vendido',
@@ -90,8 +91,8 @@ function mapDbToFrontend(db: DbProduct): FrontendProduct {
   }
 }
 
-// Converte Frontend -> DB (para insert/update)
-function mapFrontendToDb(product: FrontendProduct) {
+// Converte Frontend -> DB
+function mapFrontendToDb(product: FrontendProduct, storeId: number) {
   return {
     name: product.name,
     description: product.description || '',
@@ -105,8 +106,8 @@ function mapFrontendToDb(product: FrontendProduct) {
     stock: product.stock ?? 100,
     sort_order: product.id || 0,
     display_order: product.displayOrder ?? 0,
+    store_id: storeId, // SEMPRE salvar store_id
     updated_at: new Date().toISOString(),
-    // Novos campos
     badge_enabled: product.badgeEnabled ?? false,
     badge_text: product.badgeText || '',
     badge_type: product.badgeType || 'mais_vendido',
@@ -117,10 +118,11 @@ function mapFrontendToDb(product: FrontendProduct) {
 }
 
 /**
- * GET - Lista todos os produtos do Supabase
+ * GET - Lista produtos da loja atual
  */
-export async function GET() {
-  console.log("[products v96 GET] Carregando produtos...")
+export async function GET(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  console.log(`[products v97 GET] storeId: ${storeId}`)
   
   try {
     const supabase = getSupabase()
@@ -128,51 +130,52 @@ export async function GET() {
     if (!supabase) {
       return NextResponse.json({ 
         success: false, 
-        error: "Supabase nao configurado",
-        source: 'config_error'
+        error: "Supabase nao configurado"
       }, { status: 500 })
     }
     
+    // Filtrar por store_id
     const { data, error } = await supabase
       .from('products')
       .select('*')
+      .eq('store_id', storeId)
       .order('display_order', { ascending: true, nullsFirst: false })
       .order('sort_order', { ascending: true })
     
     if (error) {
-      console.error("[products v96 GET] Erro:", error.message)
+      console.error("[products v97 GET] Erro:", error.message)
       return NextResponse.json({ 
         success: false, 
-        error: error.message,
-        source: 'supabase_error'
+        error: error.message
       }, { status: 500 })
     }
     
     const products = (data || []).map(mapDbToFrontend)
-    console.log(`[products GET] ${products.length} produtos carregados do Supabase`)
+    console.log(`[products GET] ${products.length} produtos da loja ${storeId}`)
     
     return NextResponse.json({ 
       success: true, 
       products,
       source: 'supabase',
-      count: products.length
+      count: products.length,
+      storeId
     })
     
   } catch (err) {
     console.error("[products GET] Erro:", err)
     return NextResponse.json({ 
       success: false, 
-      error: String(err),
-      source: 'error'
+      error: String(err)
     }, { status: 500 })
   }
 }
 
 /**
- * POST - Salva todos os produtos (substitui lista completa)
+ * POST - Salva todos os produtos da loja atual
  */
-export async function POST(request: Request) {
-  console.log("[products v96 POST] Salvando produtos...")
+export async function POST(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  console.log(`[products v97 POST] storeId: ${storeId}`)
   
   try {
     const supabase = getSupabase()
@@ -180,8 +183,7 @@ export async function POST(request: Request) {
     if (!supabase) {
       return NextResponse.json({ 
         success: false, 
-        error: "Supabase nao configurado",
-        source: 'config_error'
+        error: "Supabase nao configurado"
       }, { status: 500 })
     }
     
@@ -195,31 +197,29 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
     
-    console.log(`[products v96 POST] ${products.length} produtos para salvar`)
+    console.log(`[products v97 POST] ${products.length} produtos para loja ${storeId}`)
     
-    // 1. Deletar todos os produtos existentes
+    // 1. Deletar produtos APENAS desta loja
     const { error: deleteError } = await supabase
       .from('products')
       .delete()
-      .gte('id', 0)
+      .eq('store_id', storeId)
     
     if (deleteError) {
-      console.error("[products v96 POST] Erro delete:", deleteError.message)
+      console.error("[products v97 POST] Erro delete:", deleteError.message)
       return NextResponse.json({ 
         success: false, 
         error: deleteError.message 
       }, { status: 500 })
     }
     
-    // 2. Inserir novos produtos (se houver)
+    // 2. Inserir novos produtos
     if (products.length > 0) {
       const productsToInsert = products.map((p, index) => ({
-        ...mapFrontendToDb(p),
+        ...mapFrontendToDb(p, storeId),
         sort_order: index,
         created_at: new Date().toISOString(),
       }))
-      
-      console.log("[products POST] Inserindo produtos:", productsToInsert.map(p => p.name))
       
       const { data: inserted, error: insertError } = await supabase
         .from('products')
@@ -235,22 +235,23 @@ export async function POST(request: Request) {
       }
       
       const savedProducts = (inserted || []).map(mapDbToFrontend)
-      console.log(`[products POST] ${savedProducts.length} produtos salvos com sucesso`)
+      console.log(`[products POST] ${savedProducts.length} produtos salvos para loja ${storeId}`)
       
       return NextResponse.json({ 
         success: true, 
         products: savedProducts,
         source: 'supabase',
-        count: savedProducts.length
+        count: savedProducts.length,
+        storeId
       })
     }
     
-    console.log("[products POST] Lista vazia - todos produtos removidos")
     return NextResponse.json({ 
       success: true, 
       products: [],
       source: 'supabase',
-      count: 0
+      count: 0,
+      storeId
     })
     
   } catch (err) {
@@ -263,10 +264,11 @@ export async function POST(request: Request) {
 }
 
 /**
- * PUT - Atualiza um produto especifico
+ * PUT - Atualiza um produto (verifica se pertence a loja)
  */
-export async function PUT(request: Request) {
-  console.log("[products v96 PUT] Atualizando produto...")
+export async function PUT(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  console.log(`[products v97 PUT] storeId: ${storeId}`)
   
   try {
     const supabase = getSupabase()
@@ -274,8 +276,7 @@ export async function PUT(request: Request) {
     if (!supabase) {
       return NextResponse.json({ 
         success: false, 
-        error: "Supabase nao configurado",
-        source: 'config_error'
+        error: "Supabase nao configurado"
       }, { status: 500 })
     }
     
@@ -289,12 +290,12 @@ export async function PUT(request: Request) {
       }, { status: 400 })
     }
     
-    console.log(`[products v96 PUT] Atualizando produto ID ${product.id}: ${product.name}`)
-    
+    // Atualizar APENAS se pertence a esta loja
     const { data, error } = await supabase
       .from('products')
-      .update(mapFrontendToDb(product))
+      .update(mapFrontendToDb(product, storeId))
       .eq('id', product.id)
+      .eq('store_id', storeId) // Seguranca: so atualiza da mesma loja
       .select()
       .single()
     
@@ -307,12 +308,13 @@ export async function PUT(request: Request) {
     }
     
     const updated = mapDbToFrontend(data)
-    console.log(`[products PUT] Produto ${updated.name} atualizado`)
+    console.log(`[products PUT] Produto ${updated.name} atualizado na loja ${storeId}`)
     
     return NextResponse.json({ 
       success: true, 
       product: updated,
-      source: 'supabase'
+      source: 'supabase',
+      storeId
     })
     
   } catch (err) {
@@ -325,10 +327,11 @@ export async function PUT(request: Request) {
 }
 
 /**
- * DELETE - Remove um produto
+ * DELETE - Remove um produto (verifica se pertence a loja)
  */
-export async function DELETE(request: Request) {
-  console.log("[products v96 DELETE] Removendo produto...")
+export async function DELETE(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  console.log(`[products v97 DELETE] storeId: ${storeId}`)
   
   try {
     const supabase = getSupabase()
@@ -336,8 +339,7 @@ export async function DELETE(request: Request) {
     if (!supabase) {
       return NextResponse.json({ 
         success: false, 
-        error: "Supabase nao configurado",
-        source: 'config_error'
+        error: "Supabase nao configurado"
       }, { status: 500 })
     }
     
@@ -351,12 +353,12 @@ export async function DELETE(request: Request) {
       }, { status: 400 })
     }
     
-    console.log(`[products v96 DELETE] Removendo produto ID ${id}`)
-    
+    // Deletar APENAS se pertence a esta loja
     const { error } = await supabase
       .from('products')
       .delete()
       .eq('id', parseInt(id))
+      .eq('store_id', storeId) // Seguranca: so deleta da mesma loja
     
     if (error) {
       console.error("[products DELETE] Erro:", error)
@@ -366,11 +368,12 @@ export async function DELETE(request: Request) {
       }, { status: 500 })
     }
     
-    console.log(`[products DELETE] Produto ${id} removido`)
+    console.log(`[products DELETE] Produto ${id} removido da loja ${storeId}`)
     
     return NextResponse.json({ 
       success: true,
-      source: 'supabase'
+      source: 'supabase',
+      storeId
     })
     
   } catch (err) {

@@ -1,20 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
-// Cria Supabase client dinamicamente
+/**
+ * /api/banners v2 - MULTIEMPRESA
+ * Banners isolados por loja.
+ */
+
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("[banners] Envs faltando:", { hasUrl: !!supabaseUrl, hasKey: !!supabaseServiceKey })
-    return null
-  }
-  
+  if (!supabaseUrl || !supabaseServiceKey) return null
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
-// Tipo do banner no banco
 interface DbBanner {
   id: number
   image_url: string
@@ -23,11 +22,11 @@ interface DbBanner {
   link_url: string
   sort_order: number
   active: boolean
+  store_id: number | null
   created_at: string
   updated_at: string
 }
 
-// Tipo do banner no frontend
 interface FrontendBanner {
   id: number
   imageUrl: string
@@ -38,7 +37,6 @@ interface FrontendBanner {
   active: boolean
 }
 
-// Converte DB -> Frontend
 function mapDbToFrontend(db: DbBanner): FrontendBanner {
   return {
     id: db.id,
@@ -51,24 +49,11 @@ function mapDbToFrontend(db: DbBanner): FrontendBanner {
   }
 }
 
-// Converte Frontend -> DB
-function mapFrontendToDb(banner: Partial<FrontendBanner>) {
-  const dbData: Record<string, unknown> = {}
+// GET - Listar banners da loja atual
+export async function GET(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  console.log(`[banners v2 GET] storeId: ${storeId}`)
   
-  if (banner.imageUrl !== undefined) dbData.image_url = banner.imageUrl
-  if (banner.title !== undefined) dbData.title = banner.title
-  if (banner.subtitle !== undefined) dbData.subtitle = banner.subtitle
-  if (banner.linkUrl !== undefined) dbData.link_url = banner.linkUrl
-  if (banner.sortOrder !== undefined) dbData.sort_order = banner.sortOrder
-  if (banner.active !== undefined) dbData.active = banner.active
-  
-  dbData.updated_at = new Date().toISOString()
-  
-  return dbData
-}
-
-// GET - Listar banners
-export async function GET() {
   try {
     const supabase = getSupabase()
     if (!supabase) {
@@ -78,6 +63,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('hero_banners')
       .select('*')
+      .eq('store_id', storeId) // Filtrar por loja
       .order('sort_order', { ascending: true })
 
     if (error) {
@@ -93,8 +79,10 @@ export async function GET() {
   }
 }
 
-// POST - Criar banner
-export async function POST(request: Request) {
+// POST - Criar banner para loja atual
+export async function POST(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  
   try {
     const supabase = getSupabase()
     if (!supabase) {
@@ -103,19 +91,21 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     
-    // Verificar limite de 5 banners
+    // Verificar limite de 5 banners POR LOJA
     const { count } = await supabase
       .from('hero_banners')
       .select('*', { count: 'exact', head: true })
+      .eq('store_id', storeId)
     
     if ((count || 0) >= 5) {
       return NextResponse.json({ error: "Limite de 5 banners atingido" }, { status: 400 })
     }
 
-    // Obter maior sort_order
+    // Obter maior sort_order DESTA LOJA
     const { data: maxOrder } = await supabase
       .from('hero_banners')
       .select('sort_order')
+      .eq('store_id', storeId)
       .order('sort_order', { ascending: false })
       .limit(1)
       .single()
@@ -129,6 +119,7 @@ export async function POST(request: Request) {
       link_url: body.linkUrl || '',
       sort_order: newSortOrder,
       active: body.active !== false,
+      store_id: storeId, // SEMPRE salvar store_id
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
@@ -151,8 +142,10 @@ export async function POST(request: Request) {
   }
 }
 
-// PUT - Atualizar banner(s)
-export async function PUT(request: Request) {
+// PUT - Atualizar banner(s) (verifica se pertence a loja)
+export async function PUT(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  
   try {
     const supabase = getSupabase()
     if (!supabase) {
@@ -167,11 +160,19 @@ export async function PUT(request: Request) {
       for (const banner of body) {
         if (!banner.id) continue
         
-        const dbData = mapFrontendToDb(banner)
+        const dbData: Record<string, unknown> = { updated_at: new Date().toISOString() }
+        if (banner.imageUrl !== undefined) dbData.image_url = banner.imageUrl
+        if (banner.title !== undefined) dbData.title = banner.title
+        if (banner.subtitle !== undefined) dbData.subtitle = banner.subtitle
+        if (banner.linkUrl !== undefined) dbData.link_url = banner.linkUrl
+        if (banner.sortOrder !== undefined) dbData.sort_order = banner.sortOrder
+        if (banner.active !== undefined) dbData.active = banner.active
+        
         const { data, error } = await supabase
           .from('hero_banners')
           .update(dbData)
           .eq('id', banner.id)
+          .eq('store_id', storeId) // Seguranca
           .select()
           .single()
 
@@ -187,11 +188,19 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "ID obrigatorio" }, { status: 400 })
     }
 
-    const dbData = mapFrontendToDb(body)
+    const dbData: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (body.imageUrl !== undefined) dbData.image_url = body.imageUrl
+    if (body.title !== undefined) dbData.title = body.title
+    if (body.subtitle !== undefined) dbData.subtitle = body.subtitle
+    if (body.linkUrl !== undefined) dbData.link_url = body.linkUrl
+    if (body.sortOrder !== undefined) dbData.sort_order = body.sortOrder
+    if (body.active !== undefined) dbData.active = body.active
+    
     const { data, error } = await supabase
       .from('hero_banners')
       .update(dbData)
       .eq('id', body.id)
+      .eq('store_id', storeId) // Seguranca
       .select()
       .single()
 
@@ -207,8 +216,10 @@ export async function PUT(request: Request) {
   }
 }
 
-// DELETE - Excluir banner
-export async function DELETE(request: Request) {
+// DELETE - Excluir banner (verifica se pertence a loja)
+export async function DELETE(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  
   try {
     const supabase = getSupabase()
     if (!supabase) {
@@ -226,6 +237,7 @@ export async function DELETE(request: Request) {
       .from('hero_banners')
       .delete()
       .eq('id', id)
+      .eq('store_id', storeId) // Seguranca
 
     if (error) {
       console.error("[banners] Erro ao excluir:", error)

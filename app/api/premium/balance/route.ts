@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getStoreIdFromRequest } from "@/lib/api-store"
+
+/**
+ * /api/premium/balance v2 - MULTIEMPRESA
+ * Saldo de cashback e pontos isolado por loja.
+ */
 
 function getSupabase() {
   return createClient(
@@ -8,11 +14,14 @@ function getSupabase() {
   )
 }
 
-// GET - Buscar saldo de cashback e pontos do cliente
+// GET - Buscar saldo de cashback e pontos do cliente NESTA LOJA
 export async function GET(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
   const url = new URL(request.url)
   const phone = url.searchParams.get("phone")
   const customerId = url.searchParams.get("customerId")
+  
+  console.log(`[premium/balance v2 GET] storeId: ${storeId}, phone: ${phone}`)
 
   if (!phone && !customerId) {
     return NextResponse.json({ error: "phone ou customerId obrigatorio" }, { status: 400 })
@@ -21,8 +30,8 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabase()
 
-    // Buscar cliente
-    let customerQuery = supabase.from("customers").select("*")
+    // Buscar cliente DESTA LOJA
+    let customerQuery = supabase.from("customers").select("*").eq("store_id", storeId)
     if (customerId) {
       customerQuery = customerQuery.eq("id", parseInt(customerId))
     } else if (phone) {
@@ -39,21 +48,24 @@ export async function GET(request: NextRequest) {
         pointsBalance: 0,
         cashbackHistory: [],
         pointsHistory: [],
+        storeId
       })
     }
 
-    // Buscar historico de cashback
+    // Buscar historico de cashback DESTA LOJA
     const { data: cashbackHistory } = await supabase
       .from("customer_cashback")
       .select("*")
       .eq("customer_id", customer.id)
+      .eq("store_id", storeId) // Filtrar por loja
       .order("created_at", { ascending: false })
 
-    // Buscar historico de pontos
+    // Buscar historico de pontos DESTA LOJA
     const { data: pointsHistory } = await supabase
       .from("customer_points")
       .select("*")
       .eq("customer_id", customer.id)
+      .eq("store_id", storeId) // Filtrar por loja
       .order("created_at", { ascending: false })
 
     // Calcular saldo de cashback
@@ -76,16 +88,18 @@ export async function GET(request: NextRequest) {
       return acc
     }, 0)
 
-    // Buscar configuracoes para mostrar info da recompensa
+    // Buscar configuracoes DESTA LOJA
     const { data: loyaltySettings } = await supabase
       .from("loyalty_settings")
       .select("*")
+      .eq("store_id", storeId)
       .limit(1)
       .single()
 
     return NextResponse.json({
       success: true,
       found: true,
+      storeId,
       customer: {
         id: customer.id,
         name: customer.name,

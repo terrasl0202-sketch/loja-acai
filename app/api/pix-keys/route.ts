@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getStoreIdFromRequest } from "@/lib/api-store"
+
+/**
+ * /api/pix-keys v2 - MULTIEMPRESA
+ * Chaves PIX isoladas por loja.
+ */
 
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return null
-  }
-
+  if (!supabaseUrl || !supabaseServiceKey) return null
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
-// GET - Listar todas as chaves PIX
-export async function GET() {
+// GET - Listar chaves PIX da loja atual
+export async function GET(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  console.log(`[pix-keys v2 GET] storeId: ${storeId}`)
+  
   try {
     const supabase = getSupabase()
     if (!supabase) {
@@ -23,6 +28,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from("pix_manual_keys")
       .select("*")
+      .eq("store_id", storeId) // Filtrar por loja
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -45,15 +51,17 @@ export async function GET() {
       updatedAt: row.updated_at,
     }))
 
-    return NextResponse.json({ keys })
+    return NextResponse.json({ keys, storeId })
   } catch (err) {
     console.error("Erro ao buscar chaves PIX:", err)
     return NextResponse.json({ keys: [] })
   }
 }
 
-// POST - Criar nova chave PIX
+// POST - Criar nova chave PIX para loja atual
 export async function POST(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  
   try {
     const supabase = getSupabase()
     if (!supabase) {
@@ -80,6 +88,7 @@ export async function POST(request: NextRequest) {
         receiver_name: receiverName,
         city: city || "SAO PAULO",
         is_active: isActive || false,
+        store_id: storeId, // SEMPRE salvar store_id
       })
       .select()
       .single()
@@ -91,6 +100,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      storeId,
       key: {
         id: data.id,
         alias: data.alias,
@@ -109,8 +119,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Atualizar chave PIX
+// PUT - Atualizar chave PIX (verifica se pertence a loja)
 export async function PUT(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  
   try {
     const supabase = getSupabase()
     if (!supabase) {
@@ -139,6 +151,7 @@ export async function PUT(request: NextRequest) {
       .from("pix_manual_keys")
       .update(updateData)
       .eq("id", id)
+      .eq("store_id", storeId) // Seguranca
       .select()
       .single()
 
@@ -149,6 +162,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      storeId,
       key: {
         id: data.id,
         alias: data.alias,
@@ -167,8 +181,10 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE - Excluir chave PIX
+// DELETE - Excluir chave PIX (verifica se pertence a loja)
 export async function DELETE(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  
   try {
     const supabase = getSupabase()
     if (!supabase) {
@@ -186,13 +202,14 @@ export async function DELETE(request: NextRequest) {
       .from("pix_manual_keys")
       .delete()
       .eq("id", id)
+      .eq("store_id", storeId) // Seguranca
 
     if (error) {
       console.error("Erro ao excluir chave PIX:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, storeId })
   } catch (err) {
     console.error("Erro ao excluir chave PIX:", err)
     return NextResponse.json({ error: "Erro interno" }, { status: 500 })

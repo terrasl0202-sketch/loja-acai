@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
 import { type Order } from "@/lib/config-types"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
 
@@ -208,12 +209,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noCacheHeaders })
   }
 
+  // Identificar loja atual
+  const storeId = await getStoreIdFromRequest(request)
+  console.log(`[orders GET] storeId: ${storeId}`)
+
   try {
     const supabase = getSupabase()
     
+    // Filtrar por store_id
     const { data, error } = await supabase
       .from('orders')
       .select('*')
+      .eq('store_id', storeId)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -223,7 +230,7 @@ export async function GET(request: NextRequest) {
 
     const orders = (data || []).map(dbToFrontend)
 
-    return NextResponse.json({ success: true, orders, financialHistory: [], source: 'supabase' }, { headers: noCacheHeaders })
+    return NextResponse.json({ success: true, orders, financialHistory: [], source: 'supabase', storeId }, { headers: noCacheHeaders })
 
   } catch (error) {
     console.error("[orders GET] Erro:", error)
@@ -235,6 +242,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+    console.log(`[orders POST] storeId: ${storeId}`)
+    
     const body = await request.json()
     const { order } = body
 
@@ -297,7 +308,8 @@ export async function POST(request: NextRequest) {
 
       // Inserir no Supabase
       const dbOrder = frontendToDb(newOrder)
-      console.log("[orders POST] Inserindo no Supabase:", JSON.stringify(dbOrder, null, 2).slice(0, 500))
+      dbOrder.store_id = storeId // SEMPRE salvar store_id
+      console.log("[orders POST] Inserindo no Supabase para loja", storeId)
       
       const { data: insertedOrder, error } = await supabase
         .from('orders')
@@ -327,6 +339,9 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+    
     const body = await request.json()
     const { password, orderId, status, paymentStatus, manuallyConfirmed, entregadorId, entregadorNome, entregadorWhatsapp, limparEntregador } = body
 
@@ -385,10 +400,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Nenhum campo para atualizar" }, { status: 400 })
     }
 
+    // Atualizar APENAS se pertence a esta loja
     const { data: updated, error: updateError } = await supabase
       .from('orders')
       .update(updates)
       .eq('id', orderId)
+      .eq('store_id', storeId) // Seguranca: so atualiza da mesma loja
       .select()
       .single()
 
@@ -412,6 +429,9 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+    
     const body = await request.json()
     const { password, action, orderIds } = body
 
@@ -419,9 +439,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    console.log("[orders DELETE] Acao:", action, "IDs:", orderIds)
+    console.log("[orders DELETE] Acao:", action, "IDs:", orderIds, "storeId:", storeId)
 
-    // Excluir pedidos especificos
+    // Excluir pedidos especificos (apenas da loja atual)
     if (orderIds && Array.isArray(orderIds) && orderIds.length > 0) {
       const supabase = getSupabase()
         
@@ -429,33 +449,35 @@ export async function DELETE(request: NextRequest) {
         .from('orders')
         .delete()
         .in('id', orderIds)
+        .eq('store_id', storeId) // Seguranca: so deleta da mesma loja
 
       if (error) {
         console.error("[orders DELETE] Erro:", error.message)
         return NextResponse.json({ error: `Erro ao excluir: ${error.message}`, success: false }, { status: 500 })
       }
 
-      console.log(`[orders DELETE] ${orderIds.length} pedidos excluidos do Supabase`)
-      return NextResponse.json({ success: true, deletedCount: orderIds.length, source: 'supabase' })
+      console.log(`[orders DELETE] ${orderIds.length} pedidos excluidos da loja ${storeId}`)
+      return NextResponse.json({ success: true, deletedCount: orderIds.length, source: 'supabase', storeId })
     }
 
-    // Excluir todos completados (action = "archiveAll" ou "deleteCompleted")
+    // Excluir todos completados (action = "archiveAll" ou "deleteCompleted") - apenas da loja atual
     if (action === "archiveAll" || action === "deleteCompleted") {
       const supabase = getSupabase()
         
-      // Deleta pedidos completados ou cancelados
+      // Deleta pedidos completados ou cancelados APENAS desta loja
       const { error, count } = await supabase
         .from('orders')
         .delete()
         .in('status', ['completed', 'cancelled'])
+        .eq('store_id', storeId) // Seguranca: so deleta da mesma loja
 
       if (error) {
         console.error("[orders DELETE] Erro archiveAll:", error.message)
         return NextResponse.json({ error: `Erro ao excluir: ${error.message}`, success: false }, { status: 500 })
       }
 
-      console.log(`[orders DELETE] ${count || 0} pedidos completados/cancelados excluidos`)
-      return NextResponse.json({ success: true, message: "Pedidos completados excluidos", deletedCount: count || 0, source: 'supabase' })
+      console.log(`[orders DELETE] ${count || 0} pedidos completados/cancelados excluidos da loja ${storeId}`)
+      return NextResponse.json({ success: true, message: "Pedidos completados excluidos", deletedCount: count || 0, source: 'supabase', storeId })
     }
 
     // Limpar pedidos duplicados (mesmo cliente + total + horario proximo)

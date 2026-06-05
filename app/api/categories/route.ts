@@ -1,20 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
-// Cria Supabase client dinamicamente
+/**
+ * /api/categories v2 - MULTIEMPRESA
+ * Categorias isoladas por loja.
+ */
+
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("[categories] Envs faltando:", { hasUrl: !!supabaseUrl, hasKey: !!supabaseServiceKey })
-    return null
-  }
-  
+  if (!supabaseUrl || !supabaseServiceKey) return null
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
-// Tipo da categoria no banco
 interface DbCategory {
   id: number
   name: string
@@ -23,11 +22,11 @@ interface DbCategory {
   image_url: string
   sort_order: number
   active: boolean
+  store_id: number | null
   created_at: string
   updated_at: string
 }
 
-// Tipo da categoria no frontend
 interface FrontendCategory {
   id: number
   name: string
@@ -38,7 +37,6 @@ interface FrontendCategory {
   active: boolean
 }
 
-// Converte DB -> Frontend
 function mapDbToFrontend(db: DbCategory): FrontendCategory {
   return {
     id: db.id,
@@ -51,9 +49,10 @@ function mapDbToFrontend(db: DbCategory): FrontendCategory {
   }
 }
 
-// Converte Frontend -> DB
-function mapFrontendToDb(category: Partial<FrontendCategory>) {
-  const result: Record<string, unknown> = {}
+function mapFrontendToDb(category: Partial<FrontendCategory>, storeId: number) {
+  const result: Record<string, unknown> = {
+    store_id: storeId, // SEMPRE salvar store_id
+  }
   
   if (category.name !== undefined) result.name = category.name
   if (category.description !== undefined) result.description = category.description
@@ -67,12 +66,14 @@ function mapFrontendToDb(category: Partial<FrontendCategory>) {
   return result
 }
 
-// GET - Listar todas as categorias
-export async function GET() {
+// GET - Listar categorias da loja atual
+export async function GET(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
+  console.log(`[categories v2 GET] storeId: ${storeId}`)
+  
   const supabase = getSupabase()
   
   if (!supabase) {
-    // Retorna categorias padrao se Supabase nao configurado
     return NextResponse.json([
       { id: 1, name: 'Acais', description: '', icon: 'ice-cream', imageUrl: '', sortOrder: 1, active: true },
       { id: 2, name: 'Sorvetes', description: '', icon: 'ice-cream-cone', imageUrl: '', sortOrder: 2, active: true },
@@ -84,16 +85,12 @@ export async function GET() {
     const { data, error } = await supabase
       .from('product_categories')
       .select('*')
+      .eq('store_id', storeId) // Filtrar por loja
       .order('sort_order', { ascending: true })
 
     if (error) {
       console.error("[categories] Erro ao buscar:", error)
-      // Retorna categorias padrao em caso de erro (tabela pode nao existir)
-      return NextResponse.json([
-        { id: 1, name: 'Acais', description: '', icon: 'ice-cream', imageUrl: '', sortOrder: 1, active: true },
-        { id: 2, name: 'Sorvetes', description: '', icon: 'ice-cream-cone', imageUrl: '', sortOrder: 2, active: true },
-        { id: 3, name: 'Bebidas', description: '', icon: 'cup-soda', imageUrl: '', sortOrder: 3, active: true },
-      ])
+      return NextResponse.json([])
     }
 
     const categories = (data || []).map(mapDbToFrontend)
@@ -104,8 +101,9 @@ export async function GET() {
   }
 }
 
-// POST - Criar nova categoria
-export async function POST(request: Request) {
+// POST - Criar categoria para loja atual
+export async function POST(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
   const supabase = getSupabase()
   
   if (!supabase) {
@@ -114,7 +112,10 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const dbData = mapFrontendToDb(body)
+    const dbData = {
+      ...mapFrontendToDb(body, storeId),
+      created_at: new Date().toISOString(),
+    }
     
     const { data, error } = await supabase
       .from('product_categories')
@@ -134,8 +135,9 @@ export async function POST(request: Request) {
   }
 }
 
-// PUT - Atualizar categoria
-export async function PUT(request: Request) {
+// PUT - Atualizar categoria (verifica se pertence a loja)
+export async function PUT(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
   const supabase = getSupabase()
   
   if (!supabase) {
@@ -150,12 +152,13 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'ID obrigatorio' }, { status: 400 })
     }
     
-    const dbData = mapFrontendToDb(updates)
+    const dbData = mapFrontendToDb(updates, storeId)
     
     const { data, error } = await supabase
       .from('product_categories')
       .update(dbData)
       .eq('id', id)
+      .eq('store_id', storeId) // Seguranca: so atualiza da mesma loja
       .select()
       .single()
 
@@ -171,8 +174,9 @@ export async function PUT(request: Request) {
   }
 }
 
-// DELETE - Excluir categoria
-export async function DELETE(request: Request) {
+// DELETE - Excluir categoria (verifica se pertence a loja)
+export async function DELETE(request: NextRequest) {
+  const storeId = await getStoreIdFromRequest(request)
   const supabase = getSupabase()
   
   if (!supabase) {
@@ -187,17 +191,19 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'ID obrigatorio' }, { status: 400 })
     }
     
-    // Primeiro, desvincula produtos desta categoria
+    // Desvincula produtos desta categoria (apenas da mesma loja)
     await supabase
       .from('products')
       .update({ category_id: null })
       .eq('category_id', id)
+      .eq('store_id', storeId)
     
-    // Depois, exclui a categoria
+    // Exclui categoria (apenas se pertence a loja)
     const { error } = await supabase
       .from('product_categories')
       .delete()
       .eq('id', id)
+      .eq('store_id', storeId) // Seguranca
 
     if (error) {
       console.error("[categories] Erro ao excluir:", error)

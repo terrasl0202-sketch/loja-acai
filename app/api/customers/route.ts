@@ -1,5 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
+import { getStoreIdFromRequest } from "@/lib/api-store"
+
+/**
+ * /api/customers v2 - MULTIEMPRESA
+ * 
+ * Clientes sao isolados por loja.
+ * Mesmo telefone pode existir em lojas diferentes.
+ * Busca por telefone SEMPRE inclui store_id.
+ */
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -18,32 +27,20 @@ function getSupabase() {
   return createClient(url, key)
 }
 
-// Funcao para gerar codigo publico do cliente (nao UUID)
+// Gerar codigo publico do cliente
 function generateCustomerCode(): string {
   return `CUST${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 5).toUpperCase()}`
 }
 
-// Interface do cliente no banco
-interface DbCustomer {
-  id: string
-  name: string
-  phone: string
-  pin: string
-  total_orders: number
-  total_spent: number
-  is_vip: boolean
-  favorites: string[]
-  saved_address?: string
-  last_order_at?: string
-  created_at: string
-  updated_at: string
-}
-
-// GET - Buscar cliente por telefone
+// GET - Buscar cliente por telefone (filtrado por loja)
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url)
     const phone = url.searchParams.get("phone")
+    
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+    console.log(`[customers GET] storeId: ${storeId}, phone: ${phone}`)
     
     if (!phone) {
       return NextResponse.json({ error: "Telefone obrigatorio" }, { status: 400, headers: noCacheHeaders })
@@ -53,14 +50,15 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabase()
     
     if (!supabase) {
-      console.error("[customers GET] Supabase nao configurado")
       return NextResponse.json({ error: "Banco de dados nao disponivel" }, { status: 500, headers: noCacheHeaders })
     }
     
+    // Buscar cliente por telefone E store_id
     const { data: customer, error } = await supabase
       .from('customers')
       .select('*')
       .eq('phone', normalizedPhone)
+      .eq('store_id', storeId) // CRITICO: filtrar por loja
       .single()
     
     if (error && error.code !== 'PGRST116') {
@@ -69,7 +67,7 @@ export async function GET(request: NextRequest) {
     }
     
     if (!customer) {
-      return NextResponse.json({ found: false }, { headers: noCacheHeaders })
+      return NextResponse.json({ found: false, storeId }, { headers: noCacheHeaders })
     }
     
     // Retornar dados publicos (sem PIN)
@@ -86,7 +84,7 @@ export async function GET(request: NextRequest) {
       createdAt: customer.created_at,
     }
     
-    return NextResponse.json({ found: true, customer: publicData }, { headers: noCacheHeaders })
+    return NextResponse.json({ found: true, customer: publicData, storeId }, { headers: noCacheHeaders })
     
   } catch (error) {
     console.error("[customers GET] Erro:", error)
@@ -94,13 +92,16 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Login ou criar conta
+// POST - Login ou criar conta (filtrado por loja)
 export async function POST(request: NextRequest) {
   try {
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+    
     const body = await request.json()
     const { action, phone, name, pin } = body
     
-    console.log("[customers POST] Acao:", action, "Phone:", phone)
+    console.log(`[customers POST] storeId: ${storeId}, Acao: ${action}, Phone: ${phone}`)
     
     if (!phone) {
       return NextResponse.json({ error: "Telefone obrigatorio" }, { status: 400, headers: noCacheHeaders })
@@ -110,15 +111,15 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabase()
     
     if (!supabase) {
-      console.error("[customers POST] Supabase nao configurado")
       return NextResponse.json({ error: "Banco de dados nao disponivel" }, { status: 500, headers: noCacheHeaders })
     }
     
-    // Buscar cliente existente
+    // Buscar cliente existente NESTA LOJA
     const { data: existing } = await supabase
       .from('customers')
       .select('*')
       .eq('phone', normalizedPhone)
+      .eq('store_id', storeId) // CRITICO: filtrar por loja
       .single()
     
     // ACAO: Criar conta
@@ -132,15 +133,15 @@ export async function POST(request: NextRequest) {
       }
       
       if (existing) {
-        return NextResponse.json({ error: "Telefone ja cadastrado" }, { status: 400, headers: noCacheHeaders })
+        return NextResponse.json({ error: "Telefone ja cadastrado nesta loja" }, { status: 400, headers: noCacheHeaders })
       }
       
-      // NAO enviar id - deixar Supabase gerar UUID automaticamente
       const newCustomer = {
-        customer_code: generateCustomerCode(), // Codigo publico
+        customer_code: generateCustomerCode(),
         name,
         phone: normalizedPhone,
         pin,
+        store_id: storeId, // SEMPRE salvar store_id
         total_orders: 0,
         total_spent: 0,
         is_vip: false,
@@ -149,8 +150,6 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       }
       
-      console.log("[customers POST] Criando conta para:", normalizedPhone)
-      
       const { data: inserted, error: insertError } = await supabase
         .from('customers')
         .insert(newCustomer)
@@ -158,7 +157,7 @@ export async function POST(request: NextRequest) {
         .single()
       
       if (insertError) {
-        console.error("[customers POST] Erro ao criar conta:", insertError.message, insertError.details)
+        console.error("[customers POST] Erro ao criar conta:", insertError.message)
         return NextResponse.json({ error: `Erro ao criar conta: ${insertError.message}` }, { status: 500, headers: noCacheHeaders })
       }
       
@@ -167,7 +166,7 @@ export async function POST(request: NextRequest) {
       }
       
       const publicData = {
-        id: inserted.id, // UUID gerado pelo Supabase
+        id: inserted.id,
         customerCode: inserted.customer_code,
         name: inserted.name,
         phone: inserted.phone,
@@ -178,10 +177,11 @@ export async function POST(request: NextRequest) {
         createdAt: inserted.created_at,
       }
       
-      console.log("[customers POST] Conta criada com UUID:", inserted.id)
+      console.log(`[customers POST] Conta criada na loja ${storeId}:`, inserted.id)
       return NextResponse.json({ 
         success: true, 
         customer: publicData,
+        storeId,
         message: "Conta criada com sucesso!"
       }, { headers: noCacheHeaders })
     }
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
       }
       
       if (!existing) {
-        return NextResponse.json({ error: "Cliente nao encontrado" }, { status: 404, headers: noCacheHeaders })
+        return NextResponse.json({ error: "Cliente nao encontrado nesta loja" }, { status: 404, headers: noCacheHeaders })
       }
       
       if (existing.pin !== pin) {
@@ -213,10 +213,11 @@ export async function POST(request: NextRequest) {
         createdAt: existing.created_at,
       }
       
-      console.log("[customers POST] Login:", publicData.id)
+      console.log(`[customers POST] Login na loja ${storeId}:`, publicData.id)
       return NextResponse.json({ 
         success: true, 
         customer: publicData,
+        storeId,
         message: "Login realizado!"
       }, { headers: noCacheHeaders })
     }
@@ -246,10 +247,12 @@ export async function POST(request: NextRequest) {
         updates.favorites = currentFavorites
       }
       
+      // Atualizar apenas se pertence a esta loja
       const { error: updateError } = await supabase
         .from('customers')
         .update(updates)
         .eq('id', existing.id)
+        .eq('store_id', storeId) // Seguranca
       
       if (updateError) {
         console.error("[customers POST] Erro ao atualizar:", updateError)
@@ -269,7 +272,7 @@ export async function POST(request: NextRequest) {
         createdAt: existing.created_at,
       }
       
-      return NextResponse.json({ success: true, customer: publicData }, { headers: noCacheHeaders })
+      return NextResponse.json({ success: true, customer: publicData, storeId }, { headers: noCacheHeaders })
     }
     
     // ACAO: Registrar pedido (atualizar estatisticas)
@@ -283,6 +286,7 @@ export async function POST(request: NextRequest) {
       const newTotalSpent = (existing.total_spent || 0) + (orderTotal || 0)
       const isVip = newTotalOrders >= 5
       
+      // Atualizar apenas se pertence a esta loja
       const { error: updateError } = await supabase
         .from('customers')
         .update({
@@ -293,6 +297,7 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id)
+        .eq('store_id', storeId) // Seguranca
       
       if (updateError) {
         console.error("[customers POST] Erro ao registrar pedido:", updateError)
@@ -312,7 +317,7 @@ export async function POST(request: NextRequest) {
         createdAt: existing.created_at,
       }
       
-      return NextResponse.json({ success: true, customer: publicData }, { headers: noCacheHeaders })
+      return NextResponse.json({ success: true, customer: publicData, storeId }, { headers: noCacheHeaders })
     }
     
     return NextResponse.json({ error: "Acao invalida" }, { status: 400, headers: noCacheHeaders })

@@ -1,34 +1,30 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 /**
- * /api/store-settings v102
+ * /api/store-settings v103 - MULTIEMPRESA
  * 
- * API expandida para salvar TODAS as configuracoes do Admin no Supabase:
- * - Dados basicos da loja (storeName, subtitle, slogan, etc)
- * - Banner (mainText, secondaryText, promo*)
- * - Horario avancado (abandonedOrderMinutes, autoArchiveDays)
- * - Entrega (enabled, estimatedTime, pickupEnabled)
- * - Pagamento (minValueForAsaas, pix*)
- * - WhatsApp (defaultMessage, receiptMessage, supportEnabled)
- * - Notificacoes (soundEnabled, soundVolume)
+ * Agora filtra por store_id para suporte multiempresa.
  */
 
-const BUILD_LABEL = "store-settings-v102"
+const BUILD_LABEL = "store-settings-v103"
 
-// GET - Busca store_settings do Supabase
-export async function GET() {
+// GET - Busca store_settings do Supabase filtrado por loja
+export async function GET(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
+  // Identificar loja atual
+  const storeId = await getStoreIdFromRequest(request)
+  
   const debugInfo = {
     buildLabel: BUILD_LABEL,
-    hostname: supabaseUrl ? new URL(supabaseUrl).hostname : null,
-    serviceRoleExists: !!serviceRoleKey,
+    storeId,
     timestamp: new Date().toISOString(),
   }
   
-  console.log(`[${BUILD_LABEL}] GET - hostname: ${debugInfo.hostname}`)
+  console.log(`[${BUILD_LABEL}] GET - storeId: ${storeId}`)
   
   if (!supabaseUrl || !serviceRoleKey) {
     return NextResponse.json({ 
@@ -42,13 +38,35 @@ export async function GET() {
     auth: { persistSession: false, autoRefreshToken: false }
   })
   
+  // Filtrar por store_id
   const { data, error } = await supabase
     .from('store_settings')
     .select('*')
+    .eq('store_id', storeId)
     .limit(1)
     .single()
   
   if (error) {
+    // Se nao encontrar, tentar sem filtro (dados antigos sem store_id)
+    if (error.code === 'PGRST116') {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('store_settings')
+        .select('*')
+        .is('store_id', null)
+        .limit(1)
+        .single()
+      
+      if (fallbackData && !fallbackError) {
+        // Migrar dados para a loja atual
+        await supabase
+          .from('store_settings')
+          .update({ store_id: storeId })
+          .eq('id', fallbackData.id)
+        
+        return buildSettingsResponse(fallbackData, debugInfo)
+      }
+    }
+    
     console.log(`[${BUILD_LABEL}] GET error: ${error.code} - ${error.message}`)
     return NextResponse.json({ 
       success: false, 
@@ -59,14 +77,16 @@ export async function GET() {
   }
   
   console.log(`[${BUILD_LABEL}] GET OK: ${data.store_name}`)
-  
-  // Retornar TODOS os campos expandidos
+  return buildSettingsResponse(data, debugInfo)
+}
+
+// Funcao auxiliar para construir resposta
+function buildSettingsResponse(data: Record<string, unknown>, debugInfo: Record<string, unknown>) {
   return NextResponse.json({
     success: true,
     source: "supabase",
     debug: debugInfo,
     settings: {
-      // Dados basicos da loja
       storeName: data.store_name || '',
       subtitle: data.subtitle || '',
       slogan: data.slogan || '',
@@ -79,7 +99,6 @@ export async function GET() {
       storeOpen: data.store_open ?? false,
       manualControl: data.manual_control ?? false,
       
-      // Banner
       banner: {
         mainText: data.banner_main_text || '',
         secondaryText: data.banner_secondary_text || '',
@@ -89,7 +108,6 @@ export async function GET() {
         imageUrl: data.banner_image_url || '/acai-bowl.jpg',
       },
       
-      // Horario avancado
       storeHours: {
         isOpen: data.store_open ?? false,
         manualControl: data.manual_control ?? false,
@@ -100,7 +118,6 @@ export async function GET() {
         autoArchiveDays: data.auto_archive_days ?? 0,
       },
       
-      // Entrega
       delivery: {
         enabled: data.delivery_enabled ?? true,
         defaultFee: data.delivery_default_fee ?? 5,
@@ -109,7 +126,6 @@ export async function GET() {
         pickupEnabled: data.delivery_pickup_enabled ?? true,
       },
       
-      // Pagamento
       payment: {
         minValueForAsaas: data.payment_min_value_asaas ?? 15,
         pixManualEnabled: data.payment_pix_manual_enabled ?? true,
@@ -119,7 +135,6 @@ export async function GET() {
         cashEnabled: data.payment_cash_enabled ?? true,
       },
       
-      // PIX Manual
       pixManual: {
         key: data.pix_key || '',
         keyFull: data.pix_key || '',
@@ -127,7 +142,6 @@ export async function GET() {
         keyType: data.pix_key_type || 'telefone',
       },
       
-      // WhatsApp
       whatsappConfig: {
         number: data.whatsapp || '',
         defaultMessage: data.whatsapp_default_message || 'Ola! Gostaria de fazer um pedido.',
@@ -135,7 +149,6 @@ export async function GET() {
         supportEnabled: data.whatsapp_support_enabled ?? true,
       },
       
-      // Notificacoes
       notifications: {
         soundEnabled: data.notification_sound_enabled ?? true,
         soundVolume: data.notification_sound_volume ?? 80,
@@ -144,19 +157,21 @@ export async function GET() {
   })
 }
 
-// POST - Salva store_settings no Supabase
-export async function POST(request: Request) {
+// POST - Salva store_settings no Supabase filtrado por loja
+export async function POST(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
+  // Identificar loja atual
+  const storeId = await getStoreIdFromRequest(request)
+  
   const debugInfo = {
     buildLabel: BUILD_LABEL,
-    hostname: supabaseUrl ? new URL(supabaseUrl).hostname : null,
-    serviceRoleExists: !!serviceRoleKey,
+    storeId,
     timestamp: new Date().toISOString(),
   }
   
-  console.log(`[${BUILD_LABEL}] POST - hostname: ${debugInfo.hostname}`)
+  console.log(`[${BUILD_LABEL}] POST - storeId: ${storeId}`)
   
   if (!supabaseUrl || !serviceRoleKey) {
     return NextResponse.json({ 
@@ -172,16 +187,18 @@ export async function POST(request: Request) {
   
   const body = await request.json()
   
-  // Buscar o ID existente do registro
+  // Buscar registro existente DESTA LOJA
   const { data: existingRecord } = await supabase
     .from('store_settings')
     .select('id')
+    .eq('store_id', storeId)
     .limit(1)
     .single()
   
   // Montar objeto com TODOS os campos
   const dataToSave: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
+    store_id: storeId, // SEMPRE salvar store_id
   }
   
   // Se existe um registro, usar o ID dele para update
@@ -221,7 +238,6 @@ export async function POST(request: Request) {
   if (body.banner_promo_text !== undefined) dataToSave.banner_promo_text = body.banner_promo_text
   if (body.banner_image_url !== undefined) dataToSave.banner_image_url = body.banner_image_url
   
-  // Se veio objeto banner, extrair campos
   if (body.banner) {
     if (body.banner.mainText !== undefined) dataToSave.banner_main_text = body.banner.mainText
     if (body.banner.secondaryText !== undefined) dataToSave.banner_secondary_text = body.banner.secondaryText
@@ -235,7 +251,6 @@ export async function POST(request: Request) {
   if (body.abandoned_order_minutes !== undefined) dataToSave.abandoned_order_minutes = body.abandoned_order_minutes
   if (body.auto_archive_days !== undefined) dataToSave.auto_archive_days = body.auto_archive_days
   
-  // Se veio objeto storeHours, extrair campos
   if (body.storeHours) {
     if (body.storeHours.abandonedOrderMinutes !== undefined) dataToSave.abandoned_order_minutes = body.storeHours.abandonedOrderMinutes
     if (body.storeHours.autoArchiveDays !== undefined) dataToSave.auto_archive_days = body.storeHours.autoArchiveDays
@@ -253,7 +268,6 @@ export async function POST(request: Request) {
   if (body.delivery_estimated_time !== undefined) dataToSave.delivery_estimated_time = body.delivery_estimated_time
   if (body.delivery_pickup_enabled !== undefined) dataToSave.delivery_pickup_enabled = body.delivery_pickup_enabled
   
-  // Se veio objeto delivery, extrair campos
   if (body.delivery) {
     if (body.delivery.enabled !== undefined) dataToSave.delivery_enabled = body.delivery.enabled
     if (body.delivery.defaultFee !== undefined) dataToSave.delivery_default_fee = body.delivery.defaultFee
@@ -270,7 +284,6 @@ export async function POST(request: Request) {
   if (body.payment_card_enabled !== undefined) dataToSave.payment_card_enabled = body.payment_card_enabled
   if (body.payment_cash_enabled !== undefined) dataToSave.payment_cash_enabled = body.payment_cash_enabled
   
-  // Se veio objeto payment, extrair campos
   if (body.payment) {
     if (body.payment.minValueForAsaas !== undefined) dataToSave.payment_min_value_asaas = body.payment.minValueForAsaas
     if (body.payment.pixManualEnabled !== undefined) dataToSave.payment_pix_manual_enabled = body.payment.pixManualEnabled
@@ -285,7 +298,6 @@ export async function POST(request: Request) {
   if (body.pix_key_type !== undefined) dataToSave.pix_key_type = body.pix_key_type
   if (body.pix_receiver_name !== undefined) dataToSave.pix_receiver_name = body.pix_receiver_name
   
-  // Se veio objeto pixManual, extrair campos
   if (body.pixManual) {
     if (body.pixManual.key !== undefined) dataToSave.pix_key = body.pixManual.key
     if (body.pixManual.keyFull !== undefined) dataToSave.pix_key = body.pixManual.keyFull
@@ -298,7 +310,6 @@ export async function POST(request: Request) {
   if (body.whatsapp_receipt_message !== undefined) dataToSave.whatsapp_receipt_message = body.whatsapp_receipt_message
   if (body.whatsapp_support_enabled !== undefined) dataToSave.whatsapp_support_enabled = body.whatsapp_support_enabled
   
-  // Se veio objeto whatsappConfig, extrair campos
   if (body.whatsappConfig) {
     if (body.whatsappConfig.number !== undefined) dataToSave.whatsapp = body.whatsappConfig.number
     if (body.whatsappConfig.defaultMessage !== undefined) dataToSave.whatsapp_default_message = body.whatsappConfig.defaultMessage
@@ -310,13 +321,12 @@ export async function POST(request: Request) {
   if (body.notification_sound_enabled !== undefined) dataToSave.notification_sound_enabled = body.notification_sound_enabled
   if (body.notification_sound_volume !== undefined) dataToSave.notification_sound_volume = body.notification_sound_volume
   
-  // Se veio objeto notifications, extrair campos
   if (body.notifications) {
     if (body.notifications.soundEnabled !== undefined) dataToSave.notification_sound_enabled = body.notifications.soundEnabled
     if (body.notifications.soundVolume !== undefined) dataToSave.notification_sound_volume = body.notifications.soundVolume
   }
   
-  console.log(`[${BUILD_LABEL}] POST saving: ${dataToSave.store_name || 'N/A'}`)
+  console.log(`[${BUILD_LABEL}] POST saving for store ${storeId}: ${dataToSave.store_name || 'N/A'}`)
   
   const { data, error } = await supabase
     .from('store_settings')
