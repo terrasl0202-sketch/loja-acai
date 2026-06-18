@@ -168,8 +168,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { password, orderId, customerId, orderTotal } = body
 
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ""
-    if (password !== ADMIN_PASSWORD) {
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
+    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 

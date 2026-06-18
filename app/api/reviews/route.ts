@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getStoreIdFromRequest } from "@/lib/api-store"
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ""
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
     
     // Se nao for admin, mostrar apenas visiveis
-    if (password !== ADMIN_PASSWORD) {
+    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
       query = query.eq('visible', true)
     } else if (onlyVisible) {
       query = query.eq('visible', true)
@@ -189,7 +189,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { password, reviewId, visible } = body
     
-    if (password !== ADMIN_PASSWORD) {
+    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
     }
     

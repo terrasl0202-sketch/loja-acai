@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-const PLATFORM_PASSWORD = process.env.PLATFORM_PASSWORD || "platform123"
+const PLATFORM_PASSWORD = process.env.PLATFORM_PASSWORD
 
 // GET - Listar todas as lojas
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const password = searchParams.get("password")
 
-  if (password !== PLATFORM_PASSWORD) {
+  if (!PLATFORM_PASSWORD || password !== PLATFORM_PASSWORD) {
     return NextResponse.json({ error: "Acesso negado" }, { status: 401 })
   }
 
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { password, store_name, slug, owner_name, owner_email, owner_phone, plan = "starter" } = body
 
-    if (password !== PLATFORM_PASSWORD) {
+    if (!PLATFORM_PASSWORD || password !== PLATFORM_PASSWORD) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 401 })
     }
 
@@ -203,7 +203,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { password, id, ...updates } = body
 
-    if (password !== PLATFORM_PASSWORD) {
+    if (!PLATFORM_PASSWORD || password !== PLATFORM_PASSWORD) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 401 })
     }
 

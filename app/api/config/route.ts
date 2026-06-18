@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 import { createClient } from "@supabase/supabase-js"
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
 const LOCAL_CONFIG_KEY = "pk-site-config"
 
 // Evitar cache
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     const isAdmin = url.searchParams.get("admin") === "true"
     const password = url.searchParams.get("password")
 
-    if (isAdmin && password !== ADMIN_PASSWORD) {
+    if (isAdmin && (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -199,7 +199,7 @@ export async function POST(request: Request) {
     const { password, config } = body
 
     // Verificar senha
-    if (password !== ADMIN_PASSWORD) {
+    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Senha incorreta" }, { status: 401 })
     }
 

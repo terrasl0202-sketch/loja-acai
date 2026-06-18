@@ -28,18 +28,27 @@ export default function AdminBySlugClient({ store }: { store: StoreData }) {
   const handleLogin = async () => {
     setLoading(true)
     setError("")
-    
-    // Por enquanto, usa a mesma senha do admin principal
-    // Em producao, cada loja tera sua propria autenticacao
-    if (password === "admin123" || password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
-      setAuthenticated(true)
-      sessionStorage.setItem(`admin_${store.slug}`, "true")
-      loadStats()
-    } else {
-      setError("Senha incorreta")
+
+    try {
+      // Validacao server-side: a senha nunca e comparada no client
+      const res = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      })
+
+      if (res.ok) {
+        setAuthenticated(true)
+        sessionStorage.setItem(`admin_${store.slug}`, "true")
+        loadStats()
+      } else {
+        setError("Senha incorreta")
+      }
+    } catch {
+      setError("Erro ao autenticar. Tente novamente.")
+    } finally {
+      setLoading(false)
     }
-    
-    setLoading(false)
   }
 
   const loadStats = async () => {

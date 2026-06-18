@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || process.env.NEXT_PUBLIC_ADMIN_PASSWORD
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
 
 // Endpoint para diagnostico de ambiente e banco de dados
 // Protegido por senha admin

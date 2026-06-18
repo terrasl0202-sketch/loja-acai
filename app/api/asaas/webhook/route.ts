@@ -28,9 +28,10 @@ setInterval(() => {
 function verifyAsaasWebhook(request: NextRequest, body: string): boolean {
   const webhookToken = process.env.ASAAS_WEBHOOK_TOKEN
   
-  // Se nao configurado, aceitar (modo desenvolvimento)
+  // Token obrigatorio: se nao configurado, rejeitar (evita confirmacao de pagamento falsa)
   if (!webhookToken) {
-    return true
+    console.error("[asaas/webhook] ASAAS_WEBHOOK_TOKEN nao configurado - requisicao rejeitada")
+    return false
   }
   
   // Asaas envia o token no header 'asaas-access-token'

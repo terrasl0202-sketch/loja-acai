@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { type Order } from "@/lib/config-types"
 import { getStoreIdFromRequest } from "@/lib/api-store"
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
 
 // Supabase client
 function getSupabase() {
@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const password = url.searchParams.get("password")
 
-  if (password !== ADMIN_PASSWORD) {
+  if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noCacheHeaders })
   }
 
@@ -345,7 +345,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { password, orderId, status, paymentStatus, manuallyConfirmed, entregadorId, entregadorNome, entregadorWhatsapp, limparEntregador } = body
 
-    if (password !== ADMIN_PASSWORD) {
+    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -435,7 +435,7 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json()
     const { password, action, orderIds } = body
 
-    if (password !== ADMIN_PASSWORD) {
+    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 

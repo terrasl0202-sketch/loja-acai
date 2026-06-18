@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { getStoreIdFromRequest } from "@/lib/api-store"
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
 
 // GET - Estatisticas de gamificacao para Admin
 export async function GET(request: NextRequest) {
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const password = searchParams.get("password")
 
     // Validar senha admin
-    if (password !== ADMIN_PASSWORD) {
+    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
     }
 
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
     const { type, data, password } = await request.json()
 
     // Validar senha admin
-    if (password !== ADMIN_PASSWORD) {
+    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
     }
 

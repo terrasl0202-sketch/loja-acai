@@ -69,8 +69,8 @@ export async function POST(request: Request) {
     const { customerId, badgeId, password } = await request.json()
 
     // Validar senha admin
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
-    if (password !== ADMIN_PASSWORD) {
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
+    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
     }
 

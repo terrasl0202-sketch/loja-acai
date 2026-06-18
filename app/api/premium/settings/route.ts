@@ -7,7 +7,7 @@ import { getStoreIdFromRequest } from "@/lib/api-store"
  * Configuracoes de cashback e fidelidade por loja.
  */
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ""
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
 
 function getSupabase() {
   return createClient(
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   
   console.log(`[premium/settings v2 GET] storeId: ${storeId}`)
 
-  if (password !== ADMIN_PASSWORD) {
+  if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     
     console.log(`[premium/settings v2 POST] storeId: ${storeId}`)
 
-    if (password !== ADMIN_PASSWORD) {
+    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
