@@ -1613,6 +1613,22 @@ export default function Home() {
           customerName: formData.nome,
           customerPhone: cleanPhone,
           externalReference: newOrderId,
+          // Dados completos do pedido: persistidos no servidor (create-pix)
+          // ANTES do PIX. Inclui itemsDetailed para o admin/rastreio exibirem
+          // os itens corretamente (antes ia vazio -> "Itens []").
+          order: {
+            customerName: formData.nome,
+            customerPhone: formData.telefone,
+            customerId: customer?.id,
+            itemsDetailed: snapshot.items,
+            total: snapshot.total,
+            paymentMethod: "PIX Asaas",
+            address:
+              deliveryType === "entrega"
+                ? `${formData.endereco}, ${formData.numero} - ${formData.bairro} (Ref: ${formData.referencia})`
+                : "Retirada no local",
+            neighborhood: formData.bairro,
+          },
         }),
       })
 
