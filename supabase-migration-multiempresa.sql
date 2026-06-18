@@ -41,13 +41,37 @@ CREATE TABLE IF NOT EXISTS public.stores (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Garante a loja main com id = 1 (o codigo usa 1 como fallback).
--- Se ja existir uma loja main, nada e alterado.
-INSERT INTO public.stores (id, store_code, slug, store_name, status, plan)
-VALUES (1, 'main', 'pkgostosuras', 'P.K Gostosuras', 'active', 'pro')
-ON CONFLICT (store_code) DO NOTHING;
+-- Garante a loja main com id = 1 (o codigo usa 1 como fallback) de forma
+-- TOTALMENTE SEGURA, sem nunca disparar conflito de PK, store_code ou slug.
+--
+-- Por que nao usar "INSERT ... ON CONFLICT (store_code)":
+--   ON CONFLICT observa apenas UMA restricao. Em um banco que ja tenha linhas
+--   em stores, um id=1 pre-existente (PK) ou um slug duplicado (UNIQUE slug)
+--   NAO seriam capturados e gerariam erro. Por isso usamos logica condicional.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.stores WHERE id = 1) THEN
+    -- Ja existe a loja id=1: preserva exatamente como esta.
+    RAISE NOTICE 'Loja id=1 ja existe. Mantida sem alteracao.';
 
--- Ajusta a sequence para nao colidir com o id=1 inserido manualmente.
+  ELSIF EXISTS (SELECT 1 FROM public.stores) THEN
+    -- Ha registros, mas nenhum com id=1. NAO forcamos um id=1 (poderia colidir
+    -- em store_code/slug) e NAO prosseguimos, pois o backfill assume id=1.
+    -- Aborta a transacao inteira de forma limpa (nada e commitado).
+    RAISE EXCEPTION
+      'A tabela stores possui registros, porem nenhum com id=1. '
+      'Defina manualmente a loja main (id=1) antes de rodar esta migracao. '
+      'Nada foi alterado.';
+
+  ELSE
+    -- Tabela vazia: cria a loja main com id=1 (sem risco de conflito).
+    INSERT INTO public.stores (id, store_code, slug, store_name, status, plan)
+    VALUES (1, 'main', 'pkgostosuras', 'P.K Gostosuras', 'active', 'pro');
+    RAISE NOTICE 'Loja main criada com id=1.';
+  END IF;
+END $$;
+
+-- Ajusta a sequence para nao colidir com o id=1 (idempotente).
 SELECT setval(
   pg_get_serial_sequence('public.stores', 'id'),
   GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.stores), 1)
