@@ -137,8 +137,12 @@ export async function POST(request: NextRequest) {
         if (orderByPaymentId) {
           order = orderByPaymentId
         } else {
-          // ESTRATEGIA 2: Buscar por externalReference (order_code)
-          const externalRef = payment.externalReference || payment.description
+          // ESTRATEGIA 2: Buscar por externalReference (order_code).
+          // create-pix agora envia externalReference = order_code. Como defesa,
+          // se vier vazio, tenta extrair o codigo (PK.../ORD-...) da descricao
+          // em vez de comparar a descricao inteira (que nunca casa com order_code).
+          const codeFromDescription = payment.description?.match(/\b(PK\d+|ORD-\d+)\b/)?.[1]
+          const externalRef = payment.externalReference || codeFromDescription
           if (externalRef) {
             const { data: orderByCode } = await supabase
               .from('orders')

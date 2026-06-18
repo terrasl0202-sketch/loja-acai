@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getStoreIdFromRequest } from "@/lib/api-store"
+import { insertOrderIfNotExists } from "@/lib/supabase/order-insert"
 
 const ASAAS_API_URL = process.env.ASAAS_API_URL || "https://api.asaas.com/v3"
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY
@@ -10,12 +12,27 @@ const DEFAULT_CPF = process.env.ASAAS_DEFAULT_CPF || "52998224725"
 const pixRequests = new Map<string, number>()
 const COOLDOWN_MS = 5000
 
+interface CreatePixOrder {
+  customerName?: string
+  customerPhone?: string
+  customerId?: string
+  address?: string | null
+  neighborhood?: string | null
+  paymentMethod?: string
+  itemsDetailed?: unknown[]
+  total?: number
+  cashbackUsed?: number
+  pointsRewardUsed?: number
+}
+
 interface CreatePixRequest {
   value: number
   description: string
   customerName: string
   customerPhone: string
   externalReference?: string
+  // Dados completos do pedido, persistidos no banco ANTES de exibir o PIX
+  order?: CreatePixOrder
 }
 
 export async function POST(request: NextRequest) {
@@ -158,12 +175,18 @@ export async function POST(request: NextRequest) {
     }
     paymentValue = Math.round(paymentValue * 100) / 100
 
-    const paymentPayload = {
+    const paymentPayload: Record<string, unknown> = {
       customer: customerId,
       billingType: "PIX",
       value: paymentValue,
       dueDate: dueDateStr,
       description: body.description || "Pedido P.K Gostosuras",
+    }
+
+    // Enviar externalReference = order_code para o Asaas, de modo que o webhook
+    // consiga localizar o pedido por externalReference (alem do asaas_payment_id).
+    if (body.externalReference) {
+      paymentPayload.externalReference = body.externalReference
     }
 
     console.log("[Asaas] Payload pagamento:", JSON.stringify(paymentPayload))
@@ -189,6 +212,57 @@ export async function POST(request: NextRequest) {
 
     const paymentData = JSON.parse(paymentResponseText)
     console.log("[Asaas] Pagamento criado:", paymentData.id)
+
+    // 4.1 PERSISTIR O PEDIDO NO BANCO ANTES DE EXIBIR O PIX
+    // Garante que o pedido exista no Supabase com asaas_payment_id e order_code.
+    // Se a gravacao falhar, NAO retornamos o QR Code (a tela de "aprovado" nunca
+    // aparece sem pedido persistido).
+    if (body.externalReference) {
+      try {
+        const storeId = await getStoreIdFromRequest(request)
+        const orderInput = body.order || {}
+        const result = await insertOrderIfNotExists({
+          orderCode: body.externalReference,
+          customerName: orderInput.customerName || body.customerName,
+          customerPhone: orderInput.customerPhone || body.customerPhone,
+          address: orderInput.address ?? null,
+          neighborhood: orderInput.neighborhood ?? null,
+          paymentMethod: orderInput.paymentMethod || "PIX Asaas",
+          itemsDetailed: orderInput.itemsDetailed || [],
+          total: Number(orderInput.total ?? paymentValue),
+          status: "pending",
+          paymentStatus: "pending",
+          asaasPaymentId: paymentData.id,
+          cashbackUsed: orderInput.cashbackUsed || 0,
+          pointsRewardUsed: orderInput.pointsRewardUsed || 0,
+          storeId,
+        })
+        console.log(
+          "[Asaas] Pedido persistido:",
+          result.id,
+          result.duplicate ? "(ja existia)" : "(novo)"
+        )
+      } catch (persistError) {
+        console.error("[Asaas] FALHA ao persistir pedido:", persistError)
+        return NextResponse.json(
+          {
+            error:
+              "Nao foi possivel registrar seu pedido. Tente novamente em instantes.",
+            details:
+              persistError instanceof Error
+                ? persistError.message
+                : String(persistError),
+          },
+          { status: 500 }
+        )
+      }
+    } else {
+      console.error("[Asaas] externalReference ausente - pedido nao sera persistido")
+      return NextResponse.json(
+        { error: "Referencia do pedido ausente. Tente novamente." },
+        { status: 400 }
+      )
+    }
 
     // 5. Buscar QR Code PIX
     const pixResponse = await fetch(

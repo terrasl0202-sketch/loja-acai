@@ -384,6 +384,22 @@ export function useCheckout(
             customerName: formData.nome,
             customerPhone: cleanPhone,
             externalReference: newOrderId,
+            // Dados completos do pedido: persistidos no servidor ANTES do PIX
+            order: {
+              customerName: formData.nome,
+              customerPhone: formData.telefone,
+              customerId: customer?.id,
+              itemsDetailed: snapshot.items,
+              total: snapshot.total,
+              paymentMethod: "PIX Asaas",
+              address:
+                deliveryType === "entrega"
+                  ? `${formData.endereco}, ${formData.numero} - ${formData.bairro} (Ref: ${formData.referencia})`
+                  : "Retirada no local",
+              neighborhood: formData.bairro,
+              cashbackUsed: cashbackUsed || 0,
+              pointsRewardUsed: pointsRewardUsed || 0,
+            },
           }),
         })
 
@@ -413,43 +429,11 @@ export function useCheckout(
             value: data.value,
             expiresAt: data.expiresAt,
           })
+          // O pedido ja foi persistido no servidor por /api/asaas/create-pix
+          // (com asaas_payment_id e order_code) ANTES de o PIX ser exibido.
+          // Por isso nao ha mais POST /api/orders aqui.
           setOrderSnapshot(snapshot)
           setPaymentStatus("awaiting")
-
-          // Salvar pedido no backend
-          try {
-            await fetch("/api/orders", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                order: {
-                  orderId: newOrderId,
-                  customerName: formData.nome,
-                  customerPhone: formData.telefone,
-                  customerId: customer?.id,
-                  items: snapshot.items.map((i) => `${i.quantity}x ${i.name}`).join(", "),
-                  itemsDetailed: snapshot.items,
-                  total: snapshot.total,
-                  paymentMethod: "PIX Asaas",
-                  deliveryType,
-                  address:
-                    deliveryType === "entrega"
-                      ? `${formData.endereco}, ${formData.numero} - ${formData.bairro} (Ref: ${formData.referencia})`
-                      : "Retirada no local",
-                  neighborhood: formData.bairro,
-                  reference: formData.referencia,
-                  observation: formData.observacao,
-                  isPixAutomatic: true,
-                  asaasPaymentId: data.paymentId,
-                  // Premium - Cashback e Pontos usados
-                  cashbackUsed: cashbackUsed || 0,
-                  pointsRewardUsed: pointsRewardUsed || 0,
-                },
-              }),
-            })
-          } catch {
-            // Erro silencioso
-          }
 
           startPaymentPolling(data.paymentId, newOrderId)
         } else {
