@@ -10,7 +10,7 @@ interface PublicOrder {
   orderCode?: string
   customerName: string
   items: string | Array<{ productName?: string; name?: string; quantity: number; price: number; subtotal?: number }>
-  itemsDetailed?: { productName: string; quantity: number; price: number; subtotal: number }[]
+  itemsDetailed?: { productName?: string; name?: string; quantity?: number; price?: number; subtotal?: number }[]
   total: number
   paymentMethod: string
   deliveryType?: string
@@ -416,12 +416,17 @@ export default function PedidoPage() {
               <p className="text-xs text-muted-foreground mb-2 font-medium">Itens do pedido</p>
               {order.itemsDetailed && order.itemsDetailed.length > 0 ? (
                 <div className="space-y-2">
-                  {order.itemsDetailed.slice(0, 3).map((item, i) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span className="text-foreground">{item.quantity}x {item.productName}</span>
-                      <span className="text-muted-foreground">R$ {item.subtotal.toFixed(2)}</span>
-                    </div>
-                  ))}
+                  {order.itemsDetailed.slice(0, 3).map((item, i) => {
+                    const itemName = item.productName || item.name || "Produto"
+                    const itemQty = item.quantity || 1
+                    const itemSubtotal = item.subtotal ?? (item.price || 0) * itemQty
+                    return (
+                      <div key={i} className="flex justify-between text-sm">
+                        <span className="text-foreground">{itemQty}x {itemName}</span>
+                        <span className="text-muted-foreground">R$ {itemSubtotal.toFixed(2)}</span>
+                      </div>
+                    )
+                  })}
                   {order.itemsDetailed.length > 3 && (
                     <p className="text-xs text-muted-foreground">+{order.itemsDetailed.length - 3} mais itens</p>
                   )}
