@@ -14,6 +14,11 @@
 --     (apenas faz backfill de store_id onde estiver NULL).
 --   - Pode ser rodada mais de uma vez sem efeito colateral.
 --
+-- POLITICA DE FK: todas as foreign keys de store_id usam ON DELETE RESTRICT.
+--   Isso IMPEDE que apagar uma loja exclua produtos, pedidos, clientes ou
+--   historico em cascata. Para remover uma loja sera necessario tratar/mover
+--   os registros dependentes antes, de forma explicita e controlada.
+--
 -- RECOMENDACAO: rodar dentro de uma transacao e, antes, fazer BACKUP/SNAPSHOT
 --   do banco no painel Supabase (Database -> Backups).
 -- =====================================================================
@@ -115,7 +120,7 @@ BEGIN
         EXECUTE format(
           'ALTER TABLE public.%I
              ADD CONSTRAINT %I FOREIGN KEY (store_id)
-             REFERENCES public.stores(id) ON DELETE CASCADE;',
+             REFERENCES public.stores(id) ON DELETE RESTRICT;',
           t, 'fk_' || t || '_store'
         );
       END IF;
@@ -137,7 +142,7 @@ END $$;
 
 CREATE TABLE IF NOT EXISTS public.order_reviews (
   id          BIGSERIAL PRIMARY KEY,
-  store_id    BIGINT NOT NULL DEFAULT 1 REFERENCES public.stores(id) ON DELETE CASCADE,
+  store_id    BIGINT NOT NULL DEFAULT 1 REFERENCES public.stores(id) ON DELETE RESTRICT,
   order_id    BIGINT,
   customer_id BIGINT,
   rating      INT CHECK (rating BETWEEN 1 AND 5),
@@ -148,7 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_order_reviews_store_id ON public.order_reviews (s
 
 CREATE TABLE IF NOT EXISTS public.customer_levels (
   id           BIGSERIAL PRIMARY KEY,
-  store_id     BIGINT NOT NULL DEFAULT 1 REFERENCES public.stores(id) ON DELETE CASCADE,
+  store_id     BIGINT NOT NULL DEFAULT 1 REFERENCES public.stores(id) ON DELETE RESTRICT,
   name         TEXT NOT NULL,
   min_points   INT NOT NULL DEFAULT 0,
   sort_order   INT NOT NULL DEFAULT 0,
