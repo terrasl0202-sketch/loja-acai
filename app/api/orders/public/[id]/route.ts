@@ -53,10 +53,12 @@ export async function GET(
       orderCode: order.order_code,
       customerName: order.customer_name,
       items: order.items,
+      itemsDetailed: Array.isArray(order.items) ? order.items : undefined,
       total: Number(order.total),
       paymentMethod: order.payment_method,
       neighborhood: order.neighborhood,
       status: order.status,
+      paymentStatus: order.payment_status,
       createdAt: order.created_at,
     }
 

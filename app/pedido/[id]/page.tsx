@@ -145,7 +145,8 @@ export default function PedidoPage() {
     
     switch (order.status) {
       case "pending":
-        return order.paymentStatus === "confirmed" ? 15 : 5
+        // Pagamento ainda nao confirmado: barra zerada (aguardando).
+        return order.paymentStatus === "confirmed" ? 15 : 0
       case "confirmed":
         return 25
       case "preparing":
@@ -159,13 +160,17 @@ export default function PedidoPage() {
     }
   }
 
-  // Mapear status para step index (0-3)
-  // 0 = Confirmado, 1 = Preparando, 2 = A caminho, 3 = Entregue
+  // Mapear status para step index (-1 a 3)
+  // -1 = Aguardando Pagamento (nenhuma etapa ativa), 0 = Confirmado,
+  // 1 = Preparando, 2 = A caminho, 3 = Entregue
   const getStepIndex = () => {
-    if (!order) return 0
+    if (!order) return -1
     switch (order.status) {
       case "pending":
-        return order.paymentStatus === "confirmed" ? 0 : 0
+        // So entra em "Confirmado" quando o pagamento estiver confirmado.
+        // Enquanto aguarda pagamento, nenhuma etapa fica ativa (evita conflito
+        // visual com o badge "Aguardando Pagamento").
+        return order.paymentStatus === "confirmed" ? 0 : -1
       case "confirmed":
         return 0 // Aguardando preparo
       case "preparing":
@@ -274,7 +279,7 @@ export default function PedidoPage() {
             </div>
             <p className="text-foreground font-medium">Ola, {order.customerName.split(" ")[0]}!</p>
             {lastUpdate && (
-              <p className="text-muted-foreground/60 text-xs mt-1">
+              <p className="text-muted-foreground text-xs mt-1">
                 Atualizado as {formatTime(lastUpdate.toISOString())}
               </p>
             )}

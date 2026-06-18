@@ -199,10 +199,11 @@ export const getOrderCode = (order: Order): string => {
 export const formatOrderItems = (order: Order): string => {
   // Se tiver itemsDetailed como array
   if (Array.isArray(order.itemsDetailed) && order.itemsDetailed.length > 0) {
-    return order.itemsDetailed.map(item => {
-      const name = item.productName || 'Produto'
+    return (order.itemsDetailed as Array<{ productName?: string; name?: string; quantity?: number; price?: number; subtotal?: number }>).map(item => {
+      const name = item.productName || item.name || 'Produto'
       const qty = item.quantity || 1
-      const subtotal = item.subtotal || (item.price * qty)
+      const price = item.price || 0
+      const subtotal = item.subtotal || (price * qty)
       return `${qty}x ${name} - R$ ${subtotal.toFixed(2)}`
     }).join(', ')
   }
