@@ -1,59 +1,43 @@
 -- =====================================================================
--- MIGRACAO COMPLEMENTAR — colunas faltantes em public.orders
+-- MIGRACAO MINIMA — colunas faltantes em public.orders
 -- =====================================================================
--- NAO EXECUTAR SEM CONFIRMACAO FINAL.
+-- Objetivo: adicionar SOMENTE as duas colunas confirmadas como ausentes,
+-- usadas pelo fluxo de criacao de pedido (create-pix / POST /api/orders):
+--   - cashback_used        (valor de cashback usado no pedido)
+--   - points_reward_used   (valor/qtd de pontos usados no pedido)
 --
--- Motivo: a validacao em producao do fluxo PIX retornou:
---   "Could not find the 'cashback_used' column of 'orders' in the schema cache"
--- Ou seja, a tabela orders nao possui todas as colunas que o codigo usa
--- (ALLOWED_COLUMNS em /api/orders e no helper de persistencia do PIX).
--- Era exatamente este erro (42703) que o catch silencioso engolia, fazendo
--- pedidos "desaparecerem".
+-- Colunas que JA EXISTEM (confirmado) e NAO serao tocadas:
+--   asaas_payment_id, payment_status.
 --
--- Estrategia: 100% IDEMPOTENTE e DEFENSIVA.
+-- Seguranca:
 --   - SEM DROP, SEM DELETE, SEM TRUNCATE, SEM ON DELETE CASCADE.
---   - Apenas ADICIONA colunas faltantes (ADD COLUMN IF NOT EXISTS).
---   - NAO altera valores existentes. NAO remove colunas.
---   - Pode ser rodada mais de uma vez sem efeito colateral.
---
--- RECOMENDACAO: ter snapshot do banco antes (Supabase -> Database -> Backups).
+--   - NAO altera dados existentes. O DEFAULT 0 vale para preencher a nova
+--     coluna nas linhas atuais e futuras, sem apagar/alterar nenhum outro dado.
+--   - ADD COLUMN IF NOT EXISTS -> idempotente, pode rodar mais de uma vez.
+--   - Tudo dentro de BEGIN/COMMIT.
 -- =====================================================================
 
 BEGIN;
 
--- Pre-condicao: a tabela orders precisa existir.
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'orders'
-  ) THEN
-    RAISE EXCEPTION 'Tabela public.orders nao existe. Abortado.';
-  END IF;
-END $$;
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS cashback_used NUMERIC NOT NULL DEFAULT 0;
 
--- Colunas que o codigo usa e que podem estar ausentes.
--- (As que ja existirem sao ignoradas por ADD COLUMN IF NOT EXISTS.)
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS order_code         TEXT;
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_status     TEXT DEFAULT 'pending';
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS asaas_payment_id   TEXT;
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS cashback_used      NUMERIC(10,2) DEFAULT 0;
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS points_reward_used INTEGER DEFAULT 0;
-
--- Indices uteis para o fluxo (busca por codigo e por pagamento Asaas).
-CREATE INDEX IF NOT EXISTS idx_orders_order_code       ON public.orders (order_code);
-CREATE INDEX IF NOT EXISTS idx_orders_asaas_payment_id ON public.orders (asaas_payment_id);
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS points_reward_used NUMERIC NOT NULL DEFAULT 0;
 
 -- ---------------------------------------------------------------------
--- VERIFICACAO (somente leitura) — confira antes do COMMIT
+-- VERIFICACAO (somente leitura) — confira antes/depois do COMMIT
 -- ---------------------------------------------------------------------
--- Listar colunas atuais de orders:
---   SELECT column_name, data_type FROM information_schema.columns
---   WHERE table_schema='public' AND table_name='orders' ORDER BY ordinal_position;
+-- SELECT column_name, data_type, column_default
+-- FROM information_schema.columns
+-- WHERE table_schema = 'public' AND table_name = 'orders'
+--   AND column_name IN ('cashback_used', 'points_reward_used')
+-- ORDER BY column_name;
 
 COMMIT;
 
 -- =====================================================================
--- FIM. Apos rodar, o INSERT do pedido (create-pix e /api/orders) deve
--- funcionar e o fluxo PIX completo pode ser validado.
+-- FIM. Apos rodar, validar em producao:
+--   POST /api/asaas/create-pix  -> deve persistir o pedido e retornar o PIX
+--   GET  /api/orders            -> pedido aparece no admin
 -- =====================================================================
