@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@supabase/supabase-js"
 
 const PLATFORM_PASSWORD = process.env.PLATFORM_PASSWORD
+
+// Client server-side com SERVICE ROLE.
+// A tabela public.stores tem RLS ativo e nenhuma policy, entao a anon key e
+// bloqueada. O service role roda apenas no servidor (nunca exposto ao frontend)
+// e ignora RLS por design, sem precisar desabilitar RLS nem criar policy publica.
+function getServiceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!url || !serviceKey) {
+    return null
+  }
+
+  return createClient(url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
 
 // GET - Listar todas as lojas
 export async function GET(request: NextRequest) {
@@ -13,12 +30,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const supabase = await createClient()
-    
+    const supabase = getServiceClient()
+
     if (!supabase) {
       return NextResponse.json({ error: "Erro de conexao" }, { status: 500 })
     }
-    
+
     const { data: stores, error } = await supabase
       .from("stores")
       .select("*")
@@ -75,7 +92,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Slug invalido. Use apenas letras minusculas, numeros e hifens." }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const supabase = getServiceClient()
 
     if (!supabase) {
       return NextResponse.json({ error: "Erro de conexao" }, { status: 500 })
@@ -211,7 +228,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "ID da loja e obrigatorio" }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const supabase = getServiceClient()
 
     if (!supabase) {
       return NextResponse.json({ error: "Erro de conexao" }, { status: 500 })
