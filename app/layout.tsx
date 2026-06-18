@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Poppins } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 const poppins = Poppins({ 
@@ -9,9 +10,11 @@ const poppins = Poppins({
   variable: "--font-sans"
 });
 
+// Metadados estaticos - nome da loja eh carregado dinamicamente nos componentes
 export const metadata: Metadata = {
-  title: 'P.K Paulo e Karina Gostosuras | Açaí Delivery',
-  description: 'Os melhores açaís da região! Peça agora pelo WhatsApp.',
+  title: 'Loja Online',
+  description: 'Faca seu pedido online com entrega rapida.',
+  keywords: ['delivery', 'pedido online', 'entrega'],
   generator: 'v0.app',
   icons: {
     icon: [
@@ -30,6 +33,12 @@ export const metadata: Metadata = {
     ],
     apple: '/apple-icon.png',
   },
+  openGraph: {
+    title: 'Loja Online',
+    description: 'Faca seu pedido online com entrega rapida.',
+    siteName: 'Loja',
+    type: 'website',
+  },
 }
 
 export const viewport: Viewport = {
@@ -45,9 +54,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt-BR" className="bg-background">
+    <html lang="pt-BR">
       <body className={`${poppins.variable} font-sans antialiased`}>
         {children}
+        <Toaster position="top-center" richColors closeButton />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

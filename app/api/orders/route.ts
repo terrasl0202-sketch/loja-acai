@@ -1,101 +1,251 @@
-import { put, list, get, del } from "@vercel/blob"
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
 import { type Order } from "@/lib/config-types"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
-const ORDERS_PREFIX = "pk-orders-"
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "PK1040CAH"
+
+// Supabase client
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('Supabase nao configurado')
+  return createClient(url, key)
+}
 
 // Evitar cache
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-// Headers para evitar cache
 const noCacheHeaders = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
   "Pragma": "no-cache",
   "Expires": "0",
 }
 
-// Funcao para limpar blobs antigos (manter apenas os 2 mais recentes)
-async function cleanupOldBlobs() {
-  try {
-    const { blobs } = await list({ prefix: ORDERS_PREFIX })
-    if (blobs.length > 2) {
-      const sorted = blobs.sort(
-        (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-      )
-      // Deletar todos exceto os 2 mais recentes
-      const toDelete = sorted.slice(2)
-      for (const blob of toDelete) {
-        await del(blob.url)
-      }
-    }
-  } catch (error) {
-    console.error("[Cleanup] Erro ao limpar blobs antigos:", error)
+// ============ MAPPERS FRONTEND <-> DB ============
+
+// Interface minima para leitura do banco (id é BIGINT)
+interface DbOrder {
+  id: number // BIGINT no Supabase
+  order_code: string | null
+  customer_name: string
+  customer_phone: string | null
+  address: string | null
+  neighborhood: string | null
+  payment_method: string | null
+  items: unknown
+  total: number
+  subtotal?: number
+  discount?: number
+  delivery_fee?: number
+  status: string
+  order_status?: string // Campo legado
+  payment_status?: string // Status do pagamento
+  created_at: string
+  // Campos de entregador
+  entregador_id?: string | null
+  entregador_nome?: string | null
+  entregador_whatsapp?: string | null
+  // Campos de confirmacao
+  manually_confirmed?: boolean
+  confirmed_automatically?: boolean
+  paid_at?: string | null
+  // Campos de PIX
+  asaas_payment_id?: string | null
+  pix_code?: string | null
+  pix_qrcode?: string | null
+  // Premium - Cashback e Pontos usados
+  cashback_used?: number | null
+  points_reward_used?: number | null
+}
+
+function dbToFrontend(db: DbOrder): Order {
+  // Normaliza o status - prioriza payment_status, depois order_status, depois status
+  const rawPaymentStatus = db.payment_status || db.order_status || db.status || 'pending'
+  // Mapeia valores do banco para valores do frontend
+  let paymentStatus: Order['paymentStatus'] = 'pending'
+  if (rawPaymentStatus === 'confirmed' || rawPaymentStatus === 'paid' || rawPaymentStatus === 'pago') {
+    paymentStatus = 'confirmed'
+  } else if (rawPaymentStatus === 'failed' || rawPaymentStatus === 'falhou') {
+    paymentStatus = 'failed'
+  }
+  
+  // Normaliza o status do pedido
+  const rawStatus = db.status || db.order_status || 'pending'
+  let status: Order['status'] = 'pending'
+  if (rawStatus === 'confirmed' || rawStatus === 'aguardando_preparo') {
+    status = 'confirmed'
+  } else if (rawStatus === 'preparing' || rawStatus === 'em_preparacao') {
+    status = 'preparing'
+  } else if (rawStatus === 'delivering' || rawStatus === 'saiu_para_entrega') {
+    status = 'delivering'
+  } else if (rawStatus === 'completed' || rawStatus === 'finalizado' || rawStatus === 'entregue') {
+    status = 'completed'
+  } else if (rawStatus === 'cancelled' || rawStatus === 'cancelado') {
+    status = 'cancelled'
+  }
+  
+  // Se o pagamento foi confirmado manualmente ou automaticamente, ajustar paymentStatus
+  if (db.manually_confirmed || db.confirmed_automatically || db.paid_at) {
+    paymentStatus = 'confirmed'
+  }
+  
+  // Se o status e confirmed/preparing/delivering/completed, assumir pagamento confirmado
+  if (['confirmed', 'preparing', 'delivering', 'completed'].includes(status)) {
+    paymentStatus = 'confirmed'
+  }
+
+  return {
+    id: String(db.id), // Converter BIGINT para string
+    orderCode: db.order_code || String(db.id),
+    customerName: db.customer_name,
+    customerPhone: db.customer_phone || '',
+    items: JSON.stringify(db.items || []),
+    itemsDetailed: Array.isArray(db.items) ? db.items as Order['itemsDetailed'] : [],
+    total: Number(db.total) || 0,
+    paymentMethod: db.payment_method || 'Dinheiro',
+    deliveryType: 'delivery',
+    address: db.address || undefined,
+    neighborhood: db.neighborhood || undefined,
+    status: status,
+    paymentStatus: paymentStatus,
+    createdAt: db.created_at,
+    paidAt: db.paid_at || undefined,
+    manuallyConfirmed: db.manually_confirmed || false,
+    confirmedAutomatically: db.confirmed_automatically || false,
+    asaasPaymentId: db.asaas_payment_id || undefined,
+    asaasPixCode: db.pix_code || undefined,
+    asaasQrCodeUrl: db.pix_qrcode || undefined,
+    // Campos de entregador
+    entregadorId: db.entregador_id || undefined,
+    entregadorNome: db.entregador_nome || undefined,
+    entregadorWhatsapp: db.entregador_whatsapp || undefined,
+    // Premium - Cashback e Pontos usados
+    cashbackUsed: Number(db.cashback_used) || 0,
+    pointsRewardUsed: Number(db.points_reward_used) || 0,
   }
 }
+
+// ============ WHITELIST DE COLUNAS REAIS ============
+// A tabela orders PRECISA ser criada no Supabase com este SQL:
+/*
+CREATE TABLE orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_code TEXT,
+  customer_name TEXT NOT NULL,
+  customer_phone TEXT,
+  address TEXT,
+  neighborhood TEXT,
+  payment_method TEXT,
+  items JSONB DEFAULT '[]',
+  total DECIMAL(10,2) NOT NULL DEFAULT 0,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_orders_order_code ON orders(order_code);
+CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
+*/
+
+// Apenas estas colunas sao enviadas no insert (SEM id - é BIGINT auto)
+const ALLOWED_COLUMNS = [
+  'order_code',
+  'customer_name',
+  'customer_phone',
+  'address',
+  'neighborhood',
+  'payment_method',
+  'items',
+  'total',
+  'status',
+  'payment_status', // Status do pagamento (pending, confirmed, failed)
+  'created_at',
+  'asaas_payment_id', // ID do pagamento Asaas para confirmacao automatica
+  'cashback_used', // Premium - Cashback usado
+  'points_reward_used', // Premium - Pontos/recompensa usados
+] as const
+
+function frontendToDb(order: Order & { asaasPaymentId?: string; cashbackUsed?: number; pointsRewardUsed?: number }): Record<string, unknown> {
+  // NAO enviar 'id' - é BIGINT auto-gerado pelo Supabase
+  const dbOrder: Record<string, unknown> = {
+    order_code: order.orderCode || order.id || `ORD-${Date.now()}`,
+    customer_name: order.customerName || 'Cliente',
+    customer_phone: order.customerPhone || '',
+    address: order.address || null,
+    neighborhood: order.neighborhood || null,
+    payment_method: order.paymentMethod || 'Dinheiro',
+    items: order.itemsDetailed || [],
+    total: order.total || 0,
+    status: order.status || 'pending',
+    payment_status: order.paymentStatus || 'pending', // Status do pagamento
+    created_at: new Date().toISOString(),
+    asaas_payment_id: order.asaasPaymentId || null, // ID do pagamento Asaas
+    cashback_used: order.cashbackUsed || 0, // Premium - Cashback usado
+    points_reward_used: order.pointsRewardUsed || 0, // Premium - Pontos usados
+  }
+  
+  // Filtrar apenas colunas permitidas
+  const cleanOrder: Record<string, unknown> = {}
+  for (const key of ALLOWED_COLUMNS) {
+    if (dbOrder[key] !== undefined) {
+      cleanOrder[key] = dbOrder[key]
+    }
+  }
+  
+  console.log("[orders] INSERT colunas:", Object.keys(cleanOrder).join(', '))
+  
+  return cleanOrder
+}
+
+// ============ GET - Listar pedidos ============
 
 export async function GET(request: NextRequest) {
+  const url = new URL(request.url)
+  const password = url.searchParams.get("password")
+
+  if (password !== ADMIN_PASSWORD) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noCacheHeaders })
+  }
+
+  // Identificar loja atual
+  const storeId = await getStoreIdFromRequest(request)
+  console.log(`[orders GET] storeId: ${storeId}`)
+
   try {
-    const url = new URL(request.url)
-    const password = url.searchParams.get("password")
+    const supabase = getSupabase()
+    
+    // Filtrar por store_id
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('store_id', storeId)
+      .order('created_at', { ascending: false })
 
-    if (password !== ADMIN_PASSWORD) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: noCacheHeaders })
+    if (error) {
+      console.error("[orders GET] Erro Supabase:", error.message)
+      return NextResponse.json({ error: `Erro ao carregar pedidos: ${error.message}`, success: false }, { status: 500, headers: noCacheHeaders })
     }
 
-    // Buscar arquivo de pedidos
-    const { blobs } = await list({ prefix: ORDERS_PREFIX })
+    const orders = (data || []).map(dbToFrontend)
 
-    if (blobs.length === 0) {
-      return NextResponse.json({ success: true, orders: [] }, { headers: noCacheHeaders })
-    }
+    return NextResponse.json({ success: true, orders, financialHistory: [], source: 'supabase', storeId }, { headers: noCacheHeaders })
 
-    // Pegar o mais recente
-    const latestBlob = blobs.sort(
-      (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-    )[0]
-
-    const result = await get(latestBlob.pathname, { access: "private" })
-
-    if (result && result.stream) {
-      const text = await new Response(result.stream).text()
-      let orders = JSON.parse(text) as Order[]
-      
-      // Deduplicar pedidos por ID (manter a versao mais recente de cada)
-      const orderMap = new Map<string, Order>()
-      for (const order of orders) {
-        const existing = orderMap.get(order.id)
-        if (!existing) {
-          orderMap.set(order.id, order)
-        } else {
-          // Manter a versao com status mais avancado ou mais recente
-          const existingDate = new Date(existing.createdAt).getTime()
-          const orderDate = new Date(order.createdAt).getTime()
-          // Priorizar: cancelled > completed > delivering > preparing > confirmed > pending
-          const statusPriority: Record<string, number> = { cancelled: 6, completed: 5, delivering: 4, preparing: 3, confirmed: 2, pending: 1 }
-          const existingPriority = statusPriority[existing.status] || 0
-          const orderPriority = statusPriority[order.status] || 0
-          
-          if (orderPriority > existingPriority || (orderPriority === existingPriority && orderDate > existingDate)) {
-            orderMap.set(order.id, order)
-          }
-        }
-      }
-      orders = Array.from(orderMap.values())
-      
-      return NextResponse.json({ success: true, orders }, { headers: noCacheHeaders })
-    }
-
-    return NextResponse.json({ success: true, orders: [] }, { headers: noCacheHeaders })
   } catch (error) {
-    console.error("[Orders GET] Erro:", error)
-    return NextResponse.json({ success: true, orders: [] }, { headers: noCacheHeaders })
+    console.error("[orders GET] Erro:", error)
+    return NextResponse.json({ error: `Erro interno: ${String(error)}`, success: false }, { status: 500, headers: noCacheHeaders })
   }
 }
+
+// ============ POST - Criar pedido ============
 
 export async function POST(request: NextRequest) {
   try {
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+    console.log(`[orders POST] storeId: ${storeId}`)
+    
     const body = await request.json()
     const { order } = body
 
@@ -103,43 +253,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Order is required" }, { status: 400 })
     }
 
-    // Carregar pedidos existentes
-    let orders: Order[] = []
-    try {
-      const { blobs } = await list({ prefix: ORDERS_PREFIX })
-      if (blobs.length > 0) {
-        const latestBlob = blobs.sort(
-          (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-        )[0]
-        const result = await get(latestBlob.pathname, { access: "private" })
-        if (result && result.stream) {
-          const text = await new Response(result.stream).text()
-          orders = JSON.parse(text) as Order[]
-        }
-      }
-    } catch {
-      // Sem pedidos anteriores
-    }
-
-    // Determinar se e PIX automatico
-    const isPixAutomatic = order.paymentMethod === "PIX Asaas" || order.isPixAutomatic
-
-    // Usar o ID publico que vem do frontend (PK...) ou gerar um interno
     const publicOrderId = order.orderId || order.id || `ORD-${Date.now()}`
-    
-    // Verificar se pedido ja existe (para evitar duplicacao)
-    const existingOrderIndex = orders.findIndex((o) => o.id === publicOrderId)
-    if (existingOrderIndex !== -1) {
-      // Pedido ja existe, retornar o existente sem duplicar
-      console.log("[Orders POST] Pedido ja existe, ignorando duplicacao:", publicOrderId)
-      return NextResponse.json({ success: true, order: orders[existingOrderIndex], duplicate: true })
-    }
 
-    // Adicionar novo pedido
-    const newOrder: Order = {
-      id: publicOrderId,
+    console.log("[orders POST] Criando pedido com order_code:", publicOrderId)
+
+    // REGRA OFICIAL DE STATUS INICIAL:
+    // TODOS os pedidos comecam como PENDING (Aguardando Pagamento)
+    // - Pix Asaas: aguarda confirmacao automatica via webhook/check-payment
+    // - Pix Manual: aguarda confirmacao manual do lojista
+    // - Dinheiro: aguarda confirmacao manual do lojista
+    // - Cartao: aguarda confirmacao manual do lojista
+    // 
+    // NENHUM pedido vai direto para "confirmed" na criacao!
+    const initialStatus = "pending"
+    const initialPaymentStatus = "pending"
+
+    // Criar objeto do pedido (id sera gerado pelo Supabase)
+    const newOrder: Order & { asaasPaymentId?: string } = {
+      id: '', // Sera preenchido apos insert
+      orderCode: publicOrderId,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
+      customerId: order.customerId,
       items: order.items,
       itemsDetailed: order.itemsDetailed || [],
       total: order.total,
@@ -149,45 +284,66 @@ export async function POST(request: NextRequest) {
       neighborhood: order.neighborhood,
       reference: order.reference,
       observation: order.observation,
-      status: "pending",
-      paymentStatus: isPixAutomatic ? "pending" : "pending",
+      status: initialStatus,
+      paymentStatus: initialPaymentStatus,
       createdAt: new Date().toISOString(),
-      isPixAutomatic,
-      asaasPaymentId: order.asaasPaymentId,
-      asaasPixCode: order.asaasPixCode,
-      asaasQrCodeUrl: order.asaasQrCodeUrl,
-      manuallyConfirmed: false,
-      archived: false,
+      asaasPaymentId: order.asaasPaymentId || null, // ID do pagamento Asaas
     }
 
-    orders.unshift(newOrder)
+    console.log("[orders POST] asaasPaymentId:", order.asaasPaymentId || "nao informado")
 
-    // Salvar
-    const timestamp = Date.now()
-    const filename = `${ORDERS_PREFIX}${timestamp}.json`
+    const supabase = getSupabase()
+      
+      // Verificar se ja existe pelo order_code (codigo publico)
+      const { data: existing } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('order_code', publicOrderId)
+        .single()
 
-    await put(filename, JSON.stringify(orders, null, 2), {
-      access: "private",
-      contentType: "application/json",
-    })
+      if (existing) {
+        console.log("[orders POST] Pedido ja existe:", publicOrderId)
+        return NextResponse.json({ success: true, order: newOrder, duplicate: true, source: 'supabase' })
+      }
 
-    // Limpar blobs antigos
-    await cleanupOldBlobs()
+      // Inserir no Supabase
+      const dbOrder = frontendToDb(newOrder)
+      dbOrder.store_id = storeId // SEMPRE salvar store_id
+      console.log("[orders POST] Inserindo no Supabase para loja", storeId)
+      
+      const { data: insertedOrder, error } = await supabase
+        .from('orders')
+        .insert(dbOrder)
+        .select()
+        .single()
 
-    return NextResponse.json({ success: true, order: newOrder })
+      if (error) {
+        console.error("[orders POST] ERRO INSERT:", error.message, error.details, error.hint)
+        throw error
+      }
+
+      console.log("[orders POST] Pedido criado! ID:", insertedOrder?.id, "OrderCode:", publicOrderId)
+      
+      // Atualizar newOrder com o ID gerado
+      newOrder.id = String(insertedOrder?.id || '')
+      
+      return NextResponse.json({ success: true, order: newOrder, orderId: publicOrderId, source: 'supabase' })
+
   } catch (error) {
-    console.error("[Orders POST] Erro:", error)
-    return NextResponse.json(
-      { error: "Failed to create order" },
-      { status: 500 }
-    )
+    console.error("[orders POST] Erro:", error)
+    return NextResponse.json({ error: "Failed to create order", details: String(error) }, { status: 500 })
   }
 }
 
+// ============ PATCH - Atualizar pedido ============
+
 export async function PATCH(request: NextRequest) {
   try {
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+    
     const body = await request.json()
-    const { password, orderId, status, paymentStatus, manuallyConfirmed, archived } = body
+    const { password, orderId, status, paymentStatus, manuallyConfirmed, entregadorId, entregadorNome, entregadorWhatsapp, limparEntregador } = body
 
     if (password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -197,178 +353,202 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "orderId required" }, { status: 400 })
     }
 
-    // Carregar pedidos
-    let orders: Order[] = []
-    const { blobs } = await list({ prefix: ORDERS_PREFIX })
+    const supabase = getSupabase()
+      
+    // Montar objeto de atualizacao apenas com campos fornecidos
+    const updates: Record<string, unknown> = {}
     
-    if (blobs.length > 0) {
-      const latestBlob = blobs.sort(
-        (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-      )[0]
-      const result = await get(latestBlob.pathname, { access: "private" })
-      if (result && result.stream) {
-        const text = await new Response(result.stream).text()
-        orders = JSON.parse(text) as Order[]
-      }
-    }
-
-    // Atualizar pedido
-    const orderIndex = orders.findIndex((o) => o.id === orderId)
-    if (orderIndex === -1) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 })
-    }
-
-    // Atualizar campos conforme fornecido
+    // REGRA CRITICA DE SINCRONIZACAO:
+    // Se status for confirmed/preparing/delivering/completed, 
+    // payment_status DEVE ser 'confirmed' automaticamente
+    const statusesQueImplicamPagamento = ['confirmed', 'preparing', 'delivering', 'completed']
+    
     if (status !== undefined) {
-      orders[orderIndex].status = status
-    }
-    if (paymentStatus !== undefined) {
-      orders[orderIndex].paymentStatus = paymentStatus
-      if (paymentStatus === "confirmed") {
-        orders[orderIndex].confirmedAt = new Date().toISOString()
+      updates.status = status
+      // Sincronizar payment_status automaticamente
+      if (statusesQueImplicamPagamento.includes(status)) {
+        updates.payment_status = 'confirmed'
+        updates.paid_at = updates.paid_at || new Date().toISOString()
       }
     }
-    if (manuallyConfirmed !== undefined) {
-      orders[orderIndex].manuallyConfirmed = manuallyConfirmed
-      if (manuallyConfirmed) {
-        orders[orderIndex].paymentStatus = "confirmed"
-        orders[orderIndex].status = "confirmed" // Mover para aguardando preparo
-        orders[orderIndex].confirmedAt = new Date().toISOString()
-        orders[orderIndex].paidAt = new Date().toISOString()
-      }
-    }
-    if (archived !== undefined) {
-      orders[orderIndex].archived = archived
+
+    // Confirmacao manual de pagamento
+    if (manuallyConfirmed === true) {
+      updates.status = 'confirmed'
+      updates.payment_status = 'confirmed'
+      updates.manually_confirmed = true
+      updates.paid_at = new Date().toISOString()
     }
 
-    // Salvar
-    const timestamp = Date.now()
-    const filename = `${ORDERS_PREFIX}${timestamp}.json`
+    // Atribuir entregador
+    if (entregadorId !== undefined) {
+      updates.entregador_id = entregadorId
+      updates.entregador_nome = entregadorNome || null
+      updates.entregador_whatsapp = entregadorWhatsapp || null
+      console.log("[orders PATCH] Entregador atribuido:", entregadorNome)
+    }
 
-    await put(filename, JSON.stringify(orders, null, 2), {
-      access: "private",
-      contentType: "application/json",
-    })
+    // Limpar entregador
+    if (limparEntregador === true) {
+      updates.entregador_id = null
+      updates.entregador_nome = null
+      updates.entregador_whatsapp = null
+      console.log("[orders PATCH] Entregador removido")
+    }
 
-    // Limpar blobs antigos
-    await cleanupOldBlobs()
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "Nenhum campo para atualizar" }, { status: 400 })
+    }
 
-    return NextResponse.json({ success: true, order: orders[orderIndex] })
+    // Atualizar APENAS se pertence a esta loja
+    const { data: updated, error: updateError } = await supabase
+      .from('orders')
+      .update(updates)
+      .eq('id', orderId)
+      .eq('store_id', storeId) // Seguranca: so atualiza da mesma loja
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error("[orders PATCH] Erro update:", updateError.message)
+      return NextResponse.json({ error: `Erro ao atualizar: ${updateError.message}`, success: false }, { status: 500 })
+    }
+
+    const order = dbToFrontend(updated)
+    console.log("[orders PATCH] Pedido atualizado:", orderId, "novo status:", order.status)
+      
+    return NextResponse.json({ success: true, order, source: 'supabase' })
+
   } catch (error) {
-    console.error("[Orders PATCH] Erro:", error)
-    return NextResponse.json(
-      { error: "Failed to update order" },
-      { status: 500 }
-    )
+    console.error("[orders PATCH] Erro:", error)
+    return NextResponse.json({ error: "Failed to update order", details: String(error) }, { status: 500 })
   }
 }
 
-// DELETE para arquivar/limpar relatorios
+// ============ DELETE - Excluir pedidos ============
+
 export async function DELETE(request: NextRequest) {
   try {
+    // Identificar loja atual
+    const storeId = await getStoreIdFromRequest(request)
+    
     const body = await request.json()
-    const { password, action } = body
+    const { password, action, orderIds } = body
 
     if (password !== ADMIN_PASSWORD) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (action === "archive_all") {
-      // Marcar todos os pedidos como arquivados (nao apaga)
-      let orders: Order[] = []
-      const { blobs } = await list({ prefix: ORDERS_PREFIX })
-      
-      if (blobs.length > 0) {
-        const latestBlob = blobs.sort(
-          (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-        )[0]
-        const result = await get(latestBlob.pathname, { access: "private" })
-        if (result && result.stream) {
-          const text = await new Response(result.stream).text()
-          orders = JSON.parse(text) as Order[]
-        }
+    console.log("[orders DELETE] Acao:", action, "IDs:", orderIds, "storeId:", storeId)
+
+    // Excluir pedidos especificos (apenas da loja atual)
+    if (orderIds && Array.isArray(orderIds) && orderIds.length > 0) {
+      const supabase = getSupabase()
+        
+      const { error } = await supabase
+        .from('orders')
+        .delete()
+        .in('id', orderIds)
+        .eq('store_id', storeId) // Seguranca: so deleta da mesma loja
+
+      if (error) {
+        console.error("[orders DELETE] Erro:", error.message)
+        return NextResponse.json({ error: `Erro ao excluir: ${error.message}`, success: false }, { status: 500 })
       }
 
-      // Arquivar todos
-      orders = orders.map(o => ({ ...o, archived: true }))
-
-      // Salvar
-      const timestamp = Date.now()
-      const filename = `${ORDERS_PREFIX}${timestamp}.json`
-
-      await put(filename, JSON.stringify(orders, null, 2), {
-        access: "private",
-        contentType: "application/json",
-      })
-
-      return NextResponse.json({ success: true, message: "All orders archived" })
+      console.log(`[orders DELETE] ${orderIds.length} pedidos excluidos da loja ${storeId}`)
+      return NextResponse.json({ success: true, deletedCount: orderIds.length, source: 'supabase', storeId })
     }
 
+    // Excluir todos completados (action = "archiveAll" ou "deleteCompleted") - apenas da loja atual
+    if (action === "archiveAll" || action === "deleteCompleted") {
+      const supabase = getSupabase()
+        
+      // Deleta pedidos completados ou cancelados APENAS desta loja
+      const { error, count } = await supabase
+        .from('orders')
+        .delete()
+        .in('status', ['completed', 'cancelled'])
+        .eq('store_id', storeId) // Seguranca: so deleta da mesma loja
+
+      if (error) {
+        console.error("[orders DELETE] Erro archiveAll:", error.message)
+        return NextResponse.json({ error: `Erro ao excluir: ${error.message}`, success: false }, { status: 500 })
+      }
+
+      console.log(`[orders DELETE] ${count || 0} pedidos completados/cancelados excluidos da loja ${storeId}`)
+      return NextResponse.json({ success: true, message: "Pedidos completados excluidos", deletedCount: count || 0, source: 'supabase', storeId })
+    }
+
+    // Limpar pedidos duplicados (mesmo cliente + total + horario proximo)
     if (action === "cleanup_duplicates") {
-      // Deduplicar e limpar pedidos bugados
-      let orders: Order[] = []
-      const { blobs } = await list({ prefix: ORDERS_PREFIX })
+      const supabase = getSupabase()
       
-      if (blobs.length > 0) {
-        const latestBlob = blobs.sort(
-          (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-        )[0]
-        const result = await get(latestBlob.pathname, { access: "private" })
-        if (result && result.stream) {
-          const text = await new Response(result.stream).text()
-          orders = JSON.parse(text) as Order[]
-        }
+      // Buscar todos os pedidos
+      const { data: allOrders, error: fetchError } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: true })
+      
+      if (fetchError) {
+        console.error("[orders DELETE] Erro ao buscar pedidos:", fetchError.message)
+        return NextResponse.json({ error: `Erro ao buscar: ${fetchError.message}`, success: false }, { status: 500 })
       }
 
-      const originalCount = orders.length
-      
-      // Deduplicar por ID (manter versao com status mais avancado)
-      const orderMap = new Map<string, Order>()
-      for (const order of orders) {
-        const existing = orderMap.get(order.id)
-        if (!existing) {
-          orderMap.set(order.id, order)
-        } else {
-          const statusPriority: Record<string, number> = { cancelled: 6, completed: 5, delivering: 4, preparing: 3, confirmed: 2, pending: 1 }
-          const existingPriority = statusPriority[existing.status] || 0
-          const orderPriority = statusPriority[order.status] || 0
+      if (!allOrders || allOrders.length === 0) {
+        return NextResponse.json({ success: true, message: "Nenhum pedido encontrado", removedCount: 0 })
+      }
+
+      // Identificar duplicatas
+      // Criterio: mesmo customer_phone + mesmo total + criados em intervalo de 5 minutos
+      const duplicateIds: number[] = []
+      const seen = new Map<string, { id: number; createdAt: Date }>()
+
+      for (const order of allOrders) {
+        const key = `${order.customer_phone || 'sem-tel'}-${order.total}`
+        const orderDate = new Date(order.created_at)
+        
+        if (seen.has(key)) {
+          const existing = seen.get(key)!
+          const timeDiff = Math.abs(orderDate.getTime() - existing.createdAt.getTime())
           
-          if (orderPriority > existingPriority) {
-            orderMap.set(order.id, order)
+          // Se criados dentro de 5 minutos (300000ms), e um duplicado
+          if (timeDiff < 300000) {
+            duplicateIds.push(order.id)
+            console.log(`[cleanup] Duplicata encontrada: #${order.id} (original: #${existing.id})`)
+          } else {
+            // Atualizar o visto com o pedido mais recente
+            seen.set(key, { id: order.id, createdAt: orderDate })
           }
+        } else {
+          seen.set(key, { id: order.id, createdAt: orderDate })
         }
       }
-      orders = Array.from(orderMap.values())
-      
-      const removedCount = originalCount - orders.length
 
-      // Salvar lista limpa
-      const timestamp = Date.now()
-      const filename = `${ORDERS_PREFIX}${timestamp}.json`
+      if (duplicateIds.length === 0) {
+        console.log("[cleanup] Nenhuma duplicata encontrada")
+        return NextResponse.json({ success: true, message: "Nenhuma duplicata encontrada", removedCount: 0 })
+      }
 
-      await put(filename, JSON.stringify(orders, null, 2), {
-        access: "private",
-        contentType: "application/json",
-      })
+      // Remover duplicatas
+      const { error: deleteError } = await supabase
+        .from('orders')
+        .delete()
+        .in('id', duplicateIds)
 
-      // Limpar blobs antigos
-      await cleanupOldBlobs()
+      if (deleteError) {
+        console.error("[orders DELETE] Erro ao remover duplicatas:", deleteError.message)
+        return NextResponse.json({ error: `Erro ao remover: ${deleteError.message}`, success: false }, { status: 500 })
+      }
 
-      return NextResponse.json({ 
-        success: true, 
-        message: `Limpeza concluida. ${removedCount} duplicatas removidas.`,
-        originalCount,
-        finalCount: orders.length,
-        removedCount
-      })
+      console.log(`[orders DELETE] ${duplicateIds.length} duplicata(s) removida(s)`)
+      return NextResponse.json({ success: true, message: `${duplicateIds.length} duplicata(s) removida(s)`, removedCount: duplicateIds.length, source: 'supabase' })
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+
   } catch (error) {
-    console.error("[Orders DELETE] Erro:", error)
-    return NextResponse.json(
-      { error: "Failed to process request" },
-      { status: 500 }
-    )
+    console.error("[orders DELETE] Erro:", error)
+    return NextResponse.json({ error: "Failed to delete", details: String(error) }, { status: 500 })
   }
 }

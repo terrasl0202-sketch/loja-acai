@@ -1,0 +1,283 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { 
+  Palette, 
+  Sun, 
+  Layout, 
+  Sparkles, 
+  Info, 
+  CreditCard, 
+  Eye,
+  Loader2,
+  Save,
+  RotateCcw,
+  Image,
+  Images,
+  Layers,
+  Check
+} from "lucide-react"
+import { toast } from "sonner"
+import { StoreCustomization, defaultCustomization } from "@/lib/config-types"
+import { IdentityTab } from "./tabs/IdentityTab"
+import { ThemeTab } from "./tabs/ThemeTab"
+import { LayoutTab } from "./tabs/LayoutTab"
+import { ElementsTab } from "./tabs/ElementsTab"
+import { InfoTab } from "./tabs/InfoTab"
+import { PaymentsTab } from "./tabs/PaymentsTab"
+import { PreviewTab } from "./tabs/PreviewTab"
+import { HeroTab } from "./tabs/HeroTab"
+import { BannersTab } from "./tabs/BannersTab"
+import { TemplatesTab } from "./tabs/TemplatesTab"
+
+type CustomizationTab = "templates" | "identity" | "theme" | "hero" | "banners" | "layout" | "elements" | "info" | "payments" | "preview"
+
+const TABS: { id: CustomizationTab; label: string; icon: React.ReactNode; description: string }[] = [
+  { id: "templates", label: "Templates", icon: <Layers className="w-4 h-4" />, description: "Modelos prontos" },
+  { id: "identity", label: "Aparencia", icon: <Palette className="w-4 h-4" />, description: "Logo, cores, imagens" },
+  { id: "theme", label: "Tema", icon: <Sun className="w-4 h-4" />, description: "Claro ou escuro" },
+  { id: "hero", label: "Banner", icon: <Image className="w-4 h-4" />, description: "Banner principal" },
+  { id: "banners", label: "Carrossel", icon: <Images className="w-4 h-4" />, description: "Banners rotativos" },
+  { id: "layout", label: "Layout", icon: <Layout className="w-4 h-4" />, description: "Estilo dos cards" },
+  { id: "elements", label: "Elementos", icon: <Sparkles className="w-4 h-4" />, description: "Mostrar/ocultar secoes" },
+  { id: "info", label: "Redes e Rodape", icon: <Info className="w-4 h-4" />, description: "Redes sociais e rodape" },
+  { id: "payments", label: "Pagamentos", icon: <CreditCard className="w-4 h-4" />, description: "Gateways" },
+  { id: "preview", label: "Preview", icon: <Eye className="w-4 h-4" />, description: "Visualizar loja" },
+]
+
+interface AdminCustomizationProps {
+  onSave?: () => void
+}
+
+export function AdminCustomization({ onSave }: AdminCustomizationProps) {
+  const [activeTab, setActiveTab] = useState<CustomizationTab>("templates")
+  const [customization, setCustomization] = useState<StoreCustomization>(defaultCustomization)
+  const [originalCustomization, setOriginalCustomization] = useState<StoreCustomization>(defaultCustomization)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [hasChanges, setHasChanges] = useState(false)
+
+  // Carregar configuracoes
+  const loadCustomization = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await fetch("/api/customization")
+      const data = await res.json()
+      
+      if (data.customization) {
+        setCustomization(data.customization)
+        setOriginalCustomization(data.customization)
+      }
+    } catch (err) {
+      console.error("Erro ao carregar customizacao:", err)
+      toast.error("Erro ao carregar configuracoes", {
+        description: "Recarregue a pagina para tentar novamente.",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadCustomization()
+  }, [loadCustomization])
+
+  // Detectar mudancas
+  useEffect(() => {
+    const changed = JSON.stringify(customization) !== JSON.stringify(originalCustomization)
+    setHasChanges(changed)
+  }, [customization, originalCustomization])
+
+  // Salvar configuracoes
+  const saveCustomization = async () => {
+    try {
+      setSaving(true)
+      setSaveSuccess(false)
+      
+      const res = await fetch("/api/customization", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customization }),
+      })
+
+      const data = await res.json()
+
+      if (data.error) {
+        throw new Error(data.error)
+      }
+
+      setOriginalCustomization(customization)
+      setHasChanges(false)
+      setSaveSuccess(true)
+      
+      toast.success("Configuracoes salvas com sucesso!", {
+        description: "As alteracoes ja estao visiveis na loja.",
+        duration: 4000,
+      })
+      
+      onSave?.()
+      
+      // Reset do icone de sucesso apos 2s
+      setTimeout(() => setSaveSuccess(false), 2000)
+    } catch (err) {
+      toast.error("Erro ao salvar", {
+        description: err instanceof Error ? err.message : "Tente novamente em alguns segundos.",
+        duration: 5000,
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Resetar para original
+  const resetCustomization = () => {
+    setCustomization(originalCustomization)
+  }
+
+  // Atualizar secao especifica
+  const updateSection = <K extends keyof StoreCustomization>(
+    section: K,
+    updates: Partial<StoreCustomization[K]>
+  ) => {
+    setCustomization(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        ...updates,
+      },
+    }))
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-foreground">Personalizacao Premium</h2>
+          <p className="text-sm text-muted-foreground">Configure a aparencia da sua loja</p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {hasChanges && (
+            <button
+              onClick={resetCustomization}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Desfazer
+            </button>
+          )}
+          <button
+            onClick={saveCustomization}
+            disabled={saving || !hasChanges}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+              saveSuccess 
+                ? "bg-green-500 text-white" 
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : saveSuccess ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            {saving ? "Salvando..." : saveSuccess ? "Salvo!" : "Salvar"}
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-secondary/50 rounded-xl overflow-x-auto">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
+              activeTab === tab.id
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Conteudo da aba */}
+      <div className="min-h-[400px]">
+        {activeTab === "templates" && (
+          <TemplatesTab
+            customization={customization}
+            onApplyTemplate={(newCustomization) => {
+              setCustomization(newCustomization)
+              setHasChanges(true)
+            }}
+          />
+        )}
+        {activeTab === "identity" && (
+          <IdentityTab
+            identity={customization.identity}
+            colors={customization.colors}
+            storeName=""
+            onUpdateIdentity={(updates) => updateSection("identity", updates)}
+            onUpdateColors={(updates) => updateSection("colors", updates)}
+          />
+        )}
+        {activeTab === "theme" && (
+          <ThemeTab
+            theme={customization.theme}
+            onUpdate={(updates) => updateSection("theme", updates)}
+          />
+        )}
+        {activeTab === "hero" && customization.hero && (
+          <HeroTab
+            hero={customization.hero}
+            onUpdate={(updates) => updateSection("hero", updates)}
+          />
+        )}
+        {activeTab === "banners" && (
+          <BannersTab />
+        )}
+        {activeTab === "layout" && (
+          <LayoutTab
+            theme={customization.theme}
+            onUpdate={(updates) => updateSection("theme", updates)}
+          />
+        )}
+        {activeTab === "elements" && (
+          <ElementsTab
+            elements={customization.elements}
+            onUpdate={(updates) => updateSection("elements", updates)}
+          />
+        )}
+        {activeTab === "info" && (
+          <InfoTab
+            social={customization.social}
+            onUpdate={(updates) => updateSection("social", updates)}
+          />
+        )}
+        {activeTab === "payments" && (
+          <PaymentsTab
+            gateways={customization.gateways}
+            onUpdate={(updates) => updateSection("gateways", updates)}
+          />
+        )}
+        {activeTab === "preview" && (
+          <PreviewTab customization={customization} />
+        )}
+      </div>
+    </div>
+  )
+}
