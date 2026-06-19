@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServiceClient } from "@/lib/supabase/service"
+import { verifyStoreAdmin } from "@/lib/platform-auth"
 
 /**
  * /api/platform/store-stats
@@ -20,21 +21,17 @@ const noCacheHeaders = {
 
 export async function POST(request: NextRequest) {
   try {
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
-    if (!ADMIN_PASSWORD) {
-      return NextResponse.json({ error: "Autenticacao indisponivel" }, { status: 503, headers: noCacheHeaders })
-    }
-
     const body = await request.json().catch(() => ({}))
     const password = body?.password
     const storeId = Number(body?.storeId)
 
-    if (password !== ADMIN_PASSWORD) {
-      return NextResponse.json({ error: "Acesso negado" }, { status: 401, headers: noCacheHeaders })
-    }
-
-    if (!storeId || isNaN(storeId) || storeId <= 0) {
-      return NextResponse.json({ error: "storeId invalido" }, { status: 400, headers: noCacheHeaders })
+    // Autenticacao por loja (senha por loja com fallback global transitorio)
+    const auth = await verifyStoreAdmin(storeId, password)
+    if (!auth.ok) {
+      return NextResponse.json(
+        { error: auth.error || "Acesso negado" },
+        { status: auth.status, headers: noCacheHeaders },
+      )
     }
 
     const supabase = getServiceClient()
@@ -59,6 +56,20 @@ export async function POST(request: NextRequest) {
       .eq("store_id", storeId)
       .order("created_at", { ascending: false })
       .limit(30)
+
+    // Categorias da loja - SEMPRE filtrado por store_id
+    const { data: categories } = await supabase
+      .from("product_categories")
+      .select("id, name, description, icon, image_url, sort_order, active")
+      .eq("store_id", storeId)
+      .order("sort_order", { ascending: true })
+
+    // Bairros da loja - SEMPRE filtrado por store_id
+    const { data: neighborhoods } = await supabase
+      .from("neighborhoods")
+      .select("id, name, delivery_fee, active, sort_order")
+      .eq("store_id", storeId)
+      .order("sort_order", { ascending: true })
 
     const ordersList = orders || []
 
@@ -86,6 +97,8 @@ export async function POST(request: NextRequest) {
         },
         products: products || [],
         orders: ordersList,
+        categories: categories || [],
+        neighborhoods: neighborhoods || [],
       },
       { headers: noCacheHeaders },
     )
