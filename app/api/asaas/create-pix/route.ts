@@ -67,6 +67,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Resolver store_id de forma AUTORITATIVA e ANTECIPADA.
+    // Se o checkout enviou storeSlug (fluxo /loja/[slug]), resolvemos pelo slug
+    // no servidor ANTES de criar qualquer cobranca no Asaas. Slug invalido =>
+    // 400 imediato (jamais cair no fallback da loja principal, o que misturaria
+    // pedidos entre lojas, nem gerar cobranca orfa). Sem storeSlug => null aqui
+    // e o store_id sera resolvido por host no bloco de persistencia (PK intacta).
+    const storeSlug = typeof body.order?.storeSlug === "string" ? body.order.storeSlug.trim() : ""
+    let resolvedStoreId: number | null = null
+    if (storeSlug) {
+      resolvedStoreId = await getStoreIdBySlug(storeSlug)
+      if (!resolvedStoreId) {
+        console.error("[Asaas] storeSlug invalido, abortando antes do pagamento:", storeSlug)
+        return NextResponse.json(
+          { error: "Loja invalida. Recarregue a pagina e tente novamente." },
+          { status: 400 }
+        )
+      }
+      console.log("[Asaas] store_id resolvido pelo slug:", storeSlug, "->", resolvedStoreId)
+    }
+
     // Rate limiting leve (5 segundos)
     const lastRequest = pixRequests.get(cleanPhone)
     const now = Date.now()
@@ -225,29 +245,10 @@ export async function POST(request: NextRequest) {
       try {
         const orderInput = body.order || {}
 
-        // Resolver store_id de forma AUTORITATIVA:
-        // - Se o checkout enviou storeSlug (fluxo /loja/[slug]), o backend
-        //   resolve o store_id PELO SLUG no servidor. Nunca confia em um
-        //   store_id cru vindo do cliente.
-        // - Slug invalido => 400 (jamais cair no fallback da loja principal,
-        //   o que misturaria pedidos entre lojas).
-        // - Sem storeSlug => comportamento atual (loja principal/host). PK intacta.
-        let storeId: number
-        const storeSlug = typeof orderInput.storeSlug === "string" ? orderInput.storeSlug.trim() : ""
-        if (storeSlug) {
-          const resolved = await getStoreIdBySlug(storeSlug)
-          if (!resolved) {
-            console.error("[Asaas] storeSlug invalido, abortando:", storeSlug)
-            return NextResponse.json(
-              { error: "Loja invalida. Recarregue a pagina e tente novamente." },
-              { status: 400 }
-            )
-          }
-          storeId = resolved
-          console.log("[Asaas] store_id resolvido pelo slug:", storeSlug, "->", storeId)
-        } else {
-          storeId = await getStoreIdFromRequest(request)
-        }
+        // store_id AUTORITATIVO: usa o que foi resolvido pelo slug no inicio
+        // (fluxo /loja/[slug]); sem slug, resolve pelo host (PK/dominio). Nunca
+        // confia em um store_id cru vindo do cliente.
+        const storeId = resolvedStoreId ?? (await getStoreIdFromRequest(request))
         const result = await insertOrderIfNotExists({
           orderCode: body.externalReference,
           customerName: orderInput.customerName || body.customerName,
