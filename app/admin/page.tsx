@@ -95,6 +95,17 @@ interface AdminPageProps {
 export default function AdminPage(props: AdminPageProps = {}) {
   const { storeSlug, storeName: storeNameProp, storeHref = "/" } = props
 
+  // ========== ESTADOS PRINCIPAIS ==========
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [password, setPassword] = useState("")
+  const [authError, setAuthError] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [config, setConfig] = useState<SiteConfig>(defaultConfig)
+  const [activeTab, setActiveTab] = useState<TabType>("dashboard")
+  const [sessionPassword, setSessionPassword] = useState("")
+
   // ========== MODO MULTI-LOJA: interceptar fetch para injetar x-store-slug ==========
   // Centraliza o escopo por loja em UM unico ponto, sem alterar as ~28 chamadas
   // fetch espalhadas no orquestrador e nos componentes filhos. So afeta requests
@@ -127,17 +138,6 @@ export default function AdminPage(props: AdminPageProps = {}) {
       window.fetch = originalFetch
     }
   }, [storeSlug, sessionPassword])
-
-  // ========== ESTADOS PRINCIPAIS ==========
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [password, setPassword] = useState("")
-  const [authError, setAuthError] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-  const [config, setConfig] = useState<SiteConfig>(defaultConfig)
-  const [activeTab, setActiveTab] = useState<TabType>("dashboard")
-  const [sessionPassword, setSessionPassword] = useState("")
   
   // ========== ESTADOS DE PEDIDOS ==========
   const [orders, setOrders] = useState<Order[]>([])

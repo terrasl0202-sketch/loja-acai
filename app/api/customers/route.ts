@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
 import { getStoreIdFromRequest } from "@/lib/api-store"
+import { getSessionFromRequest } from "@/lib/store-session"
 
 /**
  * /api/customers v2 - MULTIEMPRESA
@@ -69,21 +70,33 @@ export async function GET(request: NextRequest) {
     if (!customer) {
       return NextResponse.json({ found: false, storeId }, { headers: noCacheHeaders })
     }
-    
-    // Retornar dados publicos (sem PIN)
-    const publicData = {
+
+    // PRIVACIDADE: o GET por telefone NAO exige PIN, entao qualquer um que saiba
+    // o numero poderia enumerar dados. Por isso, sem sessao de admin desta loja
+    // retornamos apenas o MINIMO (existencia + nome + flags), OMITINDO PII
+    // sensivel (endereco salvo, total gasto). O proprio cliente recupera esses
+    // dados via POST action:login (protegido por PIN). O admin autenticado da
+    // loja ve os dados completos.
+    const session = getSessionFromRequest(request)
+    const isStoreAdmin = !!session && session.storeId === storeId
+
+    const publicData: Record<string, unknown> = {
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
       totalOrders: customer.total_orders,
-      totalSpent: customer.total_spent,
       isVip: customer.is_vip,
       favorites: customer.favorites || [],
-      savedAddress: customer.saved_address,
-      lastOrderAt: customer.last_order_at,
       createdAt: customer.created_at,
     }
-    
+
+    // Campos sensiveis: somente para o admin autenticado da loja.
+    if (isStoreAdmin) {
+      publicData.totalSpent = customer.total_spent
+      publicData.savedAddress = customer.saved_address
+      publicData.lastOrderAt = customer.last_order_at
+    }
+
     return NextResponse.json({ found: true, customer: publicData, storeId }, { headers: noCacheHeaders })
     
   } catch (error) {
