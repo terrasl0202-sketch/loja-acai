@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { getServiceClient } from "@/lib/supabase/service"
 import { NextRequest } from "next/server"
 
 // Tipo da loja simplificado para APIs
@@ -25,7 +25,7 @@ async function getMainStoreId(): Promise<number> {
     return mainStoreCache.id
   }
 
-  const supabase = await createClient()
+  const supabase = getServiceClient()
   if (!supabase) return 1 // Fallback absoluto
   
   const { data } = await supabase
@@ -98,7 +98,7 @@ export async function getStoreIdFromRequest(request?: NextRequest | Request | nu
  * Busca store_id por slug
  */
 async function getStoreIdBySlug(slug: string): Promise<number | null> {
-  const supabase = await createClient()
+  const supabase = getServiceClient()
   if (!supabase) return null
   
   const { data } = await supabase
@@ -114,7 +114,7 @@ async function getStoreIdBySlug(slug: string): Promise<number | null> {
  * Busca store_id por dominio customizado
  */
 async function getStoreIdByDomain(domain: string): Promise<number | null> {
-  const supabase = await createClient()
+  const supabase = getServiceClient()
   if (!supabase) return null
   
   // Tentar custom_domain primeiro
@@ -141,7 +141,7 @@ async function getStoreIdByDomain(domain: string): Promise<number | null> {
  * Busca informacoes completas da loja
  */
 export async function getStoreInfo(storeId: number): Promise<StoreInfo | null> {
-  const supabase = await createClient()
+  const supabase = getServiceClient()
   if (!supabase) return null
   
   const { data } = await supabase

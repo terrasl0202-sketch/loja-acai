@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
+import { getServiceClient } from "@/lib/supabase/service"
 import StorePageClient from "./client"
 
 interface PageProps {
@@ -8,7 +8,7 @@ interface PageProps {
 
 // Buscar dados da loja no servidor
 async function getStoreData(slug: string) {
-  const supabase = await createClient()
+  const supabase = getServiceClient()
   
   if (!supabase) return null
   
@@ -97,7 +97,7 @@ export default async function LojaPage({ params }: PageProps) {
 
 export async function generateMetadata({ params }: PageProps) {
   const { slug } = await params
-  const supabase = await createClient()
+  const supabase = getServiceClient()
   
   if (!supabase) {
     return { title: "Loja", description: "Pedidos online" }

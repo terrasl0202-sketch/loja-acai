@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Store, ArrowLeft, Loader2, ShoppingBag, Users, Package, DollarSign, Settings, Plus } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import { Store, ArrowLeft, Loader2, ShoppingBag, Users, Package, DollarSign } from "lucide-react"
 import Link from "next/link"
 
 interface StoreData {
@@ -13,17 +13,91 @@ interface StoreData {
   status: string
 }
 
+interface ProductRow {
+  id: number
+  name: string
+  price: number
+  active: boolean
+  stock: number | null
+}
+
+interface OrderRow {
+  id: number
+  order_code: string | null
+  customer_name: string
+  customer_phone: string | null
+  total: number
+  status: string
+  payment_status: string | null
+  created_at: string
+}
+
+interface Stats {
+  orders: number
+  customers: number
+  products: number
+  revenue: number
+}
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0)
+
+const formatDate = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+  } catch {
+    return iso
+  }
+}
+
+const statusLabel = (status: string, paymentStatus: string | null) => {
+  const paid = paymentStatus === "confirmed" || paymentStatus === "paid" || paymentStatus === "pago"
+  if (status === "pending" && !paid) return "Aguardando Pagamento"
+  if (paid && status === "pending") return "Pago - Aguardando Preparo"
+  const map: Record<string, string> = {
+    confirmed: "Confirmado",
+    preparing: "Preparando",
+    delivering: "Saiu para Entrega",
+    completed: "Entregue",
+    cancelled: "Cancelado",
+  }
+  return map[status] || status
+}
+
 export default function AdminBySlugClient({ store }: { store: StoreData }) {
   const [authenticated, setAuthenticated] = useState(false)
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [dataLoading, setDataLoading] = useState(false)
   const [error, setError] = useState("")
-  const [stats, setStats] = useState({
-    orders: 0,
-    customers: 0,
-    products: 0,
-    revenue: 0
-  })
+  const [stats, setStats] = useState<Stats>({ orders: 0, customers: 0, products: 0, revenue: 0 })
+  const [products, setProducts] = useState<ProductRow[]>([])
+  const [orders, setOrders] = useState<OrderRow[]>([])
+
+  const loadStats = useCallback(
+    async (pwd: string) => {
+      setDataLoading(true)
+      try {
+        // Dados SEMPRE isolados por store_id (server-side, service role)
+        const res = await fetch("/api/platform/store-stats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pwd, storeId: store.id }),
+        })
+        if (res.ok) {
+          const json = await res.json()
+          setStats(json.stats || { orders: 0, customers: 0, products: 0, revenue: 0 })
+          setProducts(json.products || [])
+          setOrders(json.orders || [])
+        }
+      } catch (err) {
+        console.error("Erro ao carregar dados da loja:", err)
+      } finally {
+        setDataLoading(false)
+      }
+    },
+    [store.id],
+  )
 
   const handleLogin = async () => {
     setLoading(true)
@@ -40,7 +114,8 @@ export default function AdminBySlugClient({ store }: { store: StoreData }) {
       if (res.ok) {
         setAuthenticated(true)
         sessionStorage.setItem(`admin_${store.slug}`, "true")
-        loadStats()
+        sessionStorage.setItem(`admin_pwd_${store.slug}`, password)
+        loadStats(password)
       } else {
         setError("Senha incorreta")
       }
@@ -51,22 +126,14 @@ export default function AdminBySlugClient({ store }: { store: StoreData }) {
     }
   }
 
-  const loadStats = async () => {
-    try {
-      // TODO: Criar API para buscar stats por store_id
-      // Por enquanto, mostra valores zerados
-    } catch (error) {
-      console.error("Erro ao carregar stats:", error)
-    }
-  }
-
   useEffect(() => {
     const saved = sessionStorage.getItem(`admin_${store.slug}`)
-    if (saved === "true") {
+    const savedPwd = sessionStorage.getItem(`admin_pwd_${store.slug}`)
+    if (saved === "true" && savedPwd) {
       setAuthenticated(true)
-      loadStats()
+      loadStats(savedPwd)
     }
-  }, [store.slug])
+  }, [store.slug, loadStats])
 
   if (!authenticated) {
     return (
@@ -96,9 +163,7 @@ export default function AdminBySlugClient({ store }: { store: StoreData }) {
                 />
               </div>
 
-              {error && (
-                <p className="text-sm text-red-500">{error}</p>
-              )}
+              {error && <p className="text-sm text-red-500">{error}</p>}
 
               <button
                 onClick={handleLogin}
@@ -176,41 +241,76 @@ export default function AdminBySlugClient({ store }: { store: StoreData }) {
               <DollarSign className="w-5 h-5 text-yellow-500" />
               <span className="text-sm text-muted-foreground">Faturamento</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(stats.revenue)}
-            </p>
+            <p className="text-2xl font-bold text-foreground">{formatCurrency(stats.revenue)}</p>
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="bg-card rounded-xl border border-border p-6 mb-6">
-          <h2 className="font-bold text-foreground mb-4">Acoes Rapidas</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <button className="p-4 rounded-lg bg-muted hover:bg-muted/80 transition-colors text-center">
-              <Plus className="w-6 h-6 text-primary mx-auto mb-2" />
-              <span className="text-sm text-foreground">Novo Produto</span>
-            </button>
-            <button className="p-4 rounded-lg bg-muted hover:bg-muted/80 transition-colors text-center">
-              <ShoppingBag className="w-6 h-6 text-blue-500 mx-auto mb-2" />
-              <span className="text-sm text-foreground">Ver Pedidos</span>
-            </button>
-            <button className="p-4 rounded-lg bg-muted hover:bg-muted/80 transition-colors text-center">
-              <Users className="w-6 h-6 text-green-500 mx-auto mb-2" />
-              <span className="text-sm text-foreground">Ver Clientes</span>
-            </button>
-            <button className="p-4 rounded-lg bg-muted hover:bg-muted/80 transition-colors text-center">
-              <Settings className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
-              <span className="text-sm text-foreground">Configuracoes</span>
-            </button>
+        {dataLoading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Carregando dados da loja...
           </div>
-        </div>
+        )}
 
-        {/* Info */}
-        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
-          <p className="text-sm text-yellow-600">
-            <strong>Fase 3.0 - Fundacao:</strong> Este admin por loja esta em desenvolvimento. 
-            Na proxima fase, todas as funcionalidades do admin principal serao replicadas aqui com filtro por store_id.
-          </p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Pedidos recentes */}
+          <div className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <ShoppingBag className="w-5 h-5 text-blue-500" />
+              <h2 className="font-bold text-foreground">Pedidos Recentes</h2>
+            </div>
+            {orders.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">Nenhum pedido ainda</p>
+            ) : (
+              <div className="divide-y divide-border">
+                {orders.map((o) => (
+                  <div key={o.id} className="py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {o.customer_name || "Cliente"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {o.order_code || `#${o.id}`} · {formatDate(o.created_at)}
+                      </p>
+                      <span className="text-xs text-muted-foreground">{statusLabel(o.status, o.payment_status)}</span>
+                    </div>
+                    <span className="text-sm font-bold text-foreground whitespace-nowrap">
+                      {formatCurrency(Number(o.total))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Produtos */}
+          <div className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Package className="w-5 h-5 text-purple-500" />
+              <h2 className="font-bold text-foreground">Produtos</h2>
+            </div>
+            {products.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">Nenhum produto cadastrado</p>
+            ) : (
+              <div className="divide-y divide-border">
+                {products.map((p) => (
+                  <div key={p.id} className="py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
+                      <span
+                        className={`text-xs ${p.active ? "text-green-500" : "text-muted-foreground"}`}
+                      >
+                        {p.active ? "Ativo" : "Inativo"}
+                      </span>
+                    </div>
+                    <span className="text-sm font-bold text-foreground whitespace-nowrap">
+                      {formatCurrency(Number(p.price))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>
