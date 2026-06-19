@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { getStoreIdFromRequest } from "@/lib/api-store"
+import { getStoreIdFromRequest, INVALID_STORE_ID } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
+import { getInternalToken, verifyInternalToken, INTERNAL_TOKEN_HEADER } from "@/lib/internal-token"
 
 // POST - Verificar todas gamificacoes de um cliente
 // Chamado apos pedido confirmado, avaliacao, etc
@@ -18,13 +20,32 @@ export async function POST(request: Request) {
 
     // Identificar loja atual
     const storeId = await getStoreIdFromRequest(request)
+    if (!storeId || storeId === INVALID_STORE_ID || storeId <= 0) {
+      return NextResponse.json({ error: "Contexto de loja invalido" }, { status: 400 })
+    }
+
+    // === AUTORIZACAO (Fase de Seguranca 2) ===
+    // Conceder recompensas (badges/pontos/cashback) deve vir de ORIGEM CONFIAVEL:
+    //  - chamada interna do backend (token interno), ex.: apos confirmacao real
+    //    de pedido em /api/orders/confirm; ou
+    //  - admin autenticado da loja.
+    // Nunca aceitar concessao arbitraria so com customerId no body.
+    if (!verifyInternalToken(request)) {
+      const auth = await requireStoreAuth(request)
+      if (!auth.ok) return auth.response!
+      if (auth.storeId !== storeId) {
+        return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+      }
+    }
 
     // Propagar o contexto de tenant para as sub-chamadas internas, para que
     // achievements/missions/streaks operem na MESMA loja (sem isso, cairiam no
-    // fallback por host = loja principal).
+    // fallback por host = loja principal). Tambem propagamos o token interno
+    // para autorizar essas sub-chamadas como origem confiavel.
     const incomingSlug = request.headers.get("x-store-slug")
     const internalHeaders: Record<string, string> = { "Content-Type": "application/json" }
     if (incomingSlug) internalHeaders["x-store-slug"] = incomingSlug
+    internalHeaders[INTERNAL_TOKEN_HEADER] = getInternalToken()
 
     const results = {
       achievements: { newUnlocked: [] as { name: string; points: number; cashback: number }[] },

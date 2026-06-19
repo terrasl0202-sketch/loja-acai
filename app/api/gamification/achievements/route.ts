@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { getStoreIdFromRequest } from "@/lib/api-store"
+import { getStoreIdFromRequest, INVALID_STORE_ID } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
+import { verifyInternalToken } from "@/lib/internal-token"
+
+/**
+ * Autoriza a concessao de recompensas: aceita SOMENTE origem confiavel
+ * (token interno do backend) ou admin autenticado da loja. Retorna a resposta
+ * de erro pronta quando nao autorizado, ou null quando OK.
+ */
+async function authorizeRewardGrant(request: NextRequest, storeId: number): Promise<NextResponse | null> {
+  if (verifyInternalToken(request)) return null
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  if (auth.storeId !== storeId) {
+    return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+  }
+  return null
+}
 
 /**
  * /api/gamification/achievements v2 - MULTIEMPRESA
@@ -65,7 +82,14 @@ export async function GET(request: NextRequest) {
 // POST - Verificar e desbloquear conquistas NESTA LOJA
 export async function POST(request: NextRequest) {
   const storeId = await getStoreIdFromRequest(request)
-  
+  if (!storeId || storeId === INVALID_STORE_ID || storeId <= 0) {
+    return NextResponse.json({ error: "Contexto de loja invalido" }, { status: 400 })
+  }
+
+  // === AUTORIZACAO (Fase de Seguranca 2) ===
+  const denied = await authorizeRewardGrant(request, storeId)
+  if (denied) return denied
+
   try {
     const supabase = await createClient()
     if (!supabase) {

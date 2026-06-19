@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { getStoreIdFromRequest } from "@/lib/api-store"
+import { getStoreIdFromRequest, INVALID_STORE_ID } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
+import { verifyInternalToken } from "@/lib/internal-token"
 
 // GET - Buscar missoes do cliente
 export async function GET(request: NextRequest) {
@@ -110,6 +112,20 @@ export async function POST(request: Request) {
 
     // Identificar loja atual
     const storeId = await getStoreIdFromRequest(request)
+    if (!storeId || storeId === INVALID_STORE_ID || storeId <= 0) {
+      return NextResponse.json({ error: "Contexto de loja invalido" }, { status: 400 })
+    }
+
+    // === AUTORIZACAO (Fase de Seguranca 2) ===
+    // Completar missoes concede pontos/cashback: exige origem confiavel (token
+    // interno do backend) ou admin autenticado da loja.
+    if (!verifyInternalToken(request)) {
+      const auth = await requireStoreAuth(request)
+      if (!auth.ok) return auth.response!
+      if (auth.storeId !== storeId) {
+        return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+      }
+    }
 
     // Buscar dados do cliente DESTA LOJA
     const validStatuses = ["confirmed", "preparing", "delivering", "completed"]
