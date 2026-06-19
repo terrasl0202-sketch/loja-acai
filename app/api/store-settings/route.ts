@@ -47,24 +47,13 @@ export async function GET(request: NextRequest) {
     .single()
   
   if (error) {
-    // Se nao encontrar, tentar sem filtro (dados antigos sem store_id)
+    // Loja ainda sem linha de configuracao: retornar defaults vazios.
+    // NUNCA capturar linha de outra loja (store_id nulo) nem usar id='main' -
+    // isso causaria mistura de configuracoes entre lojas. A linha desta loja e
+    // criada no proximo POST (upsert por store_id, id='store_<id>').
     if (error.code === 'PGRST116') {
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from('store_settings')
-        .select('*')
-        .is('store_id', null)
-        .limit(1)
-        .single()
-      
-      if (fallbackData && !fallbackError) {
-        // Migrar dados para a loja atual
-        await supabase
-          .from('store_settings')
-          .update({ store_id: storeId })
-          .eq('id', fallbackData.id)
-        
-        return buildSettingsResponse(fallbackData, debugInfo)
-      }
+      console.log(`[${BUILD_LABEL}] GET sem registro para store ${storeId} - retornando defaults`)
+      return buildSettingsResponse({ store_id: storeId }, debugInfo)
     }
     
     console.log(`[${BUILD_LABEL}] GET error: ${error.code} - ${error.message}`)
@@ -187,23 +176,15 @@ export async function POST(request: NextRequest) {
   
   const body = await request.json()
   
-  // Buscar registro existente DESTA LOJA
-  const { data: existingRecord } = await supabase
-    .from('store_settings')
-    .select('id')
-    .eq('store_id', storeId)
-    .limit(1)
-    .single()
-  
-  // Montar objeto com TODOS os campos
+  // Montar objeto com TODOS os campos.
+  // store_id e a CHAVE DE NEGOCIO (UNIQUE). O id e SEMPRE derivado do store_id
+  // ('store_<id>'), nunca o default 'main' compartilhado. Assim o upsert por
+  // store_id grava/atualiza exclusivamente a linha DESTA loja, sem misturar
+  // configuracoes entre lojas.
   const dataToSave: Record<string, unknown> = {
+    id: `store_${storeId}`,   // SEMPRE explicito, derivado da loja
+    store_id: storeId,         // SEMPRE salvar store_id
     updated_at: new Date().toISOString(),
-    store_id: storeId, // SEMPRE salvar store_id
-  }
-  
-  // Se existe um registro, usar o ID dele para update
-  if (existingRecord?.id) {
-    dataToSave.id = existingRecord.id
   }
   
   // Dados basicos da loja
@@ -330,7 +311,7 @@ export async function POST(request: NextRequest) {
   
   const { data, error } = await supabase
     .from('store_settings')
-    .upsert(dataToSave, { onConflict: 'id' })
+    .upsert(dataToSave, { onConflict: 'store_id' })
     .select()
     .single()
   
