@@ -36,6 +36,7 @@ interface StoreData {
   subdomain: string | null
   logo_url: string | null
   created_at: string
+  has_admin_password?: boolean
   stats: {
     orders: number
     customers: number
@@ -75,7 +76,8 @@ export default function PlatformPage() {
     owner_email: "",
     owner_phone: "",
     plan: "starter",
-    status: "active"
+    status: "active",
+    admin_password: "",
   })
   const [saving, setSaving] = useState(false)
 
@@ -124,7 +126,8 @@ export default function PlatformPage() {
       owner_email: "",
       owner_phone: "",
       plan: "starter",
-      status: "active"
+      status: "active",
+      admin_password: "",
     })
     setShowModal(true)
   }
@@ -138,7 +141,8 @@ export default function PlatformPage() {
       owner_email: store.owner_email || "",
       owner_phone: store.owner_phone || "",
       plan: store.plan,
-      status: store.status
+      status: store.status,
+      admin_password: "",
     })
     setShowModal(true)
   }
@@ -160,6 +164,8 @@ export default function PlatformPage() {
             owner_phone: formData.owner_phone,
             plan: formData.plan,
             status: formData.status,
+            // Enviado apenas quando preenchido; backend grava somente o hash
+            ...(formData.admin_password ? { admin_password: formData.admin_password } : {}),
           })
         })
         const data = await res.json()
@@ -506,6 +512,27 @@ export default function PlatformPage() {
                     <option value="trial">Trial</option>
                     <option value="cancelled">Cancelada</option>
                   </select>
+                </div>
+              )}
+
+              {editingStore && (
+                <div>
+                  <label className="text-sm text-muted-foreground">
+                    Senha do Admin da Loja
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.admin_password}
+                    onChange={(e) => setFormData({ ...formData, admin_password: e.target.value })}
+                    className="w-full mt-1 px-4 py-2 rounded-lg bg-background border border-border text-foreground"
+                    placeholder={editingStore.has_admin_password ? "Definir nova senha (deixe vazio p/ manter)" : "Definir senha de acesso ao admin"}
+                    autoComplete="new-password"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {editingStore.has_admin_password
+                      ? "Esta loja ja tem senha. Preencha apenas para troca-la."
+                      : "Esta loja ainda nao tem senha de admin. Defina uma para o lojista acessar /admin/" + editingStore.slug + "."}
+                  </p>
                 </div>
               )}
             </div>

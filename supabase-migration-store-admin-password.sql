@@ -1,30 +1,33 @@
 -- ============================================================
--- MIGRACAO OPCIONAL — Senha de admin POR LOJA (multi-lojas / SaaS)
--- ============================================================
---
--- O codigo do admin /admin/[slug] ja funciona SEM esta coluna,
--- usando a ADMIN_PASSWORD global como fallback transitorio.
---
--- Rode este script no Supabase (SQL Editor) quando quiser que cada
--- loja tenha a PROPRIA senha de admin. Apos rodar, o login de cada
--- loja passa a validar contra stores.admin_password automaticamente.
---
--- NAO apaga dados. NAO desabilita RLS. NAO cria policy publica.
--- A coluna so e lida server-side (service role).
+-- Senha de admin POR LOJA (apenas HASH, nunca texto puro)
+-- Rode no SQL Editor do Supabase ANTES de publicar/usar.
 -- ============================================================
 
--- 1) Adiciona a coluna (idempotente)
+-- 1) Coluna de hash (SHA-256) da senha de admin de cada loja.
 ALTER TABLE public.stores
-  ADD COLUMN IF NOT EXISTS admin_password TEXT;
+  ADD COLUMN IF NOT EXISTS admin_password_hash text;
 
--- 2) (Opcional) Defina senhas por loja. Troque pelos valores reais.
---    Enquanto admin_password ficar NULL/vazio, a loja usa a senha global.
---
--- UPDATE public.stores SET admin_password = 'senha-da-loja-teste' WHERE slug = 'lojateste';
--- UPDATE public.stores SET admin_password = 'senha-da-pk'        WHERE store_code = 'main';
+-- 2) Remover a coluna antiga de texto puro, caso tenha sido criada
+--    em testes anteriores. (Seguro: nao falha se nao existir.)
+ALTER TABLE public.stores
+  DROP COLUMN IF EXISTS admin_password;
 
 -- 3) Conferir
 -- SELECT id, store_code, slug, status,
---        CASE WHEN admin_password IS NULL OR admin_password = '' THEN 'usa senha global'
---             ELSE 'senha propria' END AS auth
+--        CASE WHEN admin_password_hash IS NULL OR admin_password_hash = ''
+--             THEN 'sem senha (usa global se for a loja principal)'
+--             ELSE 'senha propria definida' END AS auth
 -- FROM public.stores ORDER BY id;
+
+-- ============================================================
+-- Observacoes:
+-- - O hash e gerado pela aplicacao: sha256("pkgostosuras::store-admin::v1:" || senha).
+--   NUNCA insira senha em texto puro aqui. Defina a senha pelo painel /platform
+--   (Editar loja -> "Senha do Admin da Loja"), que grava somente o hash.
+-- - Enquanto a loja PRINCIPAL (store_code = 'main') nao tiver hash, ela ainda
+--   aceita a ADMIN_PASSWORD global (bootstrap anti-lockout). Assim que voce
+--   definir a senha da PK no /platform, a senha global para de funcionar.
+-- - Lojas secundarias SEM hash nao conseguem logar ate ter uma senha definida.
+-- - RLS permanece ativo; o hash so e lido/escrito via service role no servidor
+--   e NUNCA e exposto ao frontend.
+-- ============================================================

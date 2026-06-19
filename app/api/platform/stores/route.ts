@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { hashPassword } from "@/lib/platform-auth"
 
 const PLATFORM_PASSWORD = process.env.PLATFORM_PASSWORD
 
@@ -54,8 +55,14 @@ export async function GET(request: NextRequest) {
           supabase.from("products").select("id", { count: "exact", head: true }).eq("store_id", store.id),
         ])
 
+        // NUNCA expor o hash de senha ao frontend
+        const { admin_password_hash, ...safeStore } = store as Record<string, unknown>
+        void admin_password_hash
+
         return {
-          ...store,
+          ...safeStore,
+          // flag util para a UI saber se a loja ja tem senha definida
+          has_admin_password: Boolean(admin_password_hash),
           stats: {
             orders: ordersResult.count || 0,
             customers: customersResult.count || 0,
@@ -242,6 +249,15 @@ export async function PATCH(request: NextRequest) {
       if (updates[field] !== undefined) {
         sanitizedUpdates[field] = updates[field]
       }
+    }
+
+    // Definir/trocar a senha de admin da loja: recebe a senha NOVA em texto,
+    // armazena APENAS o hash (nunca texto puro). O hash nunca volta ao frontend.
+    if (typeof updates.admin_password === "string" && updates.admin_password.length > 0) {
+      if (updates.admin_password.length < 4) {
+        return NextResponse.json({ error: "A senha deve ter ao menos 4 caracteres" }, { status: 400 })
+      }
+      sanitizedUpdates.admin_password_hash = hashPassword(updates.admin_password)
     }
 
     const { data: updated, error } = await supabase

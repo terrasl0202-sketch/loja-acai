@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server"
+import { verifyAdminForRequest } from "@/lib/platform-auth"
 
 export async function POST(request: Request) {
   try {
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
-    if (!ADMIN_PASSWORD) {
-      console.error("[Auth] ADMIN_PASSWORD nao configurada")
-      return NextResponse.json({ success: false, error: "Autenticacao indisponivel" }, { status: 503 })
-    }
-
     const { password } = await request.json()
 
-    if (password === ADMIN_PASSWORD) {
+    // Valida a senha contra a LOJA do request (resolvida por x-store-slug, que o
+    // admin injeta; sem slug => loja principal). Senha por loja com hash; a senha
+    // global so funciona para a loja principal enquanto ela nao tiver hash.
+    const auth = await verifyAdminForRequest(request, password)
+
+    if (auth.ok) {
       return NextResponse.json({ success: true })
     }
 
