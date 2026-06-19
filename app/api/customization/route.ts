@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { defaultCustomization, StoreCustomization } from "@/lib/config-types"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -13,13 +14,16 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
-// GET - Buscar configuracoes de customizacao
-export async function GET() {
+// GET - Buscar configuracoes de customizacao DA LOJA ATUAL
+export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabase()
     if (!supabase) {
       return NextResponse.json({ customization: defaultCustomization })
     }
+
+    // Resolver tenant no backend (x-store-slug / host / fallback PK)
+    const storeId = await getStoreIdFromRequest(request)
 
     const { data, error } = await supabase
       .from("store_settings")
@@ -77,9 +81,9 @@ export async function GET() {
         hero_badge_3_enabled,
         whatsapp_message
       `)
-      .order('id', { ascending: true })
+      .eq('store_id', storeId)
       .limit(1)
-      .single()
+      .maybeSingle()
 
     if (error) {
       console.error("Erro ao buscar customizacao:", error)
@@ -177,6 +181,11 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Supabase nao configurado" }, { status: 500 })
     }
 
+    // Resolver tenant no backend (x-store-slug / host / fallback PK).
+    // Slug explicito porem invalido => INVALID_STORE_ID (-1), que nunca casa
+    // com a PK, impedindo escrita cruzada.
+    const storeId = await getStoreIdFromRequest(req)
+
     const body = await req.json()
     const { customization } = body as { customization: Partial<StoreCustomization> }
 
@@ -271,27 +280,28 @@ export async function PUT(req: NextRequest) {
 
     updateData.updated_at = new Date().toISOString()
 
-    // Buscar o primeiro registro existente
+    // Buscar o registro DESTA LOJA (nunca "o primeiro registro global")
     const { data: existingData } = await supabase
       .from("store_settings")
       .select("id")
-      .order('id', { ascending: true })
+      .eq("store_id", storeId)
       .limit(1)
-      .single()
+      .maybeSingle()
 
     let error
     if (existingData) {
-      // Atualizar registro existente
+      // Atualizar registro existente DESTA LOJA (filtro duplo de seguranca)
       const result = await supabase
         .from("store_settings")
         .update(updateData)
         .eq("id", existingData.id)
+        .eq("store_id", storeId)
       error = result.error
     } else {
-      // Inserir novo registro
+      // Inserir novo registro JA VINCULADO A LOJA
       const result = await supabase
         .from("store_settings")
-        .insert(updateData)
+        .insert({ ...updateData, store_id: storeId })
       error = result.error
     }
 

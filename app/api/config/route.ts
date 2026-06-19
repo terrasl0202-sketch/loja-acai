@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { type SiteConfig, defaultConfig } from "@/lib/config-types"
 import { createClient } from "@supabase/supabase-js"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
 const LOCAL_CONFIG_KEY = "pk-site-config"
@@ -39,6 +40,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    // Resolver tenant no backend para escopar a personalizacao por loja
+    const storeId = await getStoreIdFromRequest(request)
+
     // Tentar carregar config do Supabase
     const supabase = getSupabaseClient()
     
@@ -51,13 +55,13 @@ export async function GET(request: Request) {
           .eq('id', 'main')
           .single()
         
-        // Buscar store_settings (personalizacao)
+        // Buscar store_settings (personalizacao) DESTA LOJA - nunca "a primeira"
         const { data: storeData, error: storeError } = await supabase
           .from('store_settings')
           .select('*')
-          .order('id', { ascending: true })
+          .eq('store_id', storeId)
           .limit(1)
-          .single()
+          .maybeSingle()
         
         if (!error && data) {
           // Mesclar dados do Supabase com defaultConfig
@@ -195,6 +199,17 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // SEGURANCA MULTI-TENANT: este endpoint grava em admin_settings (singleton
+    // global, id='main'), que pertence APENAS a loja principal. Uma loja
+    // secundaria (contexto x-store-slug) NUNCA pode escrever aqui, sob risco de
+    // contaminar a config global. A personalizacao por loja usa /api/store-settings.
+    if (request.headers.get("x-store-slug")) {
+      return NextResponse.json(
+        { error: "Operacao indisponivel para lojas secundarias. Use /api/store-settings." },
+        { status: 403 },
+      )
+    }
+
     const body = await request.json()
     const { password, config } = body
 

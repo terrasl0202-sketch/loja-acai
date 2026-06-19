@@ -11,6 +11,10 @@ export interface StoreInfo {
   plan: string
 }
 
+// Sentinela para tenant explicito porem invalido (slug inexistente).
+// Nao casa com nenhuma loja real, prevenindo vazamento para a PK.
+export const INVALID_STORE_ID = -1
+
 // Cache da loja main
 let mainStoreCache: StoreInfo | null = null
 let mainStoreCacheTime = 0
@@ -54,13 +58,15 @@ export async function getStoreIdFromRequest(request?: NextRequest | Request | nu
 
     // 0. Header X-Store-Slug (AUTORITATIVO) - usado pelo admin multi-loja
     //    /admin/[slug]. O backend resolve o store_id PELO SLUG no servidor,
-    //    nunca confiando em um store_id cru vindo do cliente. Slug invalido
-    //    NAO resolve aqui (cai para o fallback), entao rotas que exijam loja
-    //    valida devem tratar o resultado.
+    //    nunca confiando em um store_id cru vindo do cliente.
+    //    SEGURANCA CRITICA: se o slug for EXPLICITO mas invalido/inexistente,
+    //    NUNCA cair no fallback para a loja principal (isso causaria escrita/
+    //    leitura cruzada). Retornamos INVALID_STORE_ID, que nao casa com nenhum
+    //    registro (.eq('store_id', -1) => vazio) nem contamina a PK.
     const headerStoreSlug = request.headers.get("x-store-slug")
     if (headerStoreSlug) {
       const storeId = await getStoreIdBySlug(headerStoreSlug.trim())
-      if (storeId) return storeId
+      return storeId ?? INVALID_STORE_ID
     }
 
     // 1. Header X-Store-ID (usado por rotas /loja/[slug] e /admin/[slug])

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -30,8 +31,12 @@ export async function GET(request: NextRequest) {
     
     // Normalizar telefone
     const normalizedPhone = phone.replace(/\D/g, "")
-    
-    console.log("[customers/orders] Buscando pedidos. phone:", normalizedPhone)
+
+    // Resolver tenant no backend: os pedidos retornados sao SOMENTE da loja
+    // atual. Sem isso, um mesmo telefone vazaria pedidos de outras lojas (PII).
+    const storeId = await getStoreIdFromRequest(request)
+
+    console.log("[customers/orders] Buscando pedidos. phone:", normalizedPhone, "storeId:", storeId)
 
     const supabase = getSupabase()
     
@@ -39,6 +44,7 @@ export async function GET(request: NextRequest) {
     const { data: orders, error } = await supabase
       .from('orders')
       .select('id, order_code, customer_name, customer_phone, address, neighborhood, payment_method, items, total, status, created_at')
+      .eq('store_id', storeId)
       .or(`customer_phone.eq.${normalizedPhone},customer_phone.like.%${normalizedPhone}%`)
       .order('created_at', { ascending: false })
       .limit(20)

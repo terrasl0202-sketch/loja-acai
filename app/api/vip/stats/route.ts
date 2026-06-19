@@ -1,31 +1,32 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { verifyAdminForRequest } from "@/lib/platform-auth"
 
-// GET - Estatisticas VIP para Admin
+// GET - Estatisticas VIP para Admin (ISOLADO POR LOJA)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const password = searchParams.get('password')
+
+    // Auth + resolucao de tenant no backend: valida a senha contra a LOJA do
+    // request (hash por loja) e devolve o store_id correto. Slug invalido nao
+    // resolve para a PK.
+    const auth = await verifyAdminForRequest(request, password)
+    if (!auth.ok) {
+      return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
+    }
+    const storeId = auth.storeId
 
     const supabase = await createClient()
     if (!supabase) {
       return NextResponse.json({ error: "Database error" }, { status: 500 })
     }
 
-    // Validar senha admin
-    const { data: config } = await supabase
-      .from('store_settings')
-      .select('admin_password')
-      .single()
-
-    if (!config || config.admin_password !== password) {
-      return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
-    }
-
-    // Buscar todos os niveis ativos
+    // Buscar todos os niveis ativos DESTA LOJA
     const { data: levels } = await supabase
       .from('customer_levels')
       .select('*')
+      .eq('store_id', storeId)
       .eq('active', true)
       .order('sort_order', { ascending: true })
 
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
     const { data: customers } = await supabase
       .from('customers')
       .select('id, name, phone')
+      .eq('store_id', storeId)
 
     if (!customers || customers.length === 0) {
       return NextResponse.json({ 
@@ -58,6 +60,7 @@ export async function GET(request: NextRequest) {
     const { data: orderTotals } = await supabase
       .from('orders')
       .select('customer_id, total, id')
+      .eq('store_id', storeId)
       .in('status', validStatuses)
       .not('customer_id', 'is', null)
 
