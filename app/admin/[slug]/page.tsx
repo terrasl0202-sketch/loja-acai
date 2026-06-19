@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation"
 import { getServiceClient } from "@/lib/supabase/service"
-import AdminBySlugClient from "./client"
+import AdminPage from "../page"
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -40,7 +40,16 @@ export default async function AdminBySlugPage({ params }: PageProps) {
     notFound()
   }
 
-  return <AdminBySlugClient store={store} />
+  // Reutiliza o MESMO admin bonito (app/admin/page.tsx) em modo multi-loja.
+  // storeSlug faz o admin injetar x-store-slug em todas as chamadas /api/*,
+  // e o backend resolve o store_id PELO SLUG (isolamento por loja).
+  return (
+    <AdminPage
+      storeSlug={store.slug}
+      storeName={store.store_name}
+      storeHref={`/loja/${store.slug}`}
+    />
+  )
 }
 
 export async function generateMetadata({ params }: PageProps) {

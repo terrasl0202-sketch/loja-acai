@@ -51,7 +51,18 @@ export async function getStoreIdFromRequest(request?: NextRequest | Request | nu
   // Tentar extrair de varios lugares
   if (request) {
     const url = new URL(request.url)
-    
+
+    // 0. Header X-Store-Slug (AUTORITATIVO) - usado pelo admin multi-loja
+    //    /admin/[slug]. O backend resolve o store_id PELO SLUG no servidor,
+    //    nunca confiando em um store_id cru vindo do cliente. Slug invalido
+    //    NAO resolve aqui (cai para o fallback), entao rotas que exijam loja
+    //    valida devem tratar o resultado.
+    const headerStoreSlug = request.headers.get("x-store-slug")
+    if (headerStoreSlug) {
+      const storeId = await getStoreIdBySlug(headerStoreSlug.trim())
+      if (storeId) return storeId
+    }
+
     // 1. Header X-Store-ID (usado por rotas /loja/[slug] e /admin/[slug])
     const headerStoreId = request.headers.get("x-store-id")
     if (headerStoreId) {

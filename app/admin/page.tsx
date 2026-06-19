@@ -81,7 +81,43 @@ import {
   VIBRATION_PATTERN,
 } from "./constants"
 
-export default function AdminPage() {
+interface AdminPageProps {
+  // Quando presente, o admin opera no modo MULTI-LOJA: todas as chamadas /api/*
+  // recebem o header x-store-slug e o backend resolve o store_id PELO SLUG.
+  // Ausente (rota /admin) => comportamento atual (loja principal por host).
+  storeSlug?: string
+  // Nome da loja para exibir antes do carregamento das settings.
+  storeName?: string
+  // Destino do botao "Ver Loja"/"Voltar para a loja" (default: "/").
+  storeHref?: string
+}
+
+export default function AdminPage(props: AdminPageProps = {}) {
+  const { storeSlug, storeName: storeNameProp, storeHref = "/" } = props
+
+  // ========== MODO MULTI-LOJA: interceptar fetch para injetar x-store-slug ==========
+  // Centraliza o escopo por loja em UM unico ponto, sem alterar as ~28 chamadas
+  // fetch espalhadas no orquestrador e nos componentes filhos. So afeta requests
+  // same-origin para /api/* e e revertido no unmount.
+  useEffect(() => {
+    if (!storeSlug || typeof window === "undefined") return
+    const originalFetch = window.fetch
+    window.fetch = function patchedFetch(input: RequestInfo | URL, init?: RequestInit) {
+      if (typeof input === "string" || input instanceof URL) {
+        const urlStr = input.toString()
+        if (urlStr.startsWith("/api/") || urlStr.startsWith(`${window.location.origin}/api/`)) {
+          const headers = new Headers(init?.headers)
+          headers.set("x-store-slug", storeSlug)
+          return originalFetch(input, { ...init, headers })
+        }
+      }
+      return originalFetch(input, init)
+    }
+    return () => {
+      window.fetch = originalFetch
+    }
+  }, [storeSlug])
+
   // ========== ESTADOS PRINCIPAIS ==========
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState("")
@@ -1239,7 +1275,7 @@ export default function AdminPage() {
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Lock className="w-4 h-4" /> Entrar</>}
               </button>
             </form>
-            <Link href="/" className="flex items-center justify-center gap-2 mt-5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Link href={storeHref} className="flex items-center justify-center gap-2 mt-5 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft className="w-4 h-4" /> Voltar para a loja
             </Link>
           </div>
@@ -1251,7 +1287,7 @@ export default function AdminPage() {
   // ========== PAINEL ADMIN ==========
   return (
     <div className="dark min-h-screen bg-background">
-      <AdminHeader storeName={storeSettings.storeName} newOrdersCount={newOrdersCount} soundActivated={soundActivated} soundEnabled={soundEnabled} saving={saving} saveSuccess={saveSuccess} onRefresh={() => loadOrdersWithNotification()} onActivateSound={activateSound} onTestSound={playTestSound} onToggleSound={() => setSoundEnabled(!soundEnabled)} onSave={handleSave} onLogout={handleLogout} onMarkAsSeen={markOrdersAsSeen} />
+      <AdminHeader storeName={storeSettings.storeName || storeNameProp || ""} newOrdersCount={newOrdersCount} soundActivated={soundActivated} soundEnabled={soundEnabled} saving={saving} saveSuccess={saveSuccess} onRefresh={() => loadOrdersWithNotification()} onActivateSound={activateSound} onTestSound={playTestSound} onToggleSound={() => setSoundEnabled(!soundEnabled)} onSave={handleSave} onLogout={handleLogout} onMarkAsSeen={markOrdersAsSeen} />
       {saveSuccess && <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-2.5 text-center text-sm font-medium animate-in slide-in-from-top shadow-lg">Alteracoes salvas com sucesso!</div>}
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
         {loading ? (
@@ -1264,7 +1300,7 @@ export default function AdminPage() {
             <AdminOrdersCard activeTab={activeTab} searchInput={searchInput} dateFilter={dateFilter} searchQuery={searchQuery} activeOrdersCount={activeOrders.length} ordersPendingPayment={ordersPendingPayment} ordersPaidWaiting={ordersPaidWaiting} ordersPreparing={ordersPreparing} ordersDelivering={ordersDelivering} ordersCompleted={ordersCompleted} ordersCancelled={ordersCancelled} ordersAbandoned={ordersAbandoned} ordersArchived={ordersArchived} onSearchInputChange={setSearchInput} onDateFilterChange={setDateFilter} onSearch={executeSearch} onClearSearch={() => { setSearchInput(""); setSearchQuery("") }} onTabChange={setActiveTab} onConfirmPayment={(order) => updatePaymentStatus(order.id, "confirmed", true)} onStartPreparing={(order) => updateOrderStatus(order.id, "preparing")} onStartDelivery={(order) => updateOrderStatus(order.id, "delivering")} onFinishOrder={(order) => updateOrderStatus(order.id, "completed")} onCancelOrder={(order) => updateOrderStatus(order.id, "cancelled")} onCopyLink={(order) => copyTrackingLink(order)} onSendLink={(order) => sendTrackingLinkToCustomer(order)} onWhatsApp={(order) => openCustomerWhatsApp(order.customerPhone)} onRefresh={loadOrders} formatOrderItems={formatOrderItems} getOrderCode={getOrderCode} entregadores={config.entregadores || []} onSelectEntregador={(order, entregador) => setConfirmEntregador({ orderId: order.id, entregador })} onSendToEntregador={(order) => { if (order.entregadorWhatsapp) sendOrderToEntregador(order, order.entregadorWhatsapp) }} />
             <AdminQuickSettings activeTab={activeTab} onTabChange={setActiveTab} />
             <AdminRevenueReport ordersCompleted={ordersCompleted} ordersCancelled={ordersCancelled} />
-            <Link href="/" className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm font-medium"><ArrowLeft className="w-4 h-4" /> Ver Loja</Link>
+            <Link href={storeHref} className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-secondary/40 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all text-sm font-medium"><ArrowLeft className="w-4 h-4" /> Ver Loja</Link>
 
             <div className="bg-card/80 rounded-2xl p-4 sm:p-6 border border-border/50 shadow-xl">
               {activeTab === "dashboard" && <AdminDashboard orders={orders} formatCurrency={formatCurrency} onCleanupDuplicates={cleanupDuplicates} onShowArchiveConfirm={() => setShowArchiveConfirm(true)} />}
