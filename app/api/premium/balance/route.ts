@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getStoreIdFromRequest } from "@/lib/api-store"
+import { isCustomerAuthorized } from "@/lib/customer-session"
 
 /**
  * /api/premium/balance v2 - MULTIEMPRESA
@@ -25,6 +26,24 @@ export async function GET(request: NextRequest) {
 
   if (!phone && !customerId) {
     return NextResponse.json({ error: "phone ou customerId obrigatorio" }, { status: 400 })
+  }
+
+  // === AUTORIZACAO (Fase de Seguranca 2) ===
+  // Saldo/nome sao sensiveis. Sem sessao valida (cliente desta loja ou admin),
+  // retornamos payload minimo NAO sensivel (found:false, saldos zerados). Isso
+  // protege a PII e ainda permite o checkout funcionar (apenas nao oferece o
+  // desconto premium para quem nao esta logado).
+  if (!isCustomerAuthorized(request, storeId, { phone, customerId: customerId ? parseInt(customerId) : null })) {
+    console.log("[premium/balance] Acesso nao autenticado: retornando payload minimo")
+    return NextResponse.json({
+      success: true,
+      found: false,
+      cashbackBalance: 0,
+      pointsBalance: 0,
+      cashbackHistory: [],
+      pointsHistory: [],
+      storeId,
+    })
   }
 
   try {

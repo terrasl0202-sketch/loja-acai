@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { getStoreIdFromRequest } from "@/lib/api-store"
+import { isCustomerAuthorized } from "@/lib/customer-session"
 
 /**
  * /api/vip/customer v2 - MULTIEMPRESA
@@ -117,6 +118,14 @@ export async function GET(request: NextRequest) {
 
     if (!customerId && !phone) {
       return NextResponse.json({ error: "customerId ou phone obrigatorio" }, { status: 400 })
+    }
+
+    // === AUTORIZACAO (Fase de Seguranca 2) ===
+    // Status VIP expoe total gasto (financeiro). Sem sessao valida (cliente
+    // desta loja ou admin), retornamos status:null (nada sensivel).
+    if (!isCustomerAuthorized(request, storeId, { phone, customerId: customerId ? parseInt(customerId) : null })) {
+      console.log("[vip/customer] Acesso nao autenticado: status omitido")
+      return NextResponse.json({ status: null, found: false, storeId })
     }
 
     const supabase = await createClient()

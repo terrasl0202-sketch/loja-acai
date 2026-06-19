@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
-import { getStoreIdFromRequest } from "@/lib/api-store"
+import { getStoreIdFromRequest, INVALID_STORE_ID } from "@/lib/api-store"
+import { isCustomerAuthorized } from "@/lib/customer-session"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -35,6 +36,19 @@ export async function GET(request: NextRequest) {
     // Resolver tenant no backend: os pedidos retornados sao SOMENTE da loja
     // atual. Sem isso, um mesmo telefone vazaria pedidos de outras lojas (PII).
     const storeId = await getStoreIdFromRequest(request)
+
+    if (!storeId || storeId === INVALID_STORE_ID || storeId <= 0) {
+      return NextResponse.json({ error: "Contexto de loja invalido", success: false }, { status: 400, headers: noCacheHeaders })
+    }
+
+    // === AUTORIZACAO (Fase de Seguranca 2) ===
+    // Historico completo de pedidos e PII (nome/endereco/itens/totais). So pode
+    // ser lido pelo proprio cliente (sessao de cliente desta loja, validada por
+    // PIN) ou por um admin autenticado da loja. NUNCA por telefone anonimo.
+    if (!isCustomerAuthorized(request, storeId, { phone: normalizedPhone })) {
+      console.log("[customers/orders] Acesso negado: sem sessao de cliente/admin valida")
+      return NextResponse.json({ error: "Nao autenticado", success: false }, { status: 401, headers: noCacheHeaders })
+    }
 
     console.log("[customers/orders] Buscando pedidos. phone:", normalizedPhone, "storeId:", storeId)
 

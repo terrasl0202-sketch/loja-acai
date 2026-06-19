@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
 import { getStoreIdFromRequest } from "@/lib/api-store"
 import { getSessionFromRequest } from "@/lib/store-session"
+import { setCustomerSessionCookie } from "@/lib/customer-session"
 
 /**
  * /api/customers v2 - MULTIEMPRESA
@@ -191,12 +192,16 @@ export async function POST(request: NextRequest) {
       }
       
       console.log(`[customers POST] Conta criada na loja ${storeId}:`, inserted.id)
-      return NextResponse.json({ 
+      const registerResponse = NextResponse.json({ 
         success: true, 
         customer: publicData,
         storeId,
         message: "Conta criada com sucesso!"
       }, { headers: noCacheHeaders })
+      // Emite sessao de cliente final (cookie httpOnly assinado) escopada a
+      // ESTA loja + telefone. Habilita acesso seguro a historico/saldo/VIP.
+      setCustomerSessionCookie(registerResponse, storeId, inserted.id, normalizedPhone)
+      return registerResponse
     }
     
     // ACAO: Login
@@ -227,12 +232,16 @@ export async function POST(request: NextRequest) {
       }
       
       console.log(`[customers POST] Login na loja ${storeId}:`, publicData.id)
-      return NextResponse.json({ 
+      const loginResponse = NextResponse.json({ 
         success: true, 
         customer: publicData,
         storeId,
         message: "Login realizado!"
       }, { headers: noCacheHeaders })
+      // Emite sessao de cliente final (cookie httpOnly assinado) escopada a
+      // ESTA loja + telefone. Habilita acesso seguro a historico/saldo/VIP.
+      setCustomerSessionCookie(loginResponse, storeId, existing.id, normalizedPhone)
+      return loginResponse
     }
     
     // ACAO: Atualizar dados

@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
 import { getStoreSlugById } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
+import { getInternalToken, INTERNAL_TOKEN_HEADER } from "@/lib/internal-token"
 
 export const dynamic = "force-dynamic"
 
@@ -10,6 +12,48 @@ function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('Supabase nao configurado')
   return createClient(url, key)
+}
+
+/**
+ * Verifica, de forma autoritativa no servidor, se um pagamento Asaas esta
+ * realmente pago E vinculado a este pedido. NUNCA confia na alegacao do cliente
+ * de que pagou. Usado no caminho automatico de /api/orders/confirm.
+ */
+async function verifyAsaasPaymentForOrder(
+  order: { asaas_payment_id?: string | null; order_code?: string | null },
+  paymentId: string,
+): Promise<{ ok: boolean; status: number; error?: string }> {
+  // 1. Vinculo: se o pedido ja tem um asaas_payment_id, ele DEVE ser o mesmo.
+  if (order.asaas_payment_id && order.asaas_payment_id !== paymentId) {
+    return { ok: false, status: 403, error: "Pagamento nao corresponde ao pedido" }
+  }
+
+  const apiKey = process.env.ASAAS_API_KEY
+  const apiUrl = process.env.ASAAS_API_URL || "https://api.asaas.com/v3"
+  if (!apiKey) return { ok: false, status: 500, error: "Asaas nao configurado" }
+
+  try {
+    const r = await fetch(`${apiUrl}/payments/${encodeURIComponent(paymentId)}`, {
+      headers: { access_token: apiKey },
+    })
+    if (!r.ok) return { ok: false, status: 402, error: "Pagamento nao confirmado" }
+    const data = await r.json()
+    const isPaid = data?.status === "RECEIVED" || data?.status === "CONFIRMED"
+    if (!isPaid) return { ok: false, status: 402, error: "Pagamento ainda nao recebido" }
+    // 2. Defesa extra quando nao havia vinculo previo: o externalReference do
+    // pagamento (order_code) precisa bater com o pedido.
+    if (
+      !order.asaas_payment_id &&
+      data?.externalReference &&
+      order.order_code &&
+      data.externalReference !== order.order_code
+    ) {
+      return { ok: false, status: 403, error: "Pagamento nao corresponde ao pedido" }
+    }
+    return { ok: true, status: 200 }
+  } catch {
+    return { ok: false, status: 502, error: "Falha ao verificar pagamento" }
+  }
 }
 
 // Confirmar pagamento PIX automatico
@@ -78,6 +122,31 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("[orders/confirm] Pedido encontrado! id:", order.id, "order_code:", order.order_code, "asaas_payment_id:", order.asaas_payment_id, "status atual:", order.status)
+
+    // === AUTORIZACAO (Fase de Seguranca 2) ===
+    // A confirmacao NUNCA pode ser anonima por orderCode. Dois caminhos validos:
+    //  - Automatico (tem paymentId): so confirma se o pagamento estiver REALMENTE
+    //    pago no Asaas E vinculado a este pedido (verificacao server-side). Isso
+    //    cobre tanto o webhook quanto o polling do checkout, sem confiar no client.
+    //  - Manual (sem paymentId): exige admin autenticado DA LOJA DO PEDIDO.
+    const orderStoreId = Number(order.store_id) || 0
+    if (effectivePaymentId) {
+      const verified = await verifyAsaasPaymentForOrder(order, effectivePaymentId)
+      if (!verified.ok) {
+        console.log("[orders/confirm] Verificacao Asaas falhou:", verified.error)
+        return NextResponse.json({ success: false, error: verified.error }, { status: verified.status })
+      }
+    } else {
+      const auth = await requireStoreAuth(request)
+      if (!auth.ok) {
+        console.log("[orders/confirm] Confirmacao manual sem sessao admin valida")
+        return auth.response!
+      }
+      if (!orderStoreId || auth.storeId !== orderStoreId) {
+        console.log("[orders/confirm] Admin de outra loja tentou confirmar pedido alheio")
+        return NextResponse.json({ success: false, error: "Acesso negado a este pedido" }, { status: 403 })
+      }
+    }
 
     // Se ja esta confirmado, retornar sucesso sem atualizar
     if (order.status === 'confirmed' || order.status === 'preparing' || order.status === 'delivering' || order.status === 'completed') {
@@ -203,6 +272,9 @@ export async function POST(request: NextRequest) {
         const gamHeaders: Record<string, string> = { "Content-Type": "application/json" }
         const storeSlug = updated.store_id ? await getStoreSlugById(updated.store_id) : null
         if (storeSlug) gamHeaders["x-store-slug"] = storeSlug
+        // Origem confiavel: prova que esta chamada vem do backend (confirmacao
+        // real de pedido), nao de um cliente arbitrario.
+        gamHeaders[INTERNAL_TOKEN_HEADER] = getInternalToken()
         await fetch(`${baseUrl}/api/gamification/check`, {
           method: "POST",
           headers: gamHeaders,

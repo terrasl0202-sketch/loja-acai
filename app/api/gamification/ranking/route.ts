@@ -7,6 +7,19 @@ import { getStoreIdFromRequest } from "@/lib/api-store"
  * Ranking mensal isolado por loja.
  */
 
+/**
+ * Mascara o nome para exibicao publica no ranking: mantem o primeiro nome e
+ * reduz os demais a inicial. Ex.: "Joao Carlos Silva" -> "Joao C. S.".
+ */
+function maskName(name: string | null | undefined): string {
+  const clean = String(name || "").trim()
+  if (!clean) return "Cliente"
+  const parts = clean.split(/\s+/)
+  const first = parts[0]
+  const initials = parts.slice(1).map((p) => `${p.charAt(0).toUpperCase()}.`)
+  return [first, ...initials].join(" ")
+}
+
 // GET - Buscar ranking mensal DESTA LOJA
 export async function GET(request: NextRequest) {
   const storeId = await getStoreIdFromRequest(request)
@@ -71,28 +84,28 @@ export async function GET(request: NextRequest) {
       customerStats.set(order.customer_id, existing)
     }
 
-    // Ordenar por total gasto
-    const ranking = Array.from(customerStats.values())
-      .sort((a, b) => b.totalSpent - a.totalSpent)
-      .slice(0, 10)
-      .map((c, i) => ({
-        position: i + 1,
-        ...c
-      }))
+    // Ranking e PUBLICO. Por isso NAO expomos telefone nem total gasto real
+    // (financeiro). Nome e mascarado; a ordenacao continua por gasto, mas o
+    // valor financeiro nunca sai na resposta publica.
+    const allRankedFull = Array.from(customerStats.values()).sort((a, b) => b.totalSpent - a.totalSpent)
 
-    // Encontrar posicao do cliente
+    const ranking = allRankedFull.slice(0, 10).map((c, i) => ({
+      position: i + 1,
+      customerId: c.customerId,
+      customerName: maskName(c.customerName),
+      totalOrders: c.totalOrders,
+    }))
+
+    // Posicao do proprio cliente: apenas posicao e contagem de pedidos
+    // (sem total gasto financeiro).
     let customerPosition = null
     if (customerId) {
-      const allRanked = Array.from(customerStats.values())
-        .sort((a, b) => b.totalSpent - a.totalSpent)
-      
-      const idx = allRanked.findIndex(c => c.customerId === parseInt(customerId))
+      const idx = allRankedFull.findIndex(c => c.customerId === parseInt(customerId))
       if (idx !== -1) {
         customerPosition = {
           position: idx + 1,
-          totalSpent: allRanked[idx].totalSpent,
-          totalOrders: allRanked[idx].totalOrders,
-          totalParticipants: allRanked.length
+          totalOrders: allRankedFull[idx].totalOrders,
+          totalParticipants: allRankedFull.length
         }
       }
     }

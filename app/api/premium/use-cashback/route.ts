@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { getStoreIdFromRequest } from "@/lib/api-store"
+import { getStoreIdFromRequest, INVALID_STORE_ID } from "@/lib/api-store"
+import { isCustomerAuthorized } from "@/lib/customer-session"
+import { verifyInternalToken } from "@/lib/internal-token"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -24,6 +26,18 @@ export async function POST(request: NextRequest) {
     // Tenant resolvido no backend. CRITICO: saldo e uso de cashback sao por
     // loja - dinheiro de uma loja nunca pode ser gasto em outra.
     const storeId = await getStoreIdFromRequest(request)
+    if (!storeId || storeId === INVALID_STORE_ID || storeId <= 0) {
+      return NextResponse.json({ error: "Contexto de loja invalido" }, { status: 400 })
+    }
+
+    // === AUTORIZACAO (Fase de Seguranca 2) ===
+    // Consumir cashback altera estado financeiro. So aceitamos origem confiavel:
+    // chamada interna do backend (token interno), o proprio cliente (sessao de
+    // cliente desta loja) ou um admin da loja. Nunca apenas customerId/orderId
+    // no body.
+    if (!verifyInternalToken(request) && !isCustomerAuthorized(request, storeId, { customerId })) {
+      return NextResponse.json({ error: "Nao autenticado" }, { status: 401 })
+    }
 
     const supabase = getSupabase()
     
