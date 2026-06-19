@@ -84,15 +84,25 @@ export default function StorePageClient({ data }: { data: StoreData }) {
   // Logo vem de store_settings (onde o Admin salva); fallback p/ stores.logo_url
   const logoUrl = settings?.logo_url || store.logo_url
 
+  // Banners do carrossel (hero_banners). Quando a loja nao tem banners
+  // cadastrados mas definiu uma imagem de capa (cover_image_url no Admin),
+  // usamos a capa como banner unico, para a personalizacao aparecer na vitrine.
+  const displayBanners =
+    banners.length > 0
+      ? banners
+      : settings?.cover_image_url
+        ? [{ id: 0, title: store.store_name, image_url: settings.cover_image_url, link_url: null }]
+        : []
+
   // Carrousel de banners
   useEffect(() => {
-    if (banners.length > 1) {
+    if (displayBanners.length > 1) {
       const interval = setInterval(() => {
-        setCurrentBanner((prev) => (prev + 1) % banners.length)
+        setCurrentBanner((prev) => (prev + 1) % displayBanners.length)
       }, 5000)
       return () => clearInterval(interval)
     }
-  }, [banners.length])
+  }, [displayBanners.length])
 
   const addToCart = (product: StoreData["products"][0]) => {
     setCart((prev) => {
@@ -288,13 +298,13 @@ export default function StorePageClient({ data }: { data: StoreData }) {
       </header>
 
       {/* Banners */}
-      {banners.length > 0 && (
+      {displayBanners.length > 0 && (
         <div className="relative overflow-hidden">
           <div
             className="flex transition-transform duration-500"
             style={{ transform: `translateX(-${currentBanner * 100}%)` }}
           >
-            {banners.map((banner) => (
+            {displayBanners.map((banner) => (
               <div key={banner.id} className="w-full flex-shrink-0">
                 <Image
                   src={banner.image_url}
@@ -306,16 +316,16 @@ export default function StorePageClient({ data }: { data: StoreData }) {
               </div>
             ))}
           </div>
-          {banners.length > 1 && (
+          {displayBanners.length > 1 && (
             <>
               <button
-                onClick={() => setCurrentBanner((prev) => (prev - 1 + banners.length) % banners.length)}
+                onClick={() => setCurrentBanner((prev) => (prev - 1 + displayBanners.length) % displayBanners.length)}
                 className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 text-white"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button
-                onClick={() => setCurrentBanner((prev) => (prev + 1) % banners.length)}
+                onClick={() => setCurrentBanner((prev) => (prev + 1) % displayBanners.length)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 text-white"
               >
                 <ChevronRight className="w-5 h-5" />
