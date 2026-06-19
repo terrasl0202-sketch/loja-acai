@@ -21,6 +21,10 @@ interface PublicOrder {
   confirmedAt?: string
   saiuParaEntregaEm?: string
   entregadorNome?: string
+  // Identidade da loja do pedido (resolvida pelo backend a partir de store_id)
+  storeId?: number | null
+  storeSlug?: string | null
+  storeName?: string | null
 }
 
 // Helper para formatar itens do pedido
@@ -93,11 +97,14 @@ export default function PedidoPage() {
   const [loading, setLoading] = useState(true)
   const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null)
   
-  // Buscar settings da loja para WhatsApp
+  // Buscar settings da loja DO PEDIDO (pelo slug retornado pela API), nunca
+  // pela loja do host. Assim o rastreio mostra a identidade da loja correta.
   useEffect(() => {
     async function loadSettings() {
       try {
-        const res = await fetch('/api/store-settings', { cache: 'no-store' })
+        const headers: Record<string, string> = {}
+        if (order?.storeSlug) headers["x-store-slug"] = order.storeSlug
+        const res = await fetch('/api/store-settings', { cache: 'no-store', headers })
         const data = await res.json()
         if (data.success && data.settings) {
           setStoreSettings(data.settings)
@@ -106,8 +113,11 @@ export default function PedidoPage() {
         console.error('[Pedido] Erro ao carregar settings:', err)
       }
     }
-    loadSettings()
-  }, [])
+    // So carrega apos saber a loja do pedido (evita resolver pela PK por host)
+    if (order?.storeSlug !== undefined) {
+      loadSettings()
+    }
+  }, [order?.storeSlug])
   const [error, setError] = useState<string | null>(null)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
 

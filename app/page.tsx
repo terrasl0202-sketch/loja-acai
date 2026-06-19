@@ -117,7 +117,59 @@ function getEffectiveColors(customization: StoreCustomization): typeof customiza
   return customization.colors
 }
 
-export default function Home() {
+interface StorefrontProps {
+  // Quando presente, o storefront opera em modo MULTI-LOJA: todas as chamadas
+  // /api/* recebem o header x-store-slug e o backend resolve o store_id PELO
+  // SLUG. Ausente (rota "/") => comportamento atual da loja principal (por host).
+  storeSlug?: string
+  // Nome da loja para exibir antes das settings carregarem.
+  storeName?: string
+  // Base do link de rastreio/loja (ex.: "/loja/pizzaria-teste"). Default "".
+  storeBasePath?: string
+}
+
+export default function Home(props: StorefrontProps = {}) {
+  const { storeSlug, storeName: storeNameProp, storeBasePath = "" } = props
+
+  // ========== MODO MULTI-LOJA: interceptar fetch para injetar x-store-slug ==========
+  // Centraliza o escopo por loja em UM unico ponto, cobrindo todas as chamadas
+  // fetch (PIX manual, config, produtos, create-pix, etc.) sem alterar cada uma.
+  // IMPORTANTE: instalado SINCRONAMENTE no corpo (via ref) para garantir que o
+  // header ja exista antes dos efeitos de carregamento dispararem no mount.
+  // So afeta requests same-origin para /api/* e e revertido no unmount.
+  const originalFetchRef = useRef<typeof window.fetch | null>(null)
+  if (storeSlug && typeof window !== "undefined" && !originalFetchRef.current) {
+    const originalFetch = window.fetch
+    originalFetchRef.current = originalFetch
+    window.fetch = function patchedFetch(input: RequestInfo | URL, init?: RequestInit) {
+      if (typeof input === "string" || input instanceof URL) {
+        const urlStr = input.toString()
+        if (urlStr.startsWith("/api/") || urlStr.startsWith(`${window.location.origin}/api/`)) {
+          const headers = new Headers(init?.headers)
+          headers.set("x-store-slug", storeSlug)
+          return originalFetch(input, { ...init, headers })
+        }
+      }
+      return originalFetch(input, init)
+    }
+  }
+  useEffect(() => {
+    return () => {
+      if (originalFetchRef.current) {
+        window.fetch = originalFetchRef.current
+        originalFetchRef.current = null
+      }
+    }
+  }, [])
+
+  // Link de rastreio: caminho GLOBAL /pedido/[id] no dominio atual. A pagina de
+  // rastreio resolve a identidade da loja PELO PROPRIO PEDIDO (orders.store_id),
+  // entao funciona para qualquer loja sem hardcodar o dominio da PK.
+  const getTrackingUrl = useCallback((id: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://www.pkgostosuras.shop"
+    return `${origin}/pedido/${id}`
+  }, [])
+
   // Config do site carregada da API
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultConfig)
   const [customization, setCustomization] = useState<StoreCustomization>(defaultCustomization)
@@ -171,7 +223,19 @@ export default function Home() {
   const PIX_MANUAL_ALIAS = activePixKey?.alias || "Chave PIX"
   const PIX_RECEIVER_NAME = activePixKey?.receiverName || siteConfig.pixManual?.receiverName || ""
   const PIX_MANUAL_CITY = activePixKey?.city || siteConfig.pixManual?.city || "SAO PAULO"
-  
+
+  // ========== PRIORIDADE DE PAGAMENTO (regra multi-loja) ==========
+  // 1) PIX manual ATIVO da propria loja  2) Asaas proprio da loja (futuro)
+  // 3) Asaas GLOBAL da plataforma -> apenas PK ou com AVISO claro.
+  const isSecondaryStore = !!storeSlug
+  const hasActiveManualPix = !!activePixKey
+  // Loja secundaria com PIX manual ativo: NUNCA cair no Asaas global
+  // silenciosamente -> forcar o fluxo de PIX manual da propria loja.
+  const forceManualPix = isSecondaryStore && hasActiveManualPix
+  // Loja secundaria SEM PIX manual e SEM Asaas proprio: o PIX automatico usa a
+  // conta GLOBAL da plataforma -> precisamos avisar o cliente de forma clara.
+  const usesGlobalAsaasNotice = isSecondaryStore && !hasActiveManualPix
+
   const DELIVERY_FEE = siteConfig.delivery?.defaultFee || 0
   const MINIMUM_ORDER = siteConfig.delivery?.minimumOrder || 0
   const DELIVERY_ENABLED = siteConfig.delivery?.enabled !== false
@@ -1558,8 +1622,11 @@ export default function Home() {
     const newOrderId = generateOrderId()
     setOrderId(newOrderId)
 
-    // Se valor for menor que R$15, usar PIX manual
-    if (total < MIN_VALUE_FOR_ASAAS) {
+    // Prioridade de pagamento:
+    // - Loja secundaria com PIX manual ativo -> SEMPRE PIX manual (nao usar
+    //   silenciosamente o Asaas global da plataforma);
+    // - Qualquer loja com total abaixo do minimo do Asaas -> PIX manual.
+    if (forceManualPix || total < MIN_VALUE_FOR_ASAAS) {
       const pixCode = generateManualPixCode(total)
       setManualPixCode(pixCode)
       setPaymentStatus("manual")
@@ -1810,10 +1877,10 @@ ${deliveryInfo}
 Horario:
 ${paymentTime}
 
-Acompanhe seu pedido:
-https://www.pkgostosuras.shop/pedido/${orderId}
-
-━━━━━━━━━━━━━━━━━━`
+  Acompanhe seu pedido:
+> ${getTrackingUrl(orderId)}
+  
+  ━━━━━━━━━━━━━━━━━━`
 
     // Registrar pedido
     await registerOrder("PIX Asaas")
@@ -1854,7 +1921,7 @@ ${deliveryInfo}
 Observacao: ${formData.observacao || "Nenhuma"}
 
 Acompanhe seu pedido:
-https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
+${getTrackingUrl(orderId || generateOrderId())}`
 
     // Registrar pedido
     await registerOrder("PIX Manual")
@@ -1917,7 +1984,7 @@ Observacao:
 ${formData.observacao || "Nenhuma"}
 
 Acompanhe seu pedido:
-https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
+${getTrackingUrl(orderId || generateOrderId())}`
 
     // Registrar pedido
     await registerOrder(pagamentoTexto)
@@ -3282,10 +3349,20 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                             ) : (
                               <>
                                 <p className="text-muted-foreground mb-4 text-sm">
-                                  {getTotal() < MIN_VALUE_FOR_ASAAS 
+                                  {(forceManualPix || getTotal() < MIN_VALUE_FOR_ASAAS)
                                     ? "Clique abaixo para ver os dados do PIX" 
                                     : "Clique abaixo para gerar o PIX automatico"}
                                 </p>
+
+                                {/* Aviso: loja secundaria sem gateway proprio usa o Asaas da plataforma */}
+                                {usesGlobalAsaasNotice && getTotal() >= MIN_VALUE_FOR_ASAAS && (
+                                  <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                                    <p className="text-xs text-blue-400 text-center leading-relaxed">
+                                      O PIX automatico desta loja e processado pela conta da plataforma.
+                                      Para receber direto na sua conta, cadastre uma chave PIX manual no painel.
+                                    </p>
+                                  </div>
+                                )}
                                 
                                 {/* Aviso de dados nao confirmados */}
                                 {!isDataConfirmed && (
@@ -3305,11 +3382,16 @@ https://www.pkgostosuras.shop/pedido/${orderId || generateOrderId()}`
                                 >
                                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                                   <span className="text-xl relative">💠</span>
-                                  <span className="relative text-base">{getTotal() < MIN_VALUE_FOR_ASAAS ? "Ver PIX Manual" : "Gerar PIX Automatico"}</span>
+                                  <span className="relative text-base">{(forceManualPix || getTotal() < MIN_VALUE_FOR_ASAAS) ? "Ver PIX Manual" : "Gerar PIX Automatico"}</span>
                                 </button>
-                                {getTotal() < MIN_VALUE_FOR_ASAAS && (
+                                {!forceManualPix && getTotal() < MIN_VALUE_FOR_ASAAS && (
                                   <p className="text-xs text-muted-foreground mt-3 text-center">
-                                    Pedidos abaixo de R$ 15 usam PIX manual
+                                    Pedidos abaixo de R$ {MIN_VALUE_FOR_ASAAS} usam PIX manual
+                                  </p>
+                                )}
+                                {forceManualPix && (
+                                  <p className="text-xs text-muted-foreground mt-3 text-center">
+                                    Pagamento via PIX manual desta loja
                                   </p>
                                 )}
                               </>

@@ -47,6 +47,18 @@ export async function GET(
 
     console.log("[orders/public] Pedido encontrado! ID:", order.id)
 
+    // Resolver a LOJA do pedido (orders.store_id) para o rastreio exibir a
+    // identidade correta - NUNCA a loja principal por host.
+    let store: { id: number; slug: string | null; store_name: string | null } | null = null
+    if (order.store_id != null) {
+      const { data: storeRow } = await supabase
+        .from('stores')
+        .select('id, slug, store_name')
+        .eq('id', order.store_id)
+        .single()
+      store = storeRow ?? null
+    }
+
     // Retornar dados publicos
     const publicOrder = {
       id: String(order.id),
@@ -60,6 +72,10 @@ export async function GET(
       status: order.status,
       paymentStatus: order.payment_status,
       createdAt: order.created_at,
+      // Identidade da loja do pedido (para o rastreio carregar a loja certa)
+      storeId: order.store_id ?? null,
+      storeSlug: store?.slug ?? null,
+      storeName: store?.store_name ?? null,
     }
 
     return NextResponse.json({ success: true, order: publicOrder, source: 'supabase' }, { headers: noCacheHeaders })
