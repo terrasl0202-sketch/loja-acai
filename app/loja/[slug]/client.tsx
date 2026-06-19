@@ -14,8 +14,11 @@ interface StoreData {
   settings: {
     store_name: string
     store_description: string | null
-    primary_color: string
-    secondary_color: string
+    // Colunas REAIS de personalizacao em store_settings (mesma fonte que o Admin grava)
+    logo_url: string | null
+    cover_image_url: string | null
+    color_primary: string | null
+    color_secondary: string | null
     store_open: boolean
     opening_hours: string | null
     store_phone: string | null
@@ -75,7 +78,11 @@ export default function StorePageClient({ data }: { data: StoreData }) {
   const [pix, setPix] = useState<PixResult | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const primaryColor = settings?.primary_color || "#8B5CF6"
+  // Ler as colunas que o Admin realmente grava (color_primary/color_secondary)
+  const primaryColor = settings?.color_primary || "#8B5CF6"
+  const secondaryColor = settings?.color_secondary || "#6366f1"
+  // Logo vem de store_settings (onde o Admin salva); fallback p/ stores.logo_url
+  const logoUrl = settings?.logo_url || store.logo_url
 
   // Carrousel de banners
   useEffect(() => {
@@ -232,9 +239,9 @@ export default function StorePageClient({ data }: { data: StoreData }) {
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {store.logo_url ? (
+              {logoUrl ? (
                 <Image
-                  src={store.logo_url}
+                  src={logoUrl}
                   alt={store.store_name}
                   width={48}
                   height={48}
@@ -270,7 +277,7 @@ export default function StorePageClient({ data }: { data: StoreData }) {
               {cartCount > 0 && (
                 <span
                   className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-xs text-white flex items-center justify-center"
-                  style={{ backgroundColor: primaryColor }}
+                  style={{ backgroundColor: secondaryColor }}
                 >
                   {cartCount}
                 </span>
