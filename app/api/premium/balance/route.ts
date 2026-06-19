@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
   // retornamos payload minimo NAO sensivel (found:false, saldos zerados). Isso
   // protege a PII e ainda permite o checkout funcionar (apenas nao oferece o
   // desconto premium para quem nao esta logado).
-  if (!isCustomerAuthorized(request, storeId, { phone, customerId: customerId ? parseInt(customerId) : null })) {
+  if (!isCustomerAuthorized(request, storeId, { phone, customerId })) {
     console.log("[premium/balance] Acesso nao autenticado: retornando payload minimo")
     return NextResponse.json({
       success: true,

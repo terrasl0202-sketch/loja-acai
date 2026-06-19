@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
     // === AUTORIZACAO (Fase de Seguranca 2) ===
     // Status VIP expoe total gasto (financeiro). Sem sessao valida (cliente
     // desta loja ou admin), retornamos status:null (nada sensivel).
-    if (!isCustomerAuthorized(request, storeId, { phone, customerId: customerId ? parseInt(customerId) : null })) {
+    if (!isCustomerAuthorized(request, storeId, { phone, customerId })) {
       console.log("[vip/customer] Acesso nao autenticado: status omitido")
       return NextResponse.json({ status: null, found: false, storeId })
     }

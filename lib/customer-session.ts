@@ -39,15 +39,21 @@ function onlyDigits(v: string | number | null | undefined): string {
 
 export interface CustomerSessionData {
   storeId: number
-  customerId: number
+  // O id do cliente pode ser UUID (string) ou inteiro, dependendo do schema.
+  // Guardamos como string para ser agnostico ao tipo.
+  customerId: string
   phone: string
   exp: number
 }
 
-export function createCustomerSessionToken(storeId: number, customerId: number, phone: string): string {
+export function createCustomerSessionToken(
+  storeId: number,
+  customerId: string | number,
+  phone: string,
+): string {
   const data: CustomerSessionData = {
     storeId,
-    customerId,
+    customerId: String(customerId ?? ""),
     phone: onlyDigits(phone),
     exp: Date.now() + SESSION_TTL_MS,
   }
@@ -66,9 +72,10 @@ export function verifyCustomerSessionToken(token: string | undefined | null): Cu
 
   try {
     const data = JSON.parse(Buffer.from(b64, "base64url").toString("utf8")) as CustomerSessionData
-    if (!data || typeof data.storeId !== "number" || typeof data.customerId !== "number") return null
+    if (!data || typeof data.storeId !== "number") return null
+    if (typeof data.customerId !== "string" || !data.customerId) return null
     if (typeof data.exp !== "number" || Date.now() > data.exp) return null
-    if (data.storeId <= 0 || data.customerId <= 0) return null
+    if (data.storeId <= 0) return null
     return data
   } catch {
     return null
@@ -94,7 +101,7 @@ export function getCustomerSessionFromRequest(request: NextRequest | Request): C
 export function setCustomerSessionCookie(
   response: NextResponse,
   storeId: number,
-  customerId: number,
+  customerId: string | number,
   phone: string,
 ): void {
   response.cookies.set(COOKIE_NAME, createCustomerSessionToken(storeId, customerId, phone), {
@@ -130,7 +137,7 @@ export function clearCustomerSessionCookie(response: NextResponse): void {
 export function isCustomerAuthorized(
   request: NextRequest | Request,
   storeId: number,
-  opts: { phone?: string | null; customerId?: number | null },
+  opts: { phone?: string | null; customerId?: string | number | null },
 ): boolean {
   if (!storeId || storeId <= 0) return false
 
@@ -151,9 +158,9 @@ export function isCustomerAuthorized(
     }
   }
 
-  if (opts.customerId != null) {
-    const cid = typeof opts.customerId === "string" ? parseInt(opts.customerId) : opts.customerId
-    if (cid && session.customerId === cid) return true
+  if (opts.customerId != null && String(opts.customerId)) {
+    // Comparacao agnostica ao tipo (UUID ou inteiro): ambos como string.
+    if (session.customerId && session.customerId === String(opts.customerId)) return true
   }
 
   return false
