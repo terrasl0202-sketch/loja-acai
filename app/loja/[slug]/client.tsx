@@ -20,11 +20,19 @@ interface StoreData {
     color_primary: string | null
     color_secondary: string | null
     store_open: boolean
-    opening_hours: string | null
-    store_phone: string | null
-    store_address: string | null
-    delivery_fee: number
-    min_order_value: number
+    // Campos basicos gravados pelo Admin (nomes reais das colunas)
+    slogan: string | null
+    subtitle: string | null
+    whatsapp: string | null
+    address: string | null
+    open_time: string | null
+    close_time: string | null
+    closed_message: string | null
+    delivery_default_fee: number | null
+    delivery_minimum_order: number | null
+    delivery_estimated_time: string | null
+    banner_promo_active: boolean | null
+    banner_promo_text: string | null
   } | null
   categories: Array<{
     id: number
@@ -105,6 +113,12 @@ export default function StorePageClient({ data }: { data: StoreData }) {
   }, [displayBanners.length])
 
   const addToCart = (product: StoreData["products"][0]) => {
+    // Loja fechada: bloquear adicao ao carrinho (checkout indisponivel)
+    if (settings && settings.store_open === false) {
+      setCheckoutError(settings.closed_message || "A loja esta fechada no momento.")
+      setShowCart(true)
+      return
+    }
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id)
       if (existing) {
@@ -139,7 +153,7 @@ export default function StorePageClient({ data }: { data: StoreData }) {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
   }
 
-  const deliveryFee = settings?.delivery_fee || 0
+  const deliveryFee = Number(settings?.delivery_default_fee) || 0
   const orderTotal = cartTotal + deliveryFee
 
   const resetCheckout = () => {
@@ -267,13 +281,20 @@ export default function StorePageClient({ data }: { data: StoreData }) {
               )}
               <div>
                 <h1 className="font-bold text-foreground">{settings?.store_name || store.store_name}</h1>
+                {(settings?.slogan || settings?.subtitle) && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    {settings?.slogan || settings?.subtitle}
+                  </p>
+                )}
                 {settings?.store_open ? (
                   <span className="text-xs text-green-500 flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-green-500" />
                     Aberto
                   </span>
                 ) : (
-                  <span className="text-xs text-red-500">Fechado</span>
+                  <span className="text-xs text-red-500">
+                    {settings?.closed_message || "Fechado"}
+                  </span>
                 )}
               </div>
             </div>
@@ -335,25 +356,52 @@ export default function StorePageClient({ data }: { data: StoreData }) {
         </div>
       )}
 
-      {/* Info */}
+      {/* Faixa promocional */}
+      {settings?.banner_promo_active && settings?.banner_promo_text && (
+        <div
+          className="max-w-4xl mx-auto px-4 py-2 mt-2 text-center text-sm font-medium text-white rounded-lg"
+          style={{ backgroundColor: primaryColor }}
+        >
+          {settings.banner_promo_text}
+        </div>
+      )}
+
+      {/* Info: horario, endereco, contato, entrega (colunas reais de store_settings) */}
       <div className="max-w-4xl mx-auto px-4 py-4">
         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-          {settings?.opening_hours && (
+          {(settings?.open_time || settings?.close_time) && (
             <span className="flex items-center gap-1">
               <Clock className="w-4 h-4" />
-              {settings.opening_hours}
+              {settings?.open_time}
+              {settings?.open_time && settings?.close_time ? " - " : ""}
+              {settings?.close_time}
             </span>
           )}
-          {settings?.store_address && (
+          {settings?.address && (
             <span className="flex items-center gap-1">
               <MapPin className="w-4 h-4" />
-              {settings.store_address}
+              {settings.address}
             </span>
           )}
-          {settings?.store_phone && (
+          {settings?.whatsapp && (
             <span className="flex items-center gap-1">
               <Phone className="w-4 h-4" />
-              {settings.store_phone}
+              {settings.whatsapp}
+            </span>
+          )}
+          {settings?.delivery_default_fee != null && (
+            <span className="flex items-center gap-1">
+              Entrega: {formatCurrency(Number(settings.delivery_default_fee))}
+            </span>
+          )}
+          {settings?.delivery_minimum_order != null && Number(settings.delivery_minimum_order) > 0 && (
+            <span className="flex items-center gap-1">
+              Pedido min.: {formatCurrency(Number(settings.delivery_minimum_order))}
+            </span>
+          )}
+          {settings?.delivery_estimated_time && (
+            <span className="flex items-center gap-1">
+              {settings.delivery_estimated_time}
             </span>
           )}
         </div>

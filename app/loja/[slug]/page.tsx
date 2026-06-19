@@ -63,11 +63,33 @@ async function getStoreData(slug: string) {
     .eq("active", true)
     .order("sort_order", { ascending: true })
 
+  // Normalizar PRODUTOS para a forma que a vitrine espera.
+  // A tabela usa colunas `image` (nao image_url), `active` e `stock` (nao in_stock).
+  // Sem este mapeamento a vitrine lia in_stock=undefined => sempre "Indisponivel".
+  const normalizedProducts = (products || []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description ?? null,
+    price: Number(p.price),
+    image_url: p.image ?? p.image_url ?? null,
+    category_id: p.category_id,
+    // Disponivel quando ativo e com estoque (stock nulo = sem controle de estoque)
+    in_stock: p.active !== false && (p.stock == null || Number(p.stock) > 0),
+  }))
+
+  // Normalizar CATEGORIAS (vitrine usa image_url; tabela pode ter image)
+  const normalizedCategories = (categories || []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    description: c.description ?? null,
+    image_url: c.image_url ?? c.image ?? null,
+  }))
+
   return {
     store,
     settings: settings || null,
-    categories: categories || [],
-    products: products || [],
+    categories: normalizedCategories,
+    products: normalizedProducts,
     banners: banners || [],
     suspended: false
   }
