@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
 import crypto from 'crypto'
+import { enforceRateLimit } from "@/lib/rate-limit"
 
 // Supabase client
 function getSupabase() {
@@ -63,6 +64,17 @@ export async function POST(request: NextRequest) {
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   
   try {
+    // Hardening: rate limit por IP para conter floods de webhook (fail-open).
+    // A assinatura Asaas ja autentica; o limite e uma camada extra anti-abuso e
+    // generoso para nao perder eventos legitimos. A idempotencia abaixo cobre
+    // reentregas legitimas do Asaas.
+    const limited = await enforceRateLimit(request, {
+      action: "asaas-webhook",
+      limit: 100,
+      windowSec: 60,
+    })
+    if (limited) return limited
+
     // Ler body como texto para validacao
     const bodyText = await request.text()
     

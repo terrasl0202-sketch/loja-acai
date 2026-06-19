@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getStoreIdFromRequest } from "@/lib/api-store"
 import { getSessionFromRequest } from "@/lib/store-session"
 import { setCustomerSessionCookie } from "@/lib/customer-session"
+import { enforceRateLimit } from "@/lib/rate-limit"
+import { getClientIp, logSecurityEvent } from "@/lib/security-log"
 
 /**
  * /api/customers v2 - MULTIEMPRESA
@@ -122,6 +124,31 @@ export async function POST(request: NextRequest) {
     }
     
     const normalizedPhone = phone.replace(/\D/g, "")
+
+    // Hardening: rate limit anti brute-force de PIN. Login (verificacao de PIN)
+    // e a superficie de forca-bruta -> limite estrito por IP+telefone. Registro
+    // tambem e limitado por IP para conter criacao em massa de contas.
+    if (action === "login") {
+      const limited = await enforceRateLimit(request, {
+        action: "customer-login",
+        limit: 8,
+        windowSec: 300,
+        extraKey: `${storeId}:${normalizedPhone}`,
+        event: "login_blocked",
+        storeId,
+      })
+      if (limited) return limited
+    } else if (action === "register") {
+      const limited = await enforceRateLimit(request, {
+        action: "customer-register",
+        limit: 5,
+        windowSec: 600,
+        extraKey: storeId,
+        storeId,
+      })
+      if (limited) return limited
+    }
+
     const supabase = getSupabase()
     
     if (!supabase) {
@@ -215,6 +242,13 @@ export async function POST(request: NextRequest) {
       }
       
       if (existing.pin !== pin) {
+        logSecurityEvent("login_invalid", {
+          ip: getClientIp(request),
+          route: "customer-login",
+          storeId,
+          subject: normalizedPhone,
+          detail: "PIN incorreto",
+        })
         return NextResponse.json({ error: "PIN incorreto" }, { status: 401, headers: noCacheHeaders })
       }
       

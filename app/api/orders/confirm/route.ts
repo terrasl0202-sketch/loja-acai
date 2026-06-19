@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getStoreSlugById } from "@/lib/api-store"
 import { requireStoreAuth } from "@/lib/store-session"
 import { getInternalToken, INTERNAL_TOKEN_HEADER } from "@/lib/internal-token"
+import { enforceRateLimit } from "@/lib/rate-limit"
+import { getClientIp, logSecurityEvent } from "@/lib/security-log"
 
 export const dynamic = "force-dynamic"
 
@@ -59,6 +61,16 @@ async function verifyAsaasPaymentForOrder(
 // Confirmar pagamento PIX automatico
 export async function POST(request: NextRequest) {
   try {
+    // Hardening: rate limit por IP para conter sondagem/abuso da rota de
+    // confirmacao (fail-open). Generoso para nao atrapalhar o polling legitimo
+    // do checkout.
+    const limited = await enforceRateLimit(request, {
+      action: "order-confirm",
+      limit: 60,
+      windowSec: 60,
+    })
+    if (limited) return limited
+
     const body = await request.json()
     
     // Log do payload completo recebido
@@ -143,7 +155,12 @@ export async function POST(request: NextRequest) {
         return auth.response!
       }
       if (!orderStoreId || auth.storeId !== orderStoreId) {
-        console.log("[orders/confirm] Admin de outra loja tentou confirmar pedido alheio")
+        logSecurityEvent("cross_tenant", {
+          ip: getClientIp(request),
+          route: "orders/confirm",
+          storeId: auth.storeId,
+          detail: `admin loja ${auth.storeId} tentou confirmar pedido da loja ${orderStoreId}`,
+        })
         return NextResponse.json({ success: false, error: "Acesso negado a este pedido" }, { status: 403 })
       }
     }

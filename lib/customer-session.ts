@@ -16,9 +16,10 @@ import { getSessionFromRequest as getAdminSessionFromRequest } from "@/lib/store
  *  - Nunca confia em store_id/telefone crus do cliente como autorizacao.
  *  - Cookie httpOnly => nao acessivel por JS. Assinatura impede forja.
  *
- * O segredo reaproveita ADMIN_PASSWORD (ja presente no ambiente) com um pepper
- * dedicado e DISTINTO do da sessao admin, para que um token de cliente nunca
- * seja aceito como token de admin (e vice-versa).
+ * Hardening final: usa CUSTOMER_SESSION_SECRET dedicado (env var), com pepper
+ * DISTINTO do da sessao admin, para que um token de cliente nunca seja aceito
+ * como token de admin (e vice-versa). Fallback transitorio para ADMIN_PASSWORD
+ * apenas se a env var faltar.
  */
 
 const COOKIE_NAME = "store_customer_session"
@@ -26,6 +27,9 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30 // 30 dias
 const PEPPER = "pkgostosuras::customer-session::v1"
 
 function getSecret(): string {
+  const dedicated = process.env.CUSTOMER_SESSION_SECRET
+  if (dedicated && dedicated.length >= 16) return `${PEPPER}:${dedicated}`
+  console.warn("[security] CUSTOMER_SESSION_SECRET ausente/curto; usando fallback transitorio")
   return `${PEPPER}:${process.env.ADMIN_PASSWORD || "fallback-secret"}`
 }
 

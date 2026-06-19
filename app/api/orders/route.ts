@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { type Order } from "@/lib/config-types"
 import { getStoreIdFromRequest } from "@/lib/api-store"
 import { verifyAdminForRequest } from "@/lib/platform-auth"
+import { enforceRateLimit } from "@/lib/rate-limit"
 
 // Supabase client
 function getSupabase() {
@@ -246,7 +247,19 @@ export async function POST(request: NextRequest) {
     // Identificar loja atual
     const storeId = await getStoreIdFromRequest(request)
     console.log(`[orders POST] storeId: ${storeId}`)
-    
+
+    // Hardening: rate limit GENEROSO por IP+loja para conter spam/abuso de
+    // criacao de pedidos sem impactar o checkout legitimo (fail-open se Redis
+    // estiver indisponivel). 30 pedidos / 10 min por IP nesta loja.
+    const limited = await enforceRateLimit(request, {
+      action: "order-create",
+      limit: 30,
+      windowSec: 600,
+      extraKey: storeId,
+      storeId,
+    })
+    if (limited) return limited
+
     const body = await request.json()
     const { order } = body
 

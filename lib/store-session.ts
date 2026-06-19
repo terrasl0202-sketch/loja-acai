@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 import { getStoreIdFromRequest, INVALID_STORE_ID } from "@/lib/api-store"
 import { verifyStoreAdmin } from "@/lib/platform-auth"
+import { getClientIp, logSecurityEvent } from "@/lib/security-log"
 
 /**
  * Sessao de ADMIN POR LOJA via cookie httpOnly assinado (HMAC-SHA256).
@@ -16,10 +17,12 @@ import { verifyStoreAdmin } from "@/lib/platform-auth"
  *  - Nunca expoe service role nem senha ao frontend. Cookie httpOnly => nao
  *    acessivel por JS. Assinatura impede forja.
  *
- * O segredo de assinatura reaproveita ADMIN_PASSWORD (ja presente no ambiente)
- * combinado com um pepper estatico. Nao e o ideal a longo prazo (idealmente um
- * SESSION_SECRET dedicado), mas evita exigir nova env var agora e mantem a
- * assinatura estavel entre deploys.
+ * Hardening final: a assinatura usa um SESSION_SECRET DEDICADO (env var), nao
+ * mais ADMIN_PASSWORD. Isso desacopla a chave criptografica da senha de admin
+ * (a senha pode mudar sem invalidar a infra, e o segredo pode rotacionar sem
+ * tocar na senha). Se SESSION_SECRET faltar, caimos para ADMIN_PASSWORD apenas
+ * como ultima rede de seguranca (com aviso), para nao derrubar o login em caso
+ * de env nao propagada.
  */
 
 const COOKIE_NAME = "store_admin_session"
@@ -27,6 +30,9 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 12 // 12 horas
 const PEPPER = "pkgostosuras::session::v1"
 
 function getSecret(): string {
+  const dedicated = process.env.SESSION_SECRET
+  if (dedicated && dedicated.length >= 16) return `${PEPPER}:${dedicated}`
+  console.warn("[security] SESSION_SECRET ausente/curto; usando fallback transitorio")
   return `${PEPPER}:${process.env.ADMIN_PASSWORD || "fallback-secret"}`
 }
 
@@ -66,7 +72,11 @@ export function verifySessionToken(token: string | undefined | null): SessionDat
   try {
     const data = JSON.parse(Buffer.from(b64, "base64url").toString("utf8")) as SessionData
     if (!data || typeof data.storeId !== "number" || typeof data.exp !== "number") return null
-    if (Date.now() > data.exp) return null
+    if (Date.now() > data.exp) {
+      // Assinatura valida porem expirada: sinal util para observabilidade.
+      logSecurityEvent("session_expired", { storeId: data.storeId, route: "store-session", detail: "admin" })
+      return null
+    }
     if (data.storeId <= 0) return null
     return data
   } catch {
@@ -171,6 +181,12 @@ export async function requireStoreAuth(request: NextRequest | Request): Promise<
 
   if (session.storeId !== targetStoreId) {
     // Sessao de outra loja tentando acessar esta loja -> cross-tenant negado.
+    logSecurityEvent("cross_tenant", {
+      ip: getClientIp(request),
+      route: new URL(request.url).pathname,
+      storeId: session.storeId,
+      detail: `sessao da loja ${session.storeId} tentou acessar loja ${targetStoreId}`,
+    })
     return {
       ok: false,
       storeId: targetStoreId,

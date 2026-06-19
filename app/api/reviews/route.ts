@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { getStoreIdFromRequest } from "@/lib/api-store"
+import { getStoreIdFromRequest, INVALID_STORE_ID } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
+import { getInternalToken, INTERNAL_TOKEN_HEADER } from "@/lib/internal-token"
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
@@ -13,12 +14,16 @@ function getSupabase() {
 // GET - Listar avaliacoes (admin ou publicas)
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
-  const password = url.searchParams.get("password")
   const onlyVisible = url.searchParams.get("visible") === "true"
   const customerId = url.searchParams.get("customerId")
   
   // Identificar loja atual
   const storeId = await getStoreIdFromRequest(request)
+  
+  // Hardening: a visao ADMIN (que enxerga avaliacoes ocultas) agora exige
+  // sessao admin DESTA loja (requireStoreAuth), nao mais a senha global.
+  const adminAuth = await requireStoreAuth(request)
+  const isAdmin = adminAuth.ok && adminAuth.storeId === storeId
   
   const supabase = getSupabase()
   
@@ -37,10 +42,8 @@ export async function GET(request: NextRequest) {
       .eq('store_id', storeId) // Filtrar por loja
       .order('created_at', { ascending: false })
     
-    // Se nao for admin, mostrar apenas visiveis
-    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
-      query = query.eq('visible', true)
-    } else if (onlyVisible) {
+    // Sem sessao admin desta loja, mostrar apenas avaliacoes visiveis.
+    if (!isAdmin || onlyVisible) {
       query = query.eq('visible', true)
     }
     
@@ -162,10 +165,17 @@ export async function POST(request: NextRequest) {
     // === VERIFICAR GAMIFICACAO ===
     // Verificar conquistas e missoes relacionadas a avaliacoes
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+      const gamHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        // Origem confiavel (backend) + tenant, para o gamification/check aceitar.
+        [INTERNAL_TOKEN_HEADER]: getInternalToken(),
+      }
+      const incomingSlug = request.headers.get("x-store-slug")
+      if (incomingSlug) gamHeaders["x-store-slug"] = incomingSlug
       await fetch(`${baseUrl}/api/gamification/check`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: gamHeaders,
         body: JSON.stringify({ 
           customerId: customerId,
           event: "review_submitted"
@@ -186,12 +196,19 @@ export async function POST(request: NextRequest) {
 // PATCH - Atualizar visibilidade (admin)
 export async function PATCH(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { password, reviewId, visible } = body
-    
-    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
-      return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
+    // Hardening: exige sessao admin DESTA loja (nao mais senha global).
+    const storeId = await getStoreIdFromRequest(request)
+    if (!storeId || storeId === INVALID_STORE_ID || storeId <= 0) {
+      return NextResponse.json({ error: "Contexto de loja invalido" }, { status: 400 })
     }
+    const auth = await requireStoreAuth(request)
+    if (!auth.ok) return auth.response!
+    if (auth.storeId !== storeId) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const { reviewId, visible } = body
     
     if (!reviewId || typeof visible !== 'boolean') {
       return NextResponse.json({ error: "reviewId e visible sao obrigatorios" }, { status: 400 })
@@ -199,15 +216,21 @@ export async function PATCH(request: NextRequest) {
     
     const supabase = getSupabase()
     
+    // CRITICO: filtrar por store_id no update corrige o IDOR (antes um admin
+    // podia alterar a visibilidade de avaliacoes de QUALQUER loja por id).
     const { data, error } = await supabase
       .from('order_reviews')
       .update({ visible })
       .eq('id', reviewId)
+      .eq('store_id', storeId)
       .select()
       .single()
     
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    if (!data) {
+      return NextResponse.json({ error: "Avaliacao nao encontrada nesta loja" }, { status: 404 })
     }
     
     return NextResponse.json({ success: true, review: data })
