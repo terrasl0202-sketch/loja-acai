@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { getStoreIdFromRequest } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
 
 /**
  * /api/entregadores v2 - MULTIEMPRESA
@@ -14,9 +15,11 @@ function generateToken(): string {
   return randomBytes(16).toString('hex')
 }
 
-// GET - Buscar entregadores da loja atual
+// GET - Buscar entregadores da loja atual (PII/token -> exige sessao admin)
 export async function GET(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   console.log(`[${BUILD_LABEL}] GET storeId: ${storeId}`)
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -65,7 +68,9 @@ export async function GET(request: NextRequest) {
 
 // POST - Salvar entregadores da loja atual
 export async function POST(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   console.log(`[${BUILD_LABEL}] POST storeId: ${storeId}`)
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -188,7 +193,9 @@ export async function POST(request: NextRequest) {
 
 // PUT - Atualizar entregador (verifica se pertence a loja)
 export async function PUT(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -248,7 +255,9 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Remover entregador (verifica se pertence a loja)
 export async function DELETE(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getStoreIdFromRequest } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
 
 /**
  * /api/banners v2 - MULTIEMPRESA
@@ -81,7 +82,9 @@ export async function GET(request: NextRequest) {
 
 // POST - Criar banner para loja atual
 export async function POST(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   
   try {
     const supabase = getSupabase()
@@ -144,7 +147,9 @@ export async function POST(request: NextRequest) {
 
 // PUT - Atualizar banner(s) (verifica se pertence a loja)
 export async function PUT(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   
   try {
     const supabase = getSupabase()
@@ -218,7 +223,9 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Excluir banner (verifica se pertence a loja)
 export async function DELETE(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   
   try {
     const supabase = getSupabase()

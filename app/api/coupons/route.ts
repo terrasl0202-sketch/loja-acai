@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getStoreIdFromRequest } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
 
 /**
  * /api/coupons v2 - MULTIEMPRESA
@@ -61,7 +62,9 @@ export async function GET(request: NextRequest) {
 
 // POST - Salva cupons da loja atual
 export async function POST(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   console.log(`[${BUILD_LABEL}] POST storeId: ${storeId}`)
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -178,7 +181,9 @@ export async function POST(request: NextRequest) {
 
 // DELETE - Remove cupom (verifica se pertence a loja)
 export async function DELETE(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   console.log(`[${BUILD_LABEL}] DELETE storeId: ${storeId}`)
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

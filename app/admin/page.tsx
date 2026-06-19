@@ -100,15 +100,25 @@ export default function AdminPage(props: AdminPageProps = {}) {
   // fetch espalhadas no orquestrador e nos componentes filhos. So afeta requests
   // same-origin para /api/* e e revertido no unmount.
   useEffect(() => {
-    if (!storeSlug || typeof window === "undefined") return
+    if (typeof window === "undefined") return
+    // So precisamos do patch quando ha algo a injetar: o slug (modo multi-loja)
+    // e/ou a senha da sessao (para rotas protegidas, como fallback ao cookie
+    // httpOnly emitido no login). Sem nenhum dos dois, nao interceptamos.
+    if (!storeSlug && !sessionPassword) return
     const originalFetch = window.fetch
     window.fetch = function patchedFetch(input: RequestInfo | URL, init?: RequestInit) {
       if (typeof input === "string" || input instanceof URL) {
         const urlStr = input.toString()
         if (urlStr.startsWith("/api/") || urlStr.startsWith(`${window.location.origin}/api/`)) {
           const headers = new Headers(init?.headers)
-          headers.set("x-store-slug", storeSlug)
-          return originalFetch(input, { ...init, headers })
+          // Escopo da loja: backend resolve o store_id PELO SLUG (autoritativo).
+          if (storeSlug) headers.set("x-store-slug", storeSlug)
+          // Credencial de admin: validada contra o HASH da loja alvo no backend
+          // (requireStoreAuth). Funciona apos reload, quando so o localStorage
+          // (sessionPassword) sobrevive. Nunca exposta a outras origens: so e
+          // anexada a chamadas same-origin para /api/*.
+          if (sessionPassword) headers.set("x-admin-password", sessionPassword)
+          return originalFetch(input, { ...init, headers, credentials: "same-origin" })
         }
       }
       return originalFetch(input, init)
@@ -116,7 +126,7 @@ export default function AdminPage(props: AdminPageProps = {}) {
     return () => {
       window.fetch = originalFetch
     }
-  }, [storeSlug])
+  }, [storeSlug, sessionPassword])
 
   // ========== ESTADOS PRINCIPAIS ==========
   const [isAuthenticated, setIsAuthenticated] = useState(false)

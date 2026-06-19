@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { defaultCustomization, StoreCustomization } from "@/lib/config-types"
 import { getStoreIdFromRequest } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
 
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -181,10 +182,10 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Supabase nao configurado" }, { status: 500 })
     }
 
-    // Resolver tenant no backend (x-store-slug / host / fallback PK).
-    // Slug explicito porem invalido => INVALID_STORE_ID (-1), que nunca casa
-    // com a PK, impedindo escrita cruzada.
-    const storeId = await getStoreIdFromRequest(req)
+    // Exige sessao de admin da loja alvo (anti escrita cruzada / defacement).
+    const auth = await requireStoreAuth(req)
+    if (!auth.ok) return auth.response!
+    const storeId = auth.storeId
 
     const body = await req.json()
     const { customization } = body as { customization: Partial<StoreCustomization> }

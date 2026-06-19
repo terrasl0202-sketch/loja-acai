@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getStoreIdFromRequest } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
 
 /**
  * /api/store-settings v103 - MULTIEMPRESA
@@ -152,7 +153,9 @@ export async function POST(request: NextRequest) {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
   // Identificar loja atual
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   
   const debugInfo = {
     buildLabel: BUILD_LABEL,

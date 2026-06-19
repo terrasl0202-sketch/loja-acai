@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getStoreIdFromRequest } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
 
 /**
  * /api/pix-keys v2 - MULTIEMPRESA
@@ -14,9 +15,12 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
-// GET - Listar chaves PIX da loja atual
+// GET - Listar chaves PIX da loja atual (DADO FINANCEIRO/PII -> exige sessao).
+// A vitrine publica usa /api/pix-keys/active (sem PII sensivel), nao esta rota.
 export async function GET(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   console.log(`[pix-keys v2 GET] storeId: ${storeId}`)
   
   try {
@@ -60,7 +64,9 @@ export async function GET(request: NextRequest) {
 
 // POST - Criar nova chave PIX para loja atual
 export async function POST(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   
   try {
     const supabase = getSupabase()
@@ -121,7 +127,9 @@ export async function POST(request: NextRequest) {
 
 // PUT - Atualizar chave PIX (verifica se pertence a loja)
 export async function PUT(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   
   try {
     const supabase = getSupabase()
@@ -183,7 +191,9 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Excluir chave PIX (verifica se pertence a loja)
 export async function DELETE(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   
   try {
     const supabase = getSupabase()

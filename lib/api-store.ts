@@ -69,37 +69,26 @@ export async function getStoreIdFromRequest(request?: NextRequest | Request | nu
       return storeId ?? INVALID_STORE_ID
     }
 
-    // 1. Header X-Store-ID (usado por rotas /loja/[slug] e /admin/[slug])
-    const headerStoreId = request.headers.get("x-store-id")
-    if (headerStoreId) {
-      const id = parseInt(headerStoreId)
-      if (!isNaN(id) && id > 0) return id
-    }
-    
-    // 2. Query param storeId
-    const queryStoreId = url.searchParams.get("storeId")
-    if (queryStoreId) {
-      const id = parseInt(queryStoreId)
-      if (!isNaN(id) && id > 0) return id
-    }
-    
-    // 3. Query param store_id
-    const queryStoreId2 = url.searchParams.get("store_id")
-    if (queryStoreId2) {
-      const id = parseInt(queryStoreId2)
-      if (!isNaN(id) && id > 0) return id
-    }
+    // SEGURANCA: NUNCA mais confiar em store_id cru vindo do cliente.
+    // Os antigos blocos de x-store-id / ?storeId / ?store_id foram REMOVIDOS
+    // porque permitiam que qualquer cliente trocasse de loja forjando um header
+    // ou query param (leitura/escrita/exclusao cruzada). O store_id agora so
+    // pode vir de: (a) x-store-slug resolvido no servidor; (b) slug na URL;
+    // (c) host/dominio. Operacoes cross-store do painel master usam a rota
+    // autenticada /api/platform/store-mutate, que resolve o store_id pela
+    // propria sessao da plataforma (nunca por este caminho).
 
-    // 4. Tentar identificar pelo slug na URL
+    // 1. Tentar identificar pelo slug na URL (/loja/[slug]). Slug EXPLICITO e
+    //    invalido nao pode cair na PK -> INVALID_STORE_ID.
     const pathParts = url.pathname.split("/")
     const lojaIndex = pathParts.indexOf("loja")
     if (lojaIndex !== -1 && pathParts[lojaIndex + 1]) {
       const slug = pathParts[lojaIndex + 1]
       const storeId = await getStoreIdBySlug(slug)
-      if (storeId) return storeId
+      return storeId ?? INVALID_STORE_ID
     }
-    
-    // 5. Tentar identificar pelo host (custom domain ou subdomain)
+
+    // 2. Tentar identificar pelo host (custom domain ou subdomain)
     const host = request.headers.get("host") || ""
     if (host && !host.includes("localhost") && !host.includes("vercel.app")) {
       const storeId = await getStoreIdByDomain(host)
@@ -107,7 +96,11 @@ export async function getStoreIdFromRequest(request?: NextRequest | Request | nu
     }
   }
 
-  // Fallback: retornar loja main
+  // Fallback APENAS quando NAO ha nenhum sinal de tenant (ex.: dominio raiz da
+  // plataforma sem mapeamento de loja). Esse caminho representa a vitrine da
+  // loja PRINCIPAL (store_code = 'main'), que e legitima para o dominio base.
+  // Importante: tenant EXPLICITO porem invalido NAO chega aqui (retornou
+  // INVALID_STORE_ID acima), entao isso nunca causa vazamento cross-tenant.
   return getMainStoreId()
 }
 

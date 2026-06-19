@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getStoreIdFromRequest } from "@/lib/api-store"
+import { requireStoreAuth } from "@/lib/store-session"
 
 /**
  * /api/products v97 - MULTIEMPRESA
@@ -174,7 +175,9 @@ export async function GET(request: NextRequest) {
  * POST - Salva todos os produtos da loja atual
  */
 export async function POST(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   console.log(`[products v97 POST] storeId: ${storeId}`)
   
   try {
@@ -267,7 +270,9 @@ export async function POST(request: NextRequest) {
  * PUT - Atualiza um produto (verifica se pertence a loja)
  */
 export async function PUT(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   console.log(`[products v97 PUT] storeId: ${storeId}`)
   
   try {
@@ -330,7 +335,9 @@ export async function PUT(request: NextRequest) {
  * DELETE - Remove um produto (verifica se pertence a loja)
  */
 export async function DELETE(request: NextRequest) {
-  const storeId = await getStoreIdFromRequest(request)
+  const auth = await requireStoreAuth(request)
+  if (!auth.ok) return auth.response!
+  const storeId = auth.storeId
   console.log(`[products v97 DELETE] storeId: ${storeId}`)
   
   try {

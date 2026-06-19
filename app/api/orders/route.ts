@@ -340,17 +340,17 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    // Identificar loja atual
-    const storeId = await getStoreIdFromRequest(request)
-    
     const body = await request.json()
     const { password, orderId, status, paymentStatus, manuallyConfirmed, entregadorId, entregadorNome, entregadorWhatsapp, limparEntregador } = body
 
-    // Senha validada contra a LOJA do request (senha por loja, hash)
+    // Senha validada contra a LOJA do request (senha por loja, hash).
+    // O store_id usado nas queries vem da PROPRIA validacao (auth.storeId),
+    // garantindo que so se altera pedido da loja autenticada.
     const auth = await verifyAdminForRequest(request, password)
     if (!auth.ok) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const storeId = auth.storeId
 
     if (!orderId) {
       return NextResponse.json({ error: "orderId required" }, { status: 400 })
@@ -432,17 +432,16 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    // Identificar loja atual
-    const storeId = await getStoreIdFromRequest(request)
-    
     const body = await request.json()
     const { password, action, orderIds } = body
 
-    // Senha validada contra a LOJA do request (senha por loja, hash)
+    // Senha validada contra a LOJA do request (senha por loja, hash).
+    // store_id vem da validacao (auth.storeId) -> exclui so pedidos da loja.
     const auth = await verifyAdminForRequest(request, password)
     if (!auth.ok) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const storeId = auth.storeId
 
     console.log("[orders DELETE] Acao:", action, "IDs:", orderIds, "storeId:", storeId)
 
