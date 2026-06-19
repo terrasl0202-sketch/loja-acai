@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { ShoppingCart, Plus, Minus, X, Clock, MapPin, Phone, ChevronLeft, ChevronRight } from "lucide-react"
+import { ShoppingCart, Plus, Minus, X, Clock, MapPin, Phone, ChevronLeft, ChevronRight, Copy, Check, ArrowLeft } from "lucide-react"
 
 interface StoreData {
   store: {
@@ -51,12 +51,29 @@ interface CartItem {
   quantity: number
 }
 
+type CheckoutStep = "cart" | "form" | "pix"
+
+interface PixResult {
+  paymentId: string
+  pixQrCode: string
+  pixCopyPaste: string
+  orderCode: string
+}
+
 export default function StorePageClient({ data }: { data: StoreData }) {
   const { store, settings, categories, products, banners } = data
   const [cart, setCart] = useState<CartItem[]>([])
   const [showCart, setShowCart] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null)
   const [currentBanner, setCurrentBanner] = useState(0)
+
+  // Checkout multi-loja
+  const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>("cart")
+  const [form, setForm] = useState({ nome: "", telefone: "", endereco: "" })
+  const [submitting, setSubmitting] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [pix, setPix] = useState<PixResult | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const primaryColor = settings?.primary_color || "#8B5CF6"
 
@@ -103,6 +120,109 @@ export default function StorePageClient({ data }: { data: StoreData }) {
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
+  }
+
+  const deliveryFee = settings?.delivery_fee || 0
+  const orderTotal = cartTotal + deliveryFee
+
+  const resetCheckout = () => {
+    setCheckoutStep("cart")
+    setCheckoutError(null)
+    setPix(null)
+    setSubmitting(false)
+  }
+
+  const closeCart = () => {
+    setShowCart(false)
+    // Se o pagamento foi gerado, limpar carrinho ao fechar
+    if (pix) {
+      setCart([])
+      resetCheckout()
+    }
+  }
+
+  const handleGeneratePix = async () => {
+    setCheckoutError(null)
+
+    const cleanPhone = form.telefone.replace(/\D/g, "")
+    if (!form.nome.trim()) {
+      setCheckoutError("Informe seu nome.")
+      return
+    }
+    if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+      setCheckoutError("Informe um telefone valido com DDD.")
+      return
+    }
+    if (cart.length === 0) {
+      setCheckoutError("Seu carrinho esta vazio.")
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      // order_code unico desta loja
+      const orderCode = `PK${Date.now()}${Math.floor(Math.random() * 100)}`
+      const itemsDetailed = cart.map((item) => ({
+        id: item.product.id,
+        name: item.product.name,
+        price: item.product.price,
+        quantity: item.quantity,
+      }))
+      const itemsDesc = cart.map((i) => `${i.quantity}x ${i.product.name}`).join(", ")
+
+      const res = await fetch("/api/asaas/create-pix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          value: orderTotal,
+          description: `Pedido ${orderCode} - ${itemsDesc}`,
+          customerName: form.nome,
+          customerPhone: cleanPhone,
+          externalReference: orderCode,
+          order: {
+            // storeSlug e a fonte AUTORITATIVA do store_id no backend.
+            storeSlug: store.slug,
+            customerName: form.nome,
+            customerPhone: form.telefone,
+            itemsDetailed,
+            total: orderTotal,
+            paymentMethod: "PIX Asaas",
+            address: form.endereco.trim() ? form.endereco : "Retirada/Nao informado",
+            neighborhood: null,
+          },
+        }),
+      })
+
+      const json = await res.json()
+      if (!res.ok || !json.success) {
+        setCheckoutError(json.error || "Nao foi possivel gerar o PIX. Tente novamente.")
+        setSubmitting(false)
+        return
+      }
+
+      setPix({
+        paymentId: json.paymentId,
+        pixQrCode: json.pixQrCode,
+        pixCopyPaste: json.pixCopyPaste,
+        orderCode,
+      })
+      setCheckoutStep("pix")
+    } catch {
+      setCheckoutError("Erro de conexao. Tente novamente.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const copyPixCode = async () => {
+    if (!pix) return
+    try {
+      await navigator.clipboard.writeText(pix.pixCopyPaste)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // ignore
+    }
   }
 
   return (
@@ -345,20 +465,116 @@ export default function StorePageClient({ data }: { data: StoreData }) {
       {/* Cart Modal */}
       {showCart && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center">
-          <div className="bg-card w-full md:w-96 md:rounded-xl max-h-[80vh] flex flex-col">
+          <div className="bg-card w-full md:w-96 md:rounded-xl max-h-[85vh] flex flex-col">
             <div className="p-4 border-b border-border flex items-center justify-between">
-              <h2 className="font-bold text-foreground">Seu Carrinho</h2>
-              <button onClick={() => setShowCart(false)} className="p-2 rounded-lg hover:bg-muted">
+              <div className="flex items-center gap-2">
+                {checkoutStep !== "cart" && checkoutStep !== "pix" && (
+                  <button
+                    onClick={() => setCheckoutStep("cart")}
+                    className="p-1 rounded-lg hover:bg-muted"
+                    aria-label="Voltar"
+                  >
+                    <ArrowLeft className="w-5 h-5 text-muted-foreground" />
+                  </button>
+                )}
+                <h2 className="font-bold text-foreground">
+                  {checkoutStep === "cart" && "Seu Carrinho"}
+                  {checkoutStep === "form" && "Seus Dados"}
+                  {checkoutStep === "pix" && "Pague com PIX"}
+                </h2>
+              </div>
+              <button onClick={closeCart} className="p-2 rounded-lg hover:bg-muted" aria-label="Fechar">
                 <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
 
-            {cart.length === 0 ? (
+            {/* ETAPA PIX */}
+            {checkoutStep === "pix" && pix ? (
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Escaneie o QR Code ou copie o codigo para pagar. Seu pedido foi registrado como{" "}
+                  <span className="font-medium text-foreground">{pix.orderCode}</span>.
+                </p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`data:image/png;base64,${pix.pixQrCode}`}
+                  alt="QR Code PIX"
+                  className="w-56 h-56 mx-auto rounded-lg border border-border"
+                />
+                <button
+                  onClick={copyPixCode}
+                  className="w-full py-3 rounded-xl text-white font-medium flex items-center justify-center gap-2"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? "Codigo copiado!" : "Copiar codigo PIX"}
+                </button>
+                <a
+                  href={`/pedido/${pix.orderCode}`}
+                  className="block text-sm underline"
+                  style={{ color: primaryColor }}
+                >
+                  Acompanhar meu pedido
+                </a>
+              </div>
+            ) : cart.length === 0 ? (
               <div className="p-8 text-center">
                 <ShoppingCart className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground">Carrinho vazio</p>
               </div>
+            ) : checkoutStep === "form" ? (
+              /* ETAPA FORMULARIO */
+              <>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Nome *</label>
+                    <input
+                      type="text"
+                      value={form.nome}
+                      onChange={(e) => setForm({ ...form, nome: e.target.value })}
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
+                      placeholder="Seu nome"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Telefone (WhatsApp) *</label>
+                    <input
+                      type="tel"
+                      value={form.telefone}
+                      onChange={(e) => setForm({ ...form, telefone: e.target.value })}
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
+                      placeholder="(11) 99999-9999"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Endereco (opcional)</label>
+                    <input
+                      type="text"
+                      value={form.endereco}
+                      onChange={(e) => setForm({ ...form, endereco: e.target.value })}
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
+                      placeholder="Rua, numero, bairro"
+                    />
+                  </div>
+                  {checkoutError && <p className="text-sm text-red-500">{checkoutError}</p>}
+                </div>
+                <div className="p-4 border-t border-border space-y-3">
+                  <div className="flex justify-between font-bold">
+                    <span className="text-foreground">Total</span>
+                    <span style={{ color: primaryColor }}>{formatCurrency(orderTotal)}</span>
+                  </div>
+                  <button
+                    disabled={submitting}
+                    onClick={handleGeneratePix}
+                    className="w-full py-3 rounded-xl text-white font-medium disabled:opacity-60"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    {submitting ? "Gerando PIX..." : "Gerar PIX"}
+                  </button>
+                </div>
+              </>
             ) : (
+              /* ETAPA CARRINHO */
               <>
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                   {cart.map((item) => (
@@ -406,24 +622,22 @@ export default function StorePageClient({ data }: { data: StoreData }) {
                     <span className="text-muted-foreground">Subtotal</span>
                     <span className="text-foreground">{formatCurrency(cartTotal)}</span>
                   </div>
-                  {settings?.delivery_fee && (
+                  {deliveryFee > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Taxa de entrega</span>
-                      <span className="text-foreground">{formatCurrency(settings.delivery_fee)}</span>
+                      <span className="text-foreground">{formatCurrency(deliveryFee)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold">
                     <span className="text-foreground">Total</span>
-                    <span style={{ color: primaryColor }}>
-                      {formatCurrency(cartTotal + (settings?.delivery_fee || 0))}
-                    </span>
+                    <span style={{ color: primaryColor }}>{formatCurrency(orderTotal)}</span>
                   </div>
                   <button
                     className="w-full py-3 rounded-xl text-white font-medium"
                     style={{ backgroundColor: primaryColor }}
                     onClick={() => {
-                      // TODO: Implementar checkout com store_id
-                      alert("Checkout sera implementado na proxima fase")
+                      setCheckoutError(null)
+                      setCheckoutStep("form")
                     }}
                   >
                     Finalizar Pedido

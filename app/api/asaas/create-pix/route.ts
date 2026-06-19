@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getStoreIdFromRequest } from "@/lib/api-store"
+import { getStoreIdFromRequest, getStoreIdBySlug } from "@/lib/api-store"
 import { insertOrderIfNotExists } from "@/lib/supabase/order-insert"
 
 const ASAAS_API_URL = process.env.ASAAS_API_URL || "https://api.asaas.com/v3"
@@ -23,6 +23,10 @@ interface CreatePixOrder {
   total?: number
   cashbackUsed?: number
   pointsRewardUsed?: number
+  // Slug da loja (checkout multi-loja em /loja/[slug]). Quando presente, o
+  // backend resolve o store_id PELO SLUG (fonte autoritativa) e ignora qualquer
+  // store_id que o cliente tente enviar livremente.
+  storeSlug?: string
 }
 
 interface CreatePixRequest {
@@ -219,8 +223,31 @@ export async function POST(request: NextRequest) {
     // aparece sem pedido persistido).
     if (body.externalReference) {
       try {
-        const storeId = await getStoreIdFromRequest(request)
         const orderInput = body.order || {}
+
+        // Resolver store_id de forma AUTORITATIVA:
+        // - Se o checkout enviou storeSlug (fluxo /loja/[slug]), o backend
+        //   resolve o store_id PELO SLUG no servidor. Nunca confia em um
+        //   store_id cru vindo do cliente.
+        // - Slug invalido => 400 (jamais cair no fallback da loja principal,
+        //   o que misturaria pedidos entre lojas).
+        // - Sem storeSlug => comportamento atual (loja principal/host). PK intacta.
+        let storeId: number
+        const storeSlug = typeof orderInput.storeSlug === "string" ? orderInput.storeSlug.trim() : ""
+        if (storeSlug) {
+          const resolved = await getStoreIdBySlug(storeSlug)
+          if (!resolved) {
+            console.error("[Asaas] storeSlug invalido, abortando:", storeSlug)
+            return NextResponse.json(
+              { error: "Loja invalida. Recarregue a pagina e tente novamente." },
+              { status: 400 }
+            )
+          }
+          storeId = resolved
+          console.log("[Asaas] store_id resolvido pelo slug:", storeSlug, "->", storeId)
+        } else {
+          storeId = await getStoreIdFromRequest(request)
+        }
         const result = await insertOrderIfNotExists({
           orderCode: body.externalReference,
           customerName: orderInput.customerName || body.customerName,

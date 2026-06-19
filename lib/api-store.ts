@@ -97,7 +97,7 @@ export async function getStoreIdFromRequest(request?: NextRequest | Request | nu
 /**
  * Busca store_id por slug
  */
-async function getStoreIdBySlug(slug: string): Promise<number | null> {
+export async function getStoreIdBySlug(slug: string): Promise<number | null> {
   const supabase = getServiceClient()
   if (!supabase) return null
   
