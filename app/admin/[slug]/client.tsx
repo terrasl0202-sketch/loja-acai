@@ -186,7 +186,12 @@ export default function AdminBySlugClient({ store }: { store: StoreData }) {
       <header className="bg-card border-b border-border px-4 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/platform" className="p-2 rounded-lg hover:bg-muted transition-colors">
+            {/* Voltar deve ir para a LOJA, nunca para /platform (painel master/superadmin) */}
+            <Link
+              href={`/loja/${store.slug}`}
+              className="p-2 rounded-lg hover:bg-muted transition-colors"
+              aria-label="Voltar para a loja"
+            >
               <ArrowLeft className="w-5 h-5 text-muted-foreground" />
             </Link>
             <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
