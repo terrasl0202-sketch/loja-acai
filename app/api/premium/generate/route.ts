@@ -12,6 +12,9 @@ interface GenerateRewardsParams {
   orderId: number
   customerId: number
   orderTotal: number
+  // store_id da LOJA do pedido. Obrigatorio: recompensas, settings e niveis VIP
+  // sao isolados por loja. Sem isso, bonus/config de uma loja vazariam para outra.
+  storeId: number
 }
 
 // Gerar cashback e pontos para um pedido confirmado
@@ -22,7 +25,7 @@ export async function generateRewardsForOrder(params: GenerateRewardsParams): Pr
   pointsGenerated: number
   alreadyGenerated: boolean
 }> {
-  const { orderId, customerId, orderTotal } = params
+  const { orderId, customerId, orderTotal, storeId } = params
   const supabase = getSupabase()
 
   let cashbackGenerated = 0
@@ -30,19 +33,20 @@ export async function generateRewardsForOrder(params: GenerateRewardsParams): Pr
   let alreadyGenerated = false
 
   try {
-    // Buscar configuracoes e nivel VIP do cliente
+    // Buscar configuracoes e nivel VIP do cliente DESTA LOJA
     const [cashbackSettings, loyaltySettings, customerLevels] = await Promise.all([
-      supabase.from("cashback_settings").select("*").limit(1).single(),
-      supabase.from("loyalty_settings").select("*").limit(1).single(),
-      supabase.from("customer_levels").select("*").eq("active", true).order("sort_order", { ascending: true }),
+      supabase.from("cashback_settings").select("*").eq("store_id", storeId).limit(1).single(),
+      supabase.from("loyalty_settings").select("*").eq("store_id", storeId).limit(1).single(),
+      supabase.from("customer_levels").select("*").eq("store_id", storeId).eq("active", true).order("sort_order", { ascending: true }),
     ])
 
-    // Calcular total gasto pelo cliente para determinar nivel VIP
+    // Calcular total gasto pelo cliente NESTA LOJA para determinar nivel VIP
     const validStatuses = ['confirmed', 'preparing', 'delivering', 'completed']
     const { data: customerOrders } = await supabase
       .from("orders")
       .select("total")
       .eq("customer_id", customerId)
+      .eq("store_id", storeId)
       .in("status", validStatuses)
     
     const totalSpent = customerOrders?.reduce((sum, o) => sum + (Number(o.total) || 0), 0) || 0
@@ -91,6 +95,7 @@ export async function generateRewardsForOrder(params: GenerateRewardsParams): Pr
           const { error } = await supabase.from("customer_cashback").insert({
             customer_id: customerId,
             order_id: orderId,
+            store_id: storeId,
             amount: cashbackGenerated,
             type: "earned",
             description: `Cashback de ${finalPercentage}%${bonusText} no pedido #${orderId}`,
@@ -137,6 +142,7 @@ export async function generateRewardsForOrder(params: GenerateRewardsParams): Pr
           const { error } = await supabase.from("customer_points").insert({
             customer_id: customerId,
             order_id: orderId,
+            store_id: storeId,
             points: pointsGenerated,
             type: "earned",
             description: `${pointsGenerated} pontos ganhos${bonusText} no pedido #${orderId}`,
@@ -177,10 +183,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "orderId, customerId e orderTotal sao obrigatorios" }, { status: 400 })
     }
 
+    // store_id resolvido a partir do PROPRIO pedido (fonte autoritativa no
+    // servidor), nunca confiando em valor enviado pelo cliente.
+    const supabase = getSupabase()
+    const { data: order } = await supabase
+      .from("orders")
+      .select("store_id")
+      .eq("id", orderId)
+      .limit(1)
+      .single()
+
+    if (!order?.store_id) {
+      return NextResponse.json({ error: "Pedido nao encontrado" }, { status: 404 })
+    }
+
     const result = await generateRewardsForOrder({
       orderId,
       customerId,
       orderTotal,
+      storeId: order.store_id,
     })
 
     return NextResponse.json({

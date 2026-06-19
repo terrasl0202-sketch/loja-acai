@@ -128,6 +128,24 @@ export async function getStoreIdBySlug(slug: string): Promise<number | null> {
 }
 
 /**
+ * Busca o slug de uma loja pelo seu id. Usado para propagar o contexto de
+ * tenant (x-store-slug) em chamadas internas servidor-a-servidor (ex.: confirm
+ * -> gamification), preservando o isolamento por loja.
+ */
+export async function getStoreSlugById(storeId: number): Promise<string | null> {
+  const supabase = getServiceClient()
+  if (!supabase) return null
+
+  const { data } = await supabase
+    .from("stores")
+    .select("slug")
+    .eq("id", storeId)
+    .single()
+
+  return data?.slug || null
+}
+
+/**
  * Busca store_id por dominio customizado
  */
 async function getStoreIdByDomain(domain: string): Promise<number | null> {

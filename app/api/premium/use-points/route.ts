@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -19,13 +20,19 @@ export async function POST(request: NextRequest) {
         error: "customerId e orderId sao obrigatorios" 
       }, { status: 400 })
     }
-    
+
+    // Tenant resolvido no backend. CRITICO: pontos sao por loja - nunca podem
+    // ser resgatados em outra loja.
+    const storeId = await getStoreIdFromRequest(request)
+
     const supabase = getSupabase()
     
-    // Verificar se fidelidade esta ativa e buscar configuracoes
+    // Verificar se fidelidade esta ativa NESTA LOJA
     const { data: settings } = await supabase
       .from('loyalty_settings')
       .select('enabled, points_for_reward, reward_value')
+      .eq('store_id', storeId)
+      .limit(1)
       .single()
     
     if (!settings?.enabled) {
@@ -35,11 +42,12 @@ export async function POST(request: NextRequest) {
     const pointsRequired = settings.points_for_reward || 500
     const rewardValue = settings.reward_value || 10
     
-    // Buscar saldo atual de pontos do cliente
+    // Buscar saldo atual de pontos do cliente NESTA LOJA
     const { data: transactions } = await supabase
       .from('customer_points')
       .select('points, type')
       .eq('customer_id', customerId)
+      .eq('store_id', storeId)
     
     const balance = (transactions || []).reduce((total, t) => {
       if (t.type === 'earned' || t.type === 'adjusted') {
@@ -63,6 +71,7 @@ export async function POST(request: NextRequest) {
       .from('customer_points')
       .select('id')
       .eq('order_id', orderId)
+      .eq('store_id', storeId)
       .eq('type', 'used')
       .single()
     
@@ -70,12 +79,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Recompensa ja foi usada neste pedido" }, { status: 400 })
     }
     
-    // Registrar uso dos pontos
+    // Registrar uso dos pontos JA VINCULADO A LOJA
     const { data, error } = await supabase
       .from('customer_points')
       .insert({
         customer_id: customerId,
         order_id: orderId,
+        store_id: storeId,
         points: pointsRequired, // Armazenar positivo, tipo 'used' indica deducao
         type: 'used',
         description: `Recompensa de ${pointsRequired} pontos usada no pedido #${orderId}`

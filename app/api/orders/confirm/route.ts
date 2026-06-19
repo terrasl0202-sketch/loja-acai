@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from "next/server"
+import { getStoreSlugById } from "@/lib/api-store"
 
 export const dynamic = "force-dynamic"
 
@@ -137,6 +138,7 @@ export async function POST(request: NextRequest) {
           await supabase.from('customer_cashback').insert({
             customer_id: updated.customer_id,
             order_id: updated.id,
+            store_id: updated.store_id,
             type: 'used',
             amount: -cashbackUsed,
             description: `Usado no pedido #${updated.order_code || updated.id}`
@@ -153,6 +155,8 @@ export async function POST(request: NextRequest) {
           const { data: loyaltySettings } = await supabase
             .from('loyalty_settings')
             .select('points_for_reward')
+            .eq('store_id', updated.store_id)
+            .limit(1)
             .single()
           
           const pointsToDeduct = loyaltySettings?.points_for_reward || 500
@@ -161,6 +165,7 @@ export async function POST(request: NextRequest) {
           await supabase.from('customer_points').insert({
             customer_id: updated.customer_id,
             order_id: updated.id,
+            store_id: updated.store_id,
             type: 'used',
             points: -pointsToDeduct,
             description: `Trocado por R$${pointsRewardUsed.toFixed(2)} no pedido #${updated.order_code || updated.id}`
@@ -181,6 +186,7 @@ export async function POST(request: NextRequest) {
           orderId: updated.id,
           customerId: updated.customer_id,
           orderTotal: Number(updated.total),
+          storeId: updated.store_id,
         })
         console.log("[orders/confirm] Cashback/pontos gerados para pedido:", updated.id)
       } catch (rewardError) {
@@ -192,9 +198,14 @@ export async function POST(request: NextRequest) {
       // Verificar conquistas, missoes, streaks e badges
       try {
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
+        // Propagar o tenant: resolve o slug da loja do pedido e envia via header,
+        // para a gamificacao operar na loja correta (e nao na principal).
+        const gamHeaders: Record<string, string> = { "Content-Type": "application/json" }
+        const storeSlug = updated.store_id ? await getStoreSlugById(updated.store_id) : null
+        if (storeSlug) gamHeaders["x-store-slug"] = storeSlug
         await fetch(`${baseUrl}/api/gamification/check`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: gamHeaders,
           body: JSON.stringify({ 
             customerId: updated.customer_id,
             event: "order_confirmed"

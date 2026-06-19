@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
             // Buscar dados completos do pedido para gerar recompensas
             const { data: fullOrder } = await supabase
               .from('orders')
-              .select('id, customer_id, total, order_code, cashback_used, points_reward_used')
+              .select('id, customer_id, total, order_code, cashback_used, points_reward_used, store_id')
               .eq('id', order.id)
               .single()
 
@@ -191,6 +191,7 @@ export async function POST(request: NextRequest) {
                     await supabase.from('customer_cashback').insert({
                       customer_id: fullOrder.customer_id,
                       order_id: fullOrder.id,
+                      store_id: fullOrder.store_id,
                       type: 'used',
                       amount: -cashbackUsed,
                       description: `Usado no pedido #${fullOrder.order_code || fullOrder.id}`
@@ -206,6 +207,8 @@ export async function POST(request: NextRequest) {
                     const { data: loyaltySettings } = await supabase
                       .from('loyalty_settings')
                       .select('points_for_reward')
+                      .eq('store_id', fullOrder.store_id)
+                      .limit(1)
                       .single()
                     
                     const pointsToDeduct = loyaltySettings?.points_for_reward || 500
@@ -213,6 +216,7 @@ export async function POST(request: NextRequest) {
                     await supabase.from('customer_points').insert({
                       customer_id: fullOrder.customer_id,
                       order_id: fullOrder.id,
+                      store_id: fullOrder.store_id,
                       type: 'used',
                       points: -pointsToDeduct,
                       description: `Trocado por R$${pointsRewardUsed.toFixed(2)} no pedido #${fullOrder.order_code || fullOrder.id}`
@@ -232,6 +236,7 @@ export async function POST(request: NextRequest) {
                     orderId: fullOrder.id,
                     customerId: fullOrder.customer_id,
                     orderTotal: Number(fullOrder.total),
+                    storeId: fullOrder.store_id,
                   })
                   console.log(`[Webhook ${requestId}] Recompensas geradas para pedido:`, fullOrder.id)
                 } catch (rewardError) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getStoreIdFromRequest } from "@/lib/api-store"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -19,24 +20,31 @@ export async function POST(request: NextRequest) {
         error: "customerId, orderId e amount positivo sao obrigatorios" 
       }, { status: 400 })
     }
-    
+
+    // Tenant resolvido no backend. CRITICO: saldo e uso de cashback sao por
+    // loja - dinheiro de uma loja nunca pode ser gasto em outra.
+    const storeId = await getStoreIdFromRequest(request)
+
     const supabase = getSupabase()
     
-    // Verificar se cashback esta ativo
+    // Verificar se cashback esta ativo NESTA LOJA
     const { data: settings } = await supabase
       .from('cashback_settings')
       .select('enabled')
+      .eq('store_id', storeId)
+      .limit(1)
       .single()
     
     if (!settings?.enabled) {
       return NextResponse.json({ error: "Cashback nao esta ativo" }, { status: 400 })
     }
     
-    // Buscar saldo atual do cliente
+    // Buscar saldo atual do cliente NESTA LOJA
     const { data: transactions } = await supabase
       .from('customer_cashback')
       .select('amount, type')
       .eq('customer_id', customerId)
+      .eq('store_id', storeId)
     
     const balance = (transactions || []).reduce((total, t) => {
       if (t.type === 'earned' || t.type === 'adjusted') {
@@ -60,6 +68,7 @@ export async function POST(request: NextRequest) {
       .from('customer_cashback')
       .select('id')
       .eq('order_id', orderId)
+      .eq('store_id', storeId)
       .eq('type', 'used')
       .single()
     
@@ -67,12 +76,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Cashback ja foi usado neste pedido" }, { status: 400 })
     }
     
-    // Registrar uso
+    // Registrar uso JA VINCULADO A LOJA
     const { data, error } = await supabase
       .from('customer_cashback')
       .insert({
         customer_id: customerId,
         order_id: orderId,
+        store_id: storeId,
         amount: Math.abs(amount), // Armazenar positivo, tipo 'used' indica deducao
         type: 'used',
         description: `Cashback usado no pedido #${orderId}`

@@ -19,6 +19,13 @@ export async function POST(request: Request) {
     // Identificar loja atual
     const storeId = await getStoreIdFromRequest(request)
 
+    // Propagar o contexto de tenant para as sub-chamadas internas, para que
+    // achievements/missions/streaks operem na MESMA loja (sem isso, cairiam no
+    // fallback por host = loja principal).
+    const incomingSlug = request.headers.get("x-store-slug")
+    const internalHeaders: Record<string, string> = { "Content-Type": "application/json" }
+    if (incomingSlug) internalHeaders["x-store-slug"] = incomingSlug
+
     const results = {
       achievements: { newUnlocked: [] as { name: string; points: number; cashback: number }[] },
       missions: { newCompleted: [] as { title: string; rewardType: string; rewardValue: number }[] },
@@ -30,7 +37,7 @@ export async function POST(request: Request) {
     try {
       const achievementsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/gamification/achievements`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: internalHeaders,
         body: JSON.stringify({ customerId })
       })
       const achievementsData = await achievementsRes.json()
@@ -45,7 +52,7 @@ export async function POST(request: Request) {
     try {
       const missionsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/gamification/missions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: internalHeaders,
         body: JSON.stringify({ customerId })
       })
       const missionsData = await missionsRes.json()
@@ -61,7 +68,7 @@ export async function POST(request: Request) {
       try {
         const streakRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/gamification/streaks`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: internalHeaders,
           body: JSON.stringify({ customerId })
         })
         const streakData = await streakRes.json()

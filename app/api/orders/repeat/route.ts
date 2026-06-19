@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     // Buscar pedido com items_detailed
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, order_number, items, items_detailed, total, customer_id')
+      .select('id, order_number, items, items_detailed, total, customer_id, store_id')
       .eq('id', parseInt(orderId))
       .single()
     
@@ -68,9 +68,13 @@ export async function GET(request: NextRequest) {
     // Buscar produtos ativos com os mesmos nomes
     const productNames = itemsDetailed.map((item: { name: string }) => item.name)
     
+    // Produtos buscados SOMENTE na loja do proprio pedido. Sem o filtro de
+    // store_id, um produto/preco homonimo de OUTRA loja poderia ser injetado
+    // no carrinho (vazamento cross-tenant de catalogo/preco).
     const { data: products, error: productsError } = await supabase
       .from('products')
       .select('id, name, price, active')
+      .eq('store_id', order.store_id)
       .in('name', productNames)
     
     if (productsError) {
